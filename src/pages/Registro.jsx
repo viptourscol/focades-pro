@@ -443,6 +443,39 @@ const TITULO_BACHILLER_OPTIONS = [
 const NIVEL_FORMACION_OPTIONS = ['Técnico Profesional', 'Tecnológico', 'Universitario (Pregrado)'];
 const MODALIDAD_ASPIRA_OPTIONS = ['Sueño Educativo', 'Mérito Educativo'];
 const SEMESTRE_OPTIONS = Array.from({ length: 10 }, (_, index) => `${index + 1}`);
+const COLOMBIAN_BANKS = [
+  'Bancolombia',
+  'Banco de Bogotá',
+  'Davivienda',
+  'BBVA Colombia',
+  'Banco de Occidente',
+  'Scotiabank Colpatria',
+  'GNB Sudameris',
+  'Banco Popular',
+  'Banco Agrario de Colombia',
+  'Banco Caja Social',
+  'Bancamía',
+  'Banco Falabella Colombia',
+  'Banco Pichincha',
+  'Banco Serfinanza',
+  'Finandina',
+  'Banco Cooperativo Coopcentral',
+  'Coofinep Cooperativa Financiera',
+  'Cotrafa Cooperativa Financiera',
+  'Confiar Cooperativa Financiera',
+  'JFK Cooperativa Financiera',
+  'Coltefinanciera',
+  'Banco W',
+  'Lulo Bank',
+  'Nubank',
+  'Nequi',
+  'Daviplata',
+  'Movii',
+  'RappiPay',
+  'Dale',
+  'Iris',
+  'Otro',
+];
 const SUPPORT_SUBJECT_OPTIONS = [
   'Dificultad para adjuntar documentos',
   'Error en información registrada',
@@ -515,6 +548,10 @@ const Registro = () => {
   const [bankCertificateLoading, setBankCertificateLoading] = useState(false);
   const [bankCertificateError, setBankCertificateError] = useState('');
   const [bankCertificateSuccess, setBankCertificateSuccess] = useState('');
+  const [bankNombre, setBankNombre] = useState('');
+  const [bankTipoCuenta, setBankTipoCuenta] = useState('');
+  const [bankNumeroCuenta, setBankNumeroCuenta] = useState('');
+  const [bankNumeroCuentaConf, setBankNumeroCuentaConf] = useState('');
 
   const [savingDraft, setSavingDraft] = useState(false);
   const [missingFields, setMissingFields] = useState([]);
@@ -1711,6 +1748,10 @@ const Registro = () => {
     setBankCertificateDate('');
     setBankCertificateError('');
     setBankCertificateSuccess('');
+    setBankNombre('');
+    setBankTipoCuenta('');
+    setBankNumeroCuenta('');
+    setBankNumeroCuentaConf('');
     setRadicadoLoading(false);
   };
 
@@ -2018,6 +2059,31 @@ const Registro = () => {
       return;
     }
 
+    if (!bankNombre) {
+      setBankCertificateError('Selecciona el banco al que pertenece la cuenta.');
+      return;
+    }
+
+    if (!bankTipoCuenta) {
+      setBankCertificateError('Selecciona el tipo de cuenta (Ahorro o Corriente).');
+      return;
+    }
+
+    if (!bankNumeroCuenta.trim()) {
+      setBankCertificateError('Ingresa el número de cuenta bancaria.');
+      return;
+    }
+
+    if (!/^\d{5,20}$/.test(bankNumeroCuenta.trim())) {
+      setBankCertificateError('El número de cuenta debe contener solo dígitos (entre 5 y 20 caracteres).');
+      return;
+    }
+
+    if (bankNumeroCuentaConf !== bankNumeroCuenta) {
+      setBankCertificateError('Los números de cuenta no coinciden. Verifica e intenta de nuevo.');
+      return;
+    }
+
     if (!bankCertificateFile) {
       setBankCertificateError('Debes seleccionar el certificado bancario en PDF.');
       return;
@@ -2047,6 +2113,22 @@ const Registro = () => {
         file: bankCertificateFile,
         requireExistingPath: false,
       });
+
+      // Guardar datos bancarios en la inscripción (no bloquea si la columna no existe)
+      supabase
+        .from('inscripciones')
+        .update({
+          datos_bancarios: {
+            banco: bankNombre,
+            tipo_cuenta: bankTipoCuenta,
+            numero_cuenta: bankNumeroCuenta,
+          },
+        })
+        .eq('id', radicadoResult.id)
+        .then(({ error: bankDataError }) => {
+          if (bankDataError) console.warn('No se pudieron guardar datos bancarios:', bankDataError.message);
+        });
+
       const reviewUpdateResult = await markInscripcionAsReviewPending(radicadoResult.id);
       const reviewUpdateWarning = reviewUpdateResult.ok
         ? ''
@@ -2065,6 +2147,10 @@ const Registro = () => {
       });
       setBankCertificateFile(null);
       setBankCertificateDate('');
+      setBankNombre('');
+      setBankTipoCuenta('');
+      setBankNumeroCuenta('');
+      setBankNumeroCuentaConf('');
       await handleSearchRadicado();
     } catch (error) {
       const detail = error?.message || 'No se pudo subir el certificado bancario.';
@@ -2682,13 +2768,79 @@ const Registro = () => {
                               <>
                                 <p className="text-xs text-slate-600">
                                   Debes adjuntar certificado bancario en PDF, sin contraseña y con fecha de expedición no mayor a {BANK_CERT_MAX_AGE_DAYS} días.
+                                  También ingresa los datos de la cuenta bancaria donde recibirás el desembolso.
                                 </p>
                                 {hasBankCertificateUploaded && (
                                   <p className="text-xs text-amber-700">
                                     Ya registraste un certificado. Si lo necesitas, puedes reemplazarlo antes de la aprobación final.
                                   </p>
                                 )}
-                                <div className="grid md:grid-cols-3 gap-2">
+
+                                {/* Datos bancarios */}
+                                <div className="grid md:grid-cols-2 gap-2 pt-1">
+                                  <div className="flex flex-col gap-1">
+                                    <label className="text-xs text-slate-500 font-semibold">Banco</label>
+                                    <select
+                                      value={bankNombre}
+                                      onChange={(e) => setBankNombre(e.target.value)}
+                                      className="border border-border rounded-lg px-3 py-2 text-sm"
+                                    >
+                                      <option value="">Selecciona el banco...</option>
+                                      {COLOMBIAN_BANKS.map((b) => (
+                                        <option key={b} value={b}>{b}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div className="flex flex-col gap-1">
+                                    <label className="text-xs text-slate-500 font-semibold">Tipo de cuenta</label>
+                                    <select
+                                      value={bankTipoCuenta}
+                                      onChange={(e) => setBankTipoCuenta(e.target.value)}
+                                      className="border border-border rounded-lg px-3 py-2 text-sm"
+                                    >
+                                      <option value="">Tipo de cuenta...</option>
+                                      <option value="ahorro">Cuenta de Ahorro</option>
+                                      <option value="corriente">Cuenta Corriente</option>
+                                    </select>
+                                  </div>
+                                  <div className="flex flex-col gap-1">
+                                    <label className="text-xs text-slate-500 font-semibold">Número de cuenta</label>
+                                    <input
+                                      type="text"
+                                      inputMode="numeric"
+                                      value={bankNumeroCuenta}
+                                      onChange={(e) => setBankNumeroCuenta(e.target.value.replace(/\D/g, ''))}
+                                      placeholder="Solo dígitos"
+                                      className="border border-border rounded-lg px-3 py-2 text-sm"
+                                    />
+                                  </div>
+                                  <div className="flex flex-col gap-1">
+                                    <label className="text-xs text-slate-500 font-semibold">Confirmar número de cuenta</label>
+                                    <input
+                                      type="text"
+                                      inputMode="numeric"
+                                      value={bankNumeroCuentaConf}
+                                      onChange={(e) => setBankNumeroCuentaConf(e.target.value.replace(/\D/g, ''))}
+                                      placeholder="Repite el número"
+                                      className={`border rounded-lg px-3 py-2 text-sm ${
+                                        bankNumeroCuentaConf && bankNumeroCuentaConf !== bankNumeroCuenta
+                                          ? 'border-red-400 bg-red-50'
+                                          : bankNumeroCuentaConf && bankNumeroCuentaConf === bankNumeroCuenta
+                                            ? 'border-green-400 bg-green-50'
+                                            : 'border-border'
+                                      }`}
+                                    />
+                                    {bankNumeroCuentaConf && bankNumeroCuentaConf !== bankNumeroCuenta && (
+                                      <p className="text-red-600 text-xs">Los números no coinciden</p>
+                                    )}
+                                    {bankNumeroCuentaConf && bankNumeroCuentaConf === bankNumeroCuenta && bankNumeroCuenta.length >= 5 && (
+                                      <p className="text-green-600 text-xs">✓ Los números coinciden</p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Certificado y fecha */}
+                                <div className="grid md:grid-cols-3 gap-2 pt-1">
                                   <input
                                     type="date"
                                     value={bankCertificateDate}

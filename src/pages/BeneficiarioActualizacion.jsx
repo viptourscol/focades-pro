@@ -1,13 +1,27 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { showErrorAlert, showSuccessAlert, showWarningAlert } from '../lib/alerts';
+import { showErrorAlert, showWarningAlert } from '../lib/alerts';
+import { CheckCircle2, Loader2 } from 'lucide-react';
 
 const MAX_FILE_MB = 10;
 const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
 
+const validatePdfNotEncrypted = async (file, label) => {
+  if (!file) return;
+  const buffer = await file.arrayBuffer();
+  const probeSize = Math.min(buffer.byteLength, 250000);
+  const probeBytes = new Uint8Array(buffer, 0, probeSize);
+  const text = new TextDecoder('latin1').decode(probeBytes);
+  if (/\/Encrypt\b/i.test(text)) {
+    throw new Error(`${label} no debe estar protegido con contraseña ni cifrado.`);
+  }
+};
+
 const BeneficiarioActualizacion = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [submitDone, setSubmitDone] = useState(false);
+  const [submittedPeriodo, setSubmittedPeriodo] = useState('');
   const [windowInfo, setWindowInfo] = useState(null);
   const [config, setConfig] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -111,6 +125,10 @@ const BeneficiarioActualizacion = () => {
       validateFile(files.certificado_notas, 'el certificado de notas');
       validateFile(files.certificado_matricula, 'el certificado de matrícula');
 
+      await validatePdfNotEncrypted(files.certificado_bancario, 'El certificado bancario');
+      await validatePdfNotEncrypted(files.certificado_notas, 'El certificado de notas');
+      await validatePdfNotEncrypted(files.certificado_matricula, 'El certificado de matrícula');
+
       const minPromedio = Number(config?.promedio_minimo || 3.5);
       const promedio = Number(String(form.promedio_semestre_anterior || '').replace(',', '.'));
 
@@ -191,11 +209,18 @@ const BeneficiarioActualizacion = () => {
         throw new Error(profileError.message || 'No se pudo actualizar datos básicos del beneficiario.');
       }
 
-      await showSuccessAlert({
-        title: 'Actualización enviada',
-        text: 'Tu actualización semestral quedó en revisión administrativa.',
-      });
+      // Notificación por correo (no bloquea si falla)
+      supabase.functions.invoke('notify-beneficiario', {
+        body: {
+          email: payload.email,
+          nombre: profile.primer_nombre || profile.nombre_completo || 'Beneficiario',
+          ventana_nombre: windowInfo?.nombre || 'Periodo vigente',
+          semestre: payload.semestre_actual,
+        },
+      }).catch(() => {});
 
+      setSubmittedPeriodo(windowInfo?.nombre || 'Periodo vigente');
+      setSubmitDone(true);
       setFiles({ certificado_bancario: null, certificado_notas: null, certificado_matricula: null });
       setForm((prev) => ({ ...prev, promedio_semestre_anterior: '' }));
     } catch (error) {
@@ -218,6 +243,21 @@ const BeneficiarioActualizacion = () => {
 
   return (
     <div className="space-y-4">
+
+      {/* Overlay bloqueante durante el envío */}
+      {saving && (
+        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-slate-900/70 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-10 flex flex-col items-center gap-4 max-w-sm w-full shadow-2xl mx-4">
+            <Loader2 className="animate-spin text-secondary" size={48} />
+            <p className="text-xl font-extrabold text-primary text-center">Enviando actualización...</p>
+            <p className="text-sm text-slate-600 text-center">No cierres ni recargues la página mientras se procesa.</p>
+            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden mt-2">
+              <div className="h-full bg-accent rounded-full animate-[progress_2s_ease-in-out_infinite]" />
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white border border-border rounded-2xl p-6">
         <h2 className="text-xl font-extrabold text-primary">Actualización Semestral</h2>
         <p className="text-sm text-slate-600 mt-1">Precarga tus datos actuales y actualiza documentos del semestre.</p>
@@ -235,34 +275,51 @@ const BeneficiarioActualizacion = () => {
           </div>
         )}
 
-        <div className="mt-5 grid md:grid-cols-2 gap-3">
-          <Input label="Correo" value={form.email} onChange={(value) => setForm((prev) => ({ ...prev, email: value }))} disabled={!canUpdate} />
-          <Input label="Teléfono" value={form.telefono} onChange={(value) => setForm((prev) => ({ ...prev, telefono: value }))} disabled={!canUpdate} />
-          <Input label="Dirección" value={form.direccion} onChange={(value) => setForm((prev) => ({ ...prev, direccion: value }))} disabled={!canUpdate} />
-          <Input label="Semestre que actualiza" value={form.semestre_actual} onChange={(value) => setForm((prev) => ({ ...prev, semestre_actual: value }))} disabled={!canUpdate} />
-          <Input
-            label="Promedio semestre anterior"
-            value={form.promedio_semestre_anterior}
-            onChange={(value) => setForm((prev) => ({ ...prev, promedio_semestre_anterior: value }))}
-            disabled={!canUpdate}
-            placeholder={`Mínimo ${config?.promedio_minimo || 3.5}`}
-          />
-        </div>
+        {submitDone && (
+          <div className="mt-6 p-8 rounded-2xl bg-green-50 border border-green-200 flex flex-col items-center text-center gap-3">
+            <CheckCircle2 className="text-green-600" size={56} />
+            <h3 className="text-2xl font-extrabold text-green-800">¡Actualización enviada!</h3>
+            <p className="text-sm text-green-700 max-w-md">
+              Tu actualización del periodo <strong>{submittedPeriodo}</strong> quedó registrada y está en{' '}
+              <strong>revisión administrativa</strong>. Te enviaremos una confirmación a tu correo electrónico.
+            </p>
+            <p className="text-xs text-green-600">Puedes revisar el estado de tus envíos en la sección <strong>Historial</strong> del menú lateral.</p>
+          </div>
+        )}
 
-        <div className="mt-4 grid md:grid-cols-3 gap-3">
-          <FileInput label="Certificado bancario" file={files.certificado_bancario} onChange={(file) => setFiles((prev) => ({ ...prev, certificado_bancario: file }))} disabled={!canUpdate} />
-          <FileInput label="Certificado de notas" file={files.certificado_notas} onChange={(file) => setFiles((prev) => ({ ...prev, certificado_notas: file }))} disabled={!canUpdate} />
-          <FileInput label="Certificado de matrícula" file={files.certificado_matricula} onChange={(file) => setFiles((prev) => ({ ...prev, certificado_matricula: file }))} disabled={!canUpdate} />
-        </div>
+        {!submitDone && (
+          <>
+            <div className="mt-5 grid md:grid-cols-2 gap-3">
+              <Input label="Correo" value={form.email} onChange={(value) => setForm((prev) => ({ ...prev, email: value }))} disabled={!canUpdate} />
+              <Input label="Teléfono" value={form.telefono} onChange={(value) => setForm((prev) => ({ ...prev, telefono: value }))} disabled={!canUpdate} />
+              <Input label="Dirección" value={form.direccion} onChange={(value) => setForm((prev) => ({ ...prev, direccion: value }))} disabled={!canUpdate} />
+              <Input label="Semestre que actualiza" value={form.semestre_actual} onChange={(value) => setForm((prev) => ({ ...prev, semestre_actual: value }))} disabled={!canUpdate} />
+              <Input
+                label="Promedio semestre anterior"
+                value={form.promedio_semestre_anterior}
+                onChange={(value) => setForm((prev) => ({ ...prev, promedio_semestre_anterior: value }))}
+                disabled={!canUpdate}
+                placeholder={`Mínimo ${config?.promedio_minimo || 3.5}`}
+              />
+            </div>
 
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={!canUpdate || saving}
-          className="mt-5 bg-accent text-white px-6 py-3 rounded-xl font-bold disabled:opacity-50"
-        >
-          {saving ? 'Enviando...' : 'Enviar actualización'}
-        </button>
+            <div className="mt-4 grid md:grid-cols-3 gap-3">
+              <FileInput label="Certificado bancario (PDF sin contraseña)" file={files.certificado_bancario} onChange={(file) => setFiles((prev) => ({ ...prev, certificado_bancario: file }))} disabled={!canUpdate} />
+              <FileInput label="Certificado de notas (PDF sin contraseña)" file={files.certificado_notas} onChange={(file) => setFiles((prev) => ({ ...prev, certificado_notas: file }))} disabled={!canUpdate} />
+              <FileInput label="Certificado de matrícula (PDF sin contraseña)" file={files.certificado_matricula} onChange={(file) => setFiles((prev) => ({ ...prev, certificado_matricula: file }))} disabled={!canUpdate} />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={!canUpdate || saving}
+              className="mt-5 bg-accent text-white px-6 py-3 rounded-xl font-bold disabled:opacity-50 flex items-center gap-2"
+            >
+              {saving && <Loader2 size={16} className="animate-spin" />}
+              {saving ? 'Enviando...' : 'Enviar actualización'}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

@@ -1,0 +1,14 @@
+@import "tailwindcss";
+@config "../tailwind.config.js"; /* Esto le dice a V4 que use tus colores personalizados */
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900;
+  }
+}
+
+@keyframes progress {
+  0%   { width: 15%; margin-left: 0%; }
+  50%  { width: 55%; margin-left: 25%; }
+  100% { width: 15%; margin-left: 85%; }
+}

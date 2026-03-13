@@ -1,0 +1,8 @@
+[functions.generate-inscripcion-docs]
+verify_jwt = false
+
+[functions.register-inscripcion]
+verify_jwt = false
+
+[functions.invite-beneficiario]
+verify_jwt = false

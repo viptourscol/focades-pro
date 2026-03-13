@@ -1,0 +1,16 @@
+{
+  "tasks": {
+    "start": "supabase start",
+    "stop": "supabase stop",
+    "reset": "supabase db reset",
+    "push": "supabase db push"
+  },
+  "compilerOptions": {
+    "lib": ["deno.window"],
+    "deno.enable": true,
+    "deno.unstable": false
+  },
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.0"
+  }
+}

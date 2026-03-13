@@ -52,3 +52,4 @@ Variables recomendadas para la Edge Function durante pruebas:
 - `DOCS_RENDER_FALLBACK_TO_PDF_LIB=true`
 - `DOCS_HTML_PDF_ENDPOINT=http://host.docker.internal:8789/render` (si la función corre en contenedor)
 - `DOCS_HTML_PDF_TIMEOUT_MS=12000`
+"# focades-pro" 

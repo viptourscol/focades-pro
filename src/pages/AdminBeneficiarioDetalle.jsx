@@ -9,7 +9,7 @@ import DocViewerModal from '../components/DocViewerModal';
 const BENEFICIARIO_STATES = ['activo', 'suspendido', 'retirado', 'condonado', 'egresado'];
 const UPDATE_STATUS_OPTIONS = ['en_revision', 'aprobada', 'rechazada'];
 const PAYMENT_STATUS_OPTIONS = ['programado', 'pendiente', 'efectuado', 'anulado'];
-const DETAIL_TABS = ['perfil', 'actualizaciones', 'expediente', 'pagos', 'tickets'];
+const DETAIL_TABS = ['perfil', 'actualizaciones', 'expediente', 'pagos', 'tickets', 'bitacora'];
 
 const formatDateTime = (value) => {
   if (!value) return 'No disponible';
@@ -60,6 +60,7 @@ const AdminBeneficiarioDetalle = () => {
   const [stateHistory, setStateHistory] = useState([]);
   const [payments, setPayments] = useState([]);
   const [tickets, setTickets] = useState([]);
+  const [bitacoraRows, setBitacoraRows] = useState([]);
   const [profileForm, setProfileForm] = useState({ email: '', telefono: '', direccion: '', semestre_actual: '' });
   const [statusDraft, setStatusDraft] = useState('activo');
   const [statusReason, setStatusReason] = useState('');
@@ -68,8 +69,8 @@ const AdminBeneficiarioDetalle = () => {
   const [editingPaymentId, setEditingPaymentId] = useState(null);
   const [viewingDoc, setViewingDoc] = useState(null);
   const [activeTab, setActiveTab] = useState('perfil');
-  const [loadedTabs, setLoadedTabs] = useState({ perfil: false, actualizaciones: false, expediente: false, pagos: false, tickets: false });
-  const [loadingByTab, setLoadingByTab] = useState({ perfil: false, actualizaciones: false, expediente: false, pagos: false, tickets: false });
+  const [loadedTabs, setLoadedTabs] = useState({ perfil: false, actualizaciones: false, expediente: false, pagos: false, tickets: false, bitacora: false });
+  const [loadingByTab, setLoadingByTab] = useState({ perfil: false, actualizaciones: false, expediente: false, pagos: false, tickets: false, bitacora: false });
   const [expedienteDocs, setExpedienteDocs] = useState([]);
   const [expedienteData, setExpedienteData] = useState(null);
   const [inviteLoading, setInviteLoading] = useState(false);
@@ -209,7 +210,71 @@ const AdminBeneficiarioDetalle = () => {
     setTabLoading('expediente', true);
     try {
       const profile = profileOverride || beneficiario;
-      const inscripcionPk = profile?.inscripcion_pk;
+      let inscripcionPk = profile?.inscripcion_pk;
+
+      if (!inscripcionPk) {
+        const normalizedRadicado = String(profile?.radicado_inscripcion || '').trim();
+        const normalizedDocumento = String(profile?.n_documento || '').trim();
+
+        let linkedInscripcion = null;
+
+        if (normalizedRadicado) {
+          const byRadicado = await supabase
+            .from('inscripciones')
+            .select('id,radicado,updated_at')
+            .eq('radicado', normalizedRadicado)
+            .order('updated_at', { ascending: false })
+            .limit(1);
+
+          const radicadoRows = Array.isArray(byRadicado.data) ? byRadicado.data : [];
+          linkedInscripcion = radicadoRows[0] || null;
+
+          if (!linkedInscripcion) {
+            const byNumeroRadicado = await supabase
+              .from('inscripciones')
+              .select('id,numero_radicado,updated_at')
+              .eq('numero_radicado', normalizedRadicado)
+              .order('updated_at', { ascending: false })
+              .limit(1);
+
+            const missingNumeroRadicadoColumn =
+              byNumeroRadicado.error &&
+              /column\s+inscripciones\.numero_radicado does not exist|Could not find the 'numero_radicado' column/i.test(
+                byNumeroRadicado.error.message || ''
+              );
+
+            if (!missingNumeroRadicadoColumn) {
+              const numeroRows = Array.isArray(byNumeroRadicado.data) ? byNumeroRadicado.data : [];
+              linkedInscripcion = numeroRows[0] || null;
+            }
+          }
+        }
+
+        if (!linkedInscripcion && normalizedDocumento) {
+          const byDocumento = await supabase
+            .from('inscripciones')
+            .select('id,n_documento,updated_at')
+            .eq('n_documento', normalizedDocumento)
+            .order('updated_at', { ascending: false })
+            .limit(1);
+
+          const documentoRows = Array.isArray(byDocumento.data) ? byDocumento.data : [];
+          linkedInscripcion = documentoRows[0] || null;
+        }
+
+        if (linkedInscripcion?.id) {
+          inscripcionPk = linkedInscripcion.id;
+
+          // Persistir vínculo para que futuras cargas usen llave directa.
+          if (profile?.id) {
+            await supabase
+              .from('portal_beneficiarios')
+              .update({ inscripcion_pk: linkedInscripcion.id, updated_at: new Date().toISOString() })
+              .eq('id', profile.id);
+          }
+        }
+      }
+
       if (!inscripcionPk) {
         setExpedienteData(null);
         setExpedienteDocs([]);
@@ -238,22 +303,48 @@ const AdminBeneficiarioDetalle = () => {
     }
   };
 
+  const loadBitacoraData = async (profileOverride = null) => {
+    setTabLoading('bitacora', true);
+    try {
+      const profile = profileOverride || beneficiario;
+      if (!profile?.id) {
+        setBitacoraRows([]);
+        markTabLoaded('bitacora');
+        return;
+      }
+
+      const { data } = await supabase
+        .from('portal_beneficiario_bitacora')
+        .select('*')
+        .eq('beneficiario_id', profile.id)
+        .order('created_at', { ascending: false })
+        .limit(300);
+
+      setBitacoraRows(Array.isArray(data) ? data : []);
+      markTabLoaded('bitacora');
+    } finally {
+      setTabLoading('bitacora', false);
+    }
+  };
+
   const loadTabData = async (tab, profileOverride = null) => {
     if (tab === 'actualizaciones') await loadUpdatesData();
     if (tab === 'expediente') await loadExpedienteData(profileOverride);
     if (tab === 'pagos') await loadPagosData();
     if (tab === 'tickets') await loadTicketsData(profileOverride);
+    if (tab === 'bitacora') await loadBitacoraData(profileOverride);
   };
 
   useEffect(() => {
     let mounted = true;
 
     const bootstrap = async () => {
-      setLoadedTabs({ perfil: false, actualizaciones: false, expediente: false, pagos: false, tickets: false });
+      setLoadedTabs({ perfil: false, actualizaciones: false, expediente: false, pagos: false, tickets: false, bitacora: false });
       setUpdates([]);
       setDocumentsByUpdate({});
       setPayments([]);
       setTickets([]);
+      setBitacoraRows([]);
       setExpedienteDocs([]);
       setExpedienteData(null);
       setActiveTab('perfil');
@@ -637,6 +728,38 @@ const AdminBeneficiarioDetalle = () => {
           </div>
         </section>
       </div>
+      )}
+
+      {activeTab === 'bitacora' && (
+      <section className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
+        <SectionTitle title="Bitácora del beneficiario" subtitle="Registro cronológico de cambios, asignaciones y acciones durante todo su ciclo." />
+        {loadingByTab.bitacora && <p className="text-sm text-slate-500">Cargando bitácora...</p>}
+        {!loadingByTab.bitacora && bitacoraRows.length === 0 ? (
+          <p className="text-sm text-slate-500">No hay eventos registrados todavía para este beneficiario.</p>
+        ) : (
+          <div className="space-y-2">
+            {bitacoraRows.map((row) => (
+              <div key={row.id} className="border border-slate-200 rounded-2xl px-4 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-700">
+                    {row.categoria || 'general'}
+                  </span>
+                  <span className="px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest bg-blue-50 text-blue-700">
+                    {row.tipo_evento || 'evento'}
+                  </span>
+                  <span className="text-xs text-slate-500">{formatDateTime(row.created_at)}</span>
+                </div>
+                <p className="text-sm text-slate-700 mt-2">
+                  {row.nota || `Acción: ${row.accion || 'update'}${row.campo_cambio ? ` · Campo: ${row.campo_cambio}` : ''}`}
+                </p>
+                <p className="text-xs text-slate-500 mt-2">
+                  Actor: {row.actor_email || row.actor_user_id || 'Sistema'}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
       )}
 
       {activeTab === 'actualizaciones' && (

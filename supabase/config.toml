@@ -6,3 +6,6 @@ verify_jwt = false
 
 [functions.invite-beneficiario]
 verify_jwt = false
+
+[functions.notify-beneficiario-novedad]
+verify_jwt = false

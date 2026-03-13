@@ -1,9 +1,84 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  Eye,
+  FileText,
+  Mail,
+  MapPin,
+  Phone,
+  XCircle,
+} from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import DocViewerModal from '../components/DocViewerModal';
+
+const formatDateTime = (value) => {
+  if (!value) return 'No disponible';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'No disponible';
+  return date.toLocaleString('es-CO');
+};
+
+const formatFileSize = (value) => {
+  const bytes = Number(value || 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) return 'Sin tamaño';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+};
+
+const estadoMeta = (estado) => {
+  if (estado === 'aprobada') {
+    return {
+      label: 'Aprobada',
+      badge: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+      icon: <CheckCircle2 size={14} className="text-emerald-600" />,
+    };
+  }
+
+  if (estado === 'rechazada') {
+    return {
+      label: 'Rechazada',
+      badge: 'bg-red-100 text-red-700 border-red-200',
+      icon: <XCircle size={14} className="text-red-600" />,
+    };
+  }
+
+  return {
+    label: 'En revisión',
+    badge: 'bg-amber-100 text-amber-700 border-amber-200',
+    icon: <Clock3 size={14} className="text-amber-600" />,
+  };
+};
+
+const DOCUMENT_LABELS = {
+  certificado_bancario: 'Certificado bancario',
+  certificado_notas: 'Certificado de notas',
+  certificado_matricula: 'Certificado de matrícula',
+};
+
+const MetricCard = ({ title, value, subtitle, tone }) => (
+  <div className={`rounded-2xl border p-4 ${tone}`}>
+    <p className="text-xs font-bold uppercase tracking-wider">{title}</p>
+    <p className="text-2xl font-black mt-1">{value}</p>
+    {subtitle ? <p className="text-xs mt-1 opacity-80">{subtitle}</p> : null}
+  </div>
+);
+
+const DataPill = ({ icon, label, value }) => (
+  <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+    <p className="text-[11px] text-slate-400 flex items-center gap-1.5">{icon} {label}</p>
+    <p className="text-sm font-semibold text-slate-700 mt-0.5">{value || 'No disponible'}</p>
+  </div>
+);
 
 const BeneficiarioHistorial = () => {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
+  const [docsByUpdate, setDocsByUpdate] = useState({});
+  const [windowsMap, setWindowsMap] = useState({});
+  const [viewingDoc, setViewingDoc] = useState(null);
 
   useEffect(() => {
     let mounted = true;
@@ -29,13 +104,48 @@ const BeneficiarioHistorial = () => {
 
       const { data } = await supabase
         .from('portal_actualizaciones')
-        .select('id,estado,semestre_actual,promedio_semestre_anterior,created_at')
+        .select('id,ventana_id,estado,semestre_actual,promedio_semestre_anterior,email,telefono,direccion,observacion_admin,revisado_at,created_at,updated_at')
         .eq('beneficiario_id', profile.id)
         .order('created_at', { ascending: false })
         .limit(50);
 
+      const safeRows = Array.isArray(data) ? data : [];
+      const updateIds = safeRows.map((item) => item.id).filter(Boolean);
+      const ventanaIds = Array.from(new Set(safeRows.map((item) => item.ventana_id).filter(Boolean)));
+
+      let groupedDocs = {};
+      if (updateIds.length > 0) {
+        const { data: docsData } = await supabase
+          .from('portal_actualizacion_documentos')
+          .select('id,actualizacion_id,tipo_documento,nombre_original,mime_type,size_bytes,storage_path,created_at')
+          .in('actualizacion_id', updateIds)
+          .order('created_at', { ascending: false });
+
+        groupedDocs = (docsData || []).reduce((acc, doc) => {
+          const key = doc.actualizacion_id;
+          if (!acc[key]) acc[key] = [];
+          acc[key].push(doc);
+          return acc;
+        }, {});
+      }
+
+      let map = {};
+      if (ventanaIds.length > 0) {
+        const { data: windowsData } = await supabase
+          .from('portal_ventanas_actualizacion')
+          .select('id,nombre,fecha_inicio,fecha_fin')
+          .in('id', ventanaIds);
+
+        map = (windowsData || []).reduce((acc, item) => {
+          acc[item.id] = item;
+          return acc;
+        }, {});
+      }
+
       if (!mounted) return;
-      setRows(Array.isArray(data) ? data : []);
+      setRows(safeRows);
+      setDocsByUpdate(groupedDocs);
+      setWindowsMap(map);
       setLoading(false);
     };
 
@@ -46,37 +156,108 @@ const BeneficiarioHistorial = () => {
     };
   }, []);
 
+  const metrics = useMemo(() => {
+    const total = rows.length;
+    const aprobadas = rows.filter((item) => item.estado === 'aprobada').length;
+    const pendientes = rows.filter((item) => item.estado === 'en_revision').length;
+    const rechazadas = rows.filter((item) => item.estado === 'rechazada').length;
+    const lastDate = rows[0]?.created_at ? formatDateTime(rows[0].created_at) : 'Sin envíos';
+
+    return { total, aprobadas, pendientes, rechazadas, lastDate };
+  }, [rows]);
+
   return (
-    <div className="bg-white border border-border rounded-2xl p-6">
-      <h2 className="text-xl font-extrabold text-primary">Historial de Actualizaciones</h2>
-      <p className="text-sm text-slate-600 mt-1">Control de envíos para auditoría y seguimiento.</p>
+    <div className="space-y-5">
+      {viewingDoc && <DocViewerModal doc={viewingDoc} onClose={() => setViewingDoc(null)} />}
+
+      <section className="bg-white border border-border rounded-2xl p-5 md:p-6">
+        <h2 className="text-xl font-extrabold text-primary">Historial de Actualizaciones</h2>
+        <p className="text-sm text-slate-600 mt-1">Trazabilidad detallada de cada envío semestral, su estado de revisión y los documentos registrados.</p>
+
+        <div className="mt-4 grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <MetricCard title="Total envíos" value={metrics.total} subtitle="Histórico completo" tone="bg-slate-50 text-slate-700 border-slate-200" />
+          <MetricCard title="En revisión" value={metrics.pendientes} subtitle="Pendientes de respuesta" tone="bg-amber-50 text-amber-700 border-amber-200" />
+          <MetricCard title="Aprobadas" value={metrics.aprobadas} subtitle="Cumplieron revisión" tone="bg-emerald-50 text-emerald-700 border-emerald-200" />
+          <MetricCard title="Rechazadas" value={metrics.rechazadas} subtitle="Requieren ajuste" tone="bg-red-50 text-red-700 border-red-200" />
+          <MetricCard title="Último envío" value={metrics.lastDate} subtitle="Fecha de registro" tone="bg-blue-50 text-blue-700 border-blue-200" />
+        </div>
+      </section>
 
       {loading ? (
-        <p className="mt-6 text-slate-500">Cargando historial...</p>
+        <div className="bg-white border border-border rounded-2xl p-8 text-center text-slate-500">Cargando historial...</div>
       ) : rows.length === 0 ? (
-        <p className="mt-6 text-slate-500">Aún no tienes actualizaciones registradas.</p>
+        <div className="bg-white border border-border rounded-2xl p-8 text-center text-slate-500">Aún no tienes actualizaciones registradas.</div>
       ) : (
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="text-left text-slate-500 border-b border-border">
-                <th className="py-2 pr-4">Fecha</th>
-                <th className="py-2 pr-4">Estado</th>
-                <th className="py-2 pr-4">Semestre</th>
-                <th className="py-2 pr-4">Promedio</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className="border-b border-border/60">
-                  <td className="py-2 pr-4">{row.created_at ? new Date(row.created_at).toLocaleString('es-CO') : 'No disponible'}</td>
-                  <td className="py-2 pr-4">{row.estado || 'No disponible'}</td>
-                  <td className="py-2 pr-4">{row.semestre_actual || 'No disponible'}</td>
-                  <td className="py-2 pr-4">{row.promedio_semestre_anterior ?? 'No disponible'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-4">
+          {rows.map((row) => {
+            const meta = estadoMeta(row.estado);
+            const docs = docsByUpdate[row.id] || [];
+            const windowInfo = windowsMap[row.ventana_id] || null;
+
+            return (
+              <article key={row.id} className="bg-white border border-border rounded-2xl p-4 md:p-5 shadow-sm">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-wider text-slate-400">Actualización #{String(row.id).slice(0, 8)}</p>
+                    <h3 className="text-lg font-extrabold text-primary mt-0.5">Semestre {row.semestre_actual || 'No definido'}</h3>
+                    <p className="text-xs text-slate-500 mt-1">Registrada: {formatDateTime(row.created_at)}</p>
+                    <p className="text-xs text-slate-500">Última modificación: {formatDateTime(row.updated_at)}</p>
+                  </div>
+
+                  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-black uppercase tracking-wide ${meta.badge}`}>
+                    {meta.icon}
+                    {meta.label}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid sm:grid-cols-2 xl:grid-cols-4 gap-2.5">
+                  <DataPill icon={<CalendarDays size={12} />} label="Ventana" value={windowInfo?.nombre || 'No definida'} />
+                  <DataPill icon={<FileText size={12} />} label="Promedio reportado" value={row.promedio_semestre_anterior ?? 'No disponible'} />
+                  <DataPill icon={<Mail size={12} />} label="Correo reportado" value={row.email || 'No disponible'} />
+                  <DataPill icon={<Phone size={12} />} label="Teléfono reportado" value={row.telefono || 'No disponible'} />
+                </div>
+
+                <div className="mt-2.5">
+                  <DataPill icon={<MapPin size={12} />} label="Dirección reportada" value={row.direccion || 'No disponible'} />
+                </div>
+
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-500">Respuesta administrativa</p>
+                  <p className="text-sm text-slate-700 mt-1">{row.observacion_admin || 'Sin observaciones registradas hasta el momento.'}</p>
+                  <p className="text-xs text-slate-500 mt-2">Fecha de revisión: {formatDateTime(row.revisado_at)}</p>
+                </div>
+
+                <div className="mt-4 rounded-xl border border-slate-200 overflow-hidden">
+                  <div className="px-3 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                    <p className="text-xs font-black uppercase tracking-wider text-slate-500">Documentos del envío</p>
+                    <span className="text-xs font-semibold text-slate-500">{docs.length} archivo(s)</span>
+                  </div>
+
+                  {docs.length === 0 ? (
+                    <p className="px-3 py-3 text-sm text-slate-500">No hay documentos adjuntos para este registro.</p>
+                  ) : (
+                    <div className="divide-y divide-slate-100">
+                      {docs.map((doc) => (
+                        <div key={doc.id} className="px-3 py-2.5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-700">{DOCUMENT_LABELS[doc.tipo_documento] || doc.tipo_documento || 'Documento'}</p>
+                            <p className="text-xs text-slate-500">{doc.nombre_original || 'Sin nombre'} · {formatFileSize(doc.size_bytes)} · {formatDateTime(doc.created_at)}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setViewingDoc(doc)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-secondary hover:bg-slate-50"
+                          >
+                            <Eye size={13} /> Ver documento
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
     </div>

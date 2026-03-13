@@ -36,6 +36,11 @@ const DocViewerModal = ({ doc, onClose }) => {
   useEffect(() => {
     let mounted = true;
     const fetchUrl = async () => {
+      if (!doc?.storage_path) {
+        setUrlError('El documento no tiene una ruta de almacenamiento válida para previsualizar.');
+        setLoadingUrl(false);
+        return;
+      }
       try {
         const { data, error } = await supabase.storage
           .from('soportes')
@@ -52,7 +57,7 @@ const DocViewerModal = ({ doc, onClose }) => {
     };
     fetchUrl();
     return () => { mounted = false; };
-  }, [doc.storage_path]);
+  }, [doc?.storage_path]);
 
   const label = DOC_LABELS[doc.tipo_documento] || doc.tipo_documento || 'Documento';
   const fileName = doc.nombre_original || doc.storage_path?.split('/').pop() || 'archivo';

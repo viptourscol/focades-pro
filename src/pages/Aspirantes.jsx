@@ -75,15 +75,19 @@ const getWorkflowMeta = (record) => {
 
 const Aspirantes = () => {
   const [aspirantes, setAspirantes] = useState([]);
+  const [adminUsers, setAdminUsers] = useState([]);
   const [convocatoriasList, setConvocatoriasList] = useState([]);
   const [selectedConvocatoria, setSelectedConvocatoria] = useState('all');
   const [loading, setLoading] = useState(true);
   const [selectedAspirante, setSelectedAspirante] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [assignmentDraft, setAssignmentDraft] = useState({});
+  const [assigningId, setAssigningId] = useState('');
 
   // Carga inicial
   useEffect(() => {
     fetchConvocatorias();
+    fetchAdminUsers();
   }, []);
 
   // Recarga aspirantes cuando cambia el filtro de convocatoria
@@ -111,7 +115,17 @@ const Aspirantes = () => {
 
       const { data, error } = await query.order('created_at', { ascending: false });
       if (!error) {
-        setAspirantes(data || []);
+        const safeData = data || [];
+        setAspirantes(safeData);
+        setAssignmentDraft((prev) => {
+          const next = { ...prev };
+          safeData.forEach((item) => {
+            if (!(item.id in next)) {
+              next[item.id] = item.revisor_asignado_user_id || '';
+            }
+          });
+          return next;
+        });
       } else {
         setAspirantes([]);
       }
@@ -121,6 +135,55 @@ const Aspirantes = () => {
       setLoading(false);
     }
   }
+
+  async function fetchAdminUsers() {
+    try {
+      const { data } = await supabase
+        .from('portal_admin_users')
+        .select('user_id, created_at')
+        .order('created_at', { ascending: true });
+      setAdminUsers(Array.isArray(data) ? data : []);
+    } catch {
+      setAdminUsers([]);
+    }
+  }
+
+  const assignReviewer = async (inscripcionId) => {
+    const reviewer = String(assignmentDraft[inscripcionId] || '').trim();
+    if (!reviewer) {
+      await showErrorAlert({ title: 'Revisor requerido', text: 'Debes seleccionar un administrador revisor.' });
+      return;
+    }
+
+    setAssigningId(inscripcionId);
+    try {
+      const { data, error } = await supabase.rpc('asignar_revisor_aspirante', {
+        p_inscripcion_id: inscripcionId,
+        p_revisor_user_id: reviewer,
+        p_note: 'Asignación desde panel de aspirantes',
+      });
+
+      if (error || !data?.ok) {
+        throw new Error(error?.message || data?.message || 'No se pudo asignar el revisor.');
+      }
+
+      setAspirantes((prev) => prev.map((item) => (
+        item.id === inscripcionId
+          ? { ...item, revisor_asignado_user_id: reviewer, revisor_asignado_at: new Date().toISOString() }
+          : item
+      )));
+
+      if (selectedAspirante?.id === inscripcionId) {
+        setSelectedAspirante((prev) => (prev ? { ...prev, revisor_asignado_user_id: reviewer } : prev));
+      }
+
+      await showSuccessAlert({ title: 'Revisor asignado', text: 'La asignación quedó registrada con historial.' });
+    } catch (err) {
+      await showErrorAlert({ title: 'No se pudo asignar', text: err?.message || 'Ocurrió un error.' });
+    } finally {
+      setAssigningId('');
+    }
+  };
 
   const updateStatus = async (id, newStatus) => {
     const { error } = await supabase.from('inscripciones').update({ estado: newStatus }).eq('id', id);
@@ -272,14 +335,15 @@ const Aspirantes = () => {
               <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Vinculación</th>
               <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Puntaje</th>
               <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Estado</th>
+              <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Revisor</th>
               <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? (
-              <tr><td colSpan="7" className="text-center py-20 text-slate-400 font-medium italic">Sincronizando base de datos relacional...</td></tr>
+              <tr><td colSpan="8" className="text-center py-20 text-slate-400 font-medium italic">Sincronizando base de datos relacional...</td></tr>
             ) : filteredData.length === 0 ? (
-              <tr><td colSpan="7" className="text-center py-20 text-slate-400 font-medium italic">No se encontraron registros en esta convocatoria.</td></tr>
+              <tr><td colSpan="8" className="text-center py-20 text-slate-400 font-medium italic">No se encontraron registros en esta convocatoria.</td></tr>
             ) : (
               filteredData.map(asp => (
                 <tr 
@@ -330,6 +394,30 @@ const Aspirantes = () => {
                   </td>
                   <td className="px-6 py-4">
                     <StatusBadge status={asp.estado} />
+                  </td>
+                  <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-2 min-w-[260px]">
+                      <select
+                        value={assignmentDraft[asp.id] || ''}
+                        onChange={(e) => setAssignmentDraft((prev) => ({ ...prev, [asp.id]: e.target.value }))}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs"
+                      >
+                        <option value="">Asignar admin...</option>
+                        {adminUsers.map((admin) => (
+                          <option key={admin.user_id} value={admin.user_id}>
+                            {admin.user_id.slice(0, 8)}...{admin.user_id.slice(-4)}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => assignReviewer(asp.id)}
+                        disabled={assigningId === asp.id}
+                        className="px-3 py-2 rounded-xl text-xs font-bold bg-secondary text-white disabled:opacity-50"
+                      >
+                        {assigningId === asp.id ? '...' : 'Asignar'}
+                      </button>
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex justify-center gap-2" onClick={(e) => e.stopPropagation()}>

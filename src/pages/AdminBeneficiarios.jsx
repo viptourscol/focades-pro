@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CreditCard, Search, UserCircle2, Users } from 'lucide-react';
+import { CreditCard, Search, Trash2, Undo2, UserCircle2, Users } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { showConfirmAlert, showErrorAlert, showSuccessAlert, showWarningAlert } from '../lib/alerts';
 
 const STATE_OPTIONS = ['all', 'activo', 'suspendido', 'retirado', 'condonado', 'egresado'];
+const DELETED_FILTER_OPTIONS = ['active', 'deleted', 'all'];
 
 const statusClassName = (status) => {
   if (status === 'activo') return 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200';
@@ -19,13 +21,15 @@ const AdminBeneficiarios = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [stateFilter, setStateFilter] = useState('all');
+  const [deletedFilter, setDeletedFilter] = useState('active');
+  const [actionLoadingId, setActionLoadingId] = useState(null);
 
   const loadData = async () => {
     setLoading(true);
     try {
       const { data } = await supabase
         .from('portal_beneficiarios')
-        .select('id,nombre_completo,email,n_documento,estado_beneficiario,semestre_actual,auth_user_id,updated_at,created_at')
+        .select('id,nombre_completo,email,n_documento,estado_beneficiario,semestre_actual,auth_user_id,updated_at,created_at,deleted_at,deletion_reason')
         .order('updated_at', { ascending: false })
         .limit(300);
       setRows(Array.isArray(data) ? data : []);
@@ -45,12 +49,16 @@ const AdminBeneficiarios = () => {
     return rows.filter((item) => {
       const matchesState = stateFilter === 'all' || item.estado_beneficiario === stateFilter;
       if (!matchesState) return false;
+
+      if (deletedFilter === 'active' && item.deleted_at) return false;
+      if (deletedFilter === 'deleted' && !item.deleted_at) return false;
+
       if (!query) return true;
       return [item.nombre_completo, item.email, item.n_documento]
         .map((value) => String(value || '').toLowerCase())
         .some((value) => value.includes(query));
     });
-  }, [rows, searchTerm, stateFilter]);
+  }, [rows, searchTerm, stateFilter, deletedFilter]);
 
   const metrics = useMemo(() => {
     return rows.reduce(
@@ -59,11 +67,99 @@ const AdminBeneficiarios = () => {
         if (item.estado_beneficiario === 'activo') acc.activos += 1;
         if (item.auth_user_id) acc.vinculados += 1;
         if (item.estado_beneficiario === 'suspendido') acc.suspendidos += 1;
+        if (item.deleted_at) acc.eliminados += 1;
         return acc;
       },
-      { total: 0, activos: 0, vinculados: 0, suspendidos: 0 }
+      {
+        total: 0,
+        activos: 0,
+        vinculados: 0,
+        suspendidos: 0,
+        eliminados: 0,
+      }
     );
   }, [rows]);
+
+  const handleSoftDelete = async (item) => {
+    const firstConfirm = await showConfirmAlert({
+      title: 'Eliminar beneficiario',
+      text: 'Se marcará como eliminado (soft delete) y se conservará todo el historial para auditoría.',
+      confirmButtonText: 'Continuar',
+    });
+    if (!firstConfirm) return;
+
+    const confirmWord = window.prompt('Escribe ELIMINAR para confirmar esta acción:');
+    if (confirmWord !== 'ELIMINAR') {
+      await showWarningAlert({
+        title: 'Confirmación inválida',
+        text: 'La eliminación fue cancelada porque no escribiste ELIMINAR.',
+      });
+      return;
+    }
+
+    const reason = window.prompt('Motivo de eliminación (obligatorio):', 'Retiro administrativo') || '';
+    if (!String(reason).trim()) {
+      await showWarningAlert({ title: 'Motivo requerido', text: 'Debes indicar el motivo de la eliminación.' });
+      return;
+    }
+
+    const note = window.prompt('Nota adicional (opcional):', '') || '';
+
+    setActionLoadingId(item.id);
+    try {
+      const { data, error } = await supabase.rpc('soft_delete_beneficiario', {
+        p_beneficiario_id: item.id,
+        p_reason: String(reason).trim(),
+        p_note: String(note).trim() || null,
+        p_confirm: 'ELIMINAR',
+      });
+
+      if (error || !data?.ok) {
+        throw new Error(error?.message || data?.message || 'No se pudo eliminar el beneficiario.');
+      }
+
+      await showSuccessAlert({
+        title: 'Beneficiario eliminado',
+        text: `Se conservó el historial. Actualizaciones relacionadas: ${data.related_updates || 0}.`,
+      });
+      await loadData();
+    } catch (err) {
+      await showErrorAlert({
+        title: 'No se pudo eliminar',
+        text: err.message || 'Ocurrió un error al eliminar el beneficiario.',
+      });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleRestore = async (item) => {
+    const confirmed = await showConfirmAlert({
+      title: 'Restaurar beneficiario',
+      text: 'El beneficiario volverá al listado activo.',
+      confirmButtonText: 'Restaurar',
+    });
+    if (!confirmed) return;
+
+    setActionLoadingId(item.id);
+    try {
+      const { data, error } = await supabase.rpc('restore_beneficiario', {
+        p_beneficiario_id: item.id,
+        p_note: 'Restauración administrativa',
+      });
+
+      if (error || !data?.ok) {
+        throw new Error(error?.message || data?.message || 'No se pudo restaurar el beneficiario.');
+      }
+
+      await showSuccessAlert({ title: 'Beneficiario restaurado', text: 'Se reactivó el registro correctamente.' });
+      await loadData();
+    } catch (err) {
+      await showErrorAlert({ title: 'No se pudo restaurar', text: err.message || 'Ocurrió un error.' });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -79,6 +175,7 @@ const AdminBeneficiarios = () => {
         <MetricCard title="Activos" value={metrics.activos} icon={<UserCircle2 size={18} className="text-emerald-600" />} tone="bg-emerald-50" />
         <MetricCard title="Vinculados" value={metrics.vinculados} icon={<CreditCard size={18} className="text-cyan-600" />} tone="bg-cyan-50" />
         <MetricCard title="Suspendidos" value={metrics.suspendidos} icon={<Users size={18} className="text-amber-600" />} tone="bg-amber-50" />
+        <MetricCard title="Eliminados" value={metrics.eliminados} icon={<Trash2 size={18} className="text-rose-600" />} tone="bg-rose-50" />
       </div>
 
       <section className="bg-white rounded-3xl border border-slate-200 p-4 md:p-6 shadow-sm space-y-4">
@@ -110,6 +207,17 @@ const AdminBeneficiarios = () => {
 
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[860px]">
+          <select
+            value={deletedFilter}
+            onChange={(event) => setDeletedFilter(event.target.value)}
+            className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white"
+          >
+            {DELETED_FILTER_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option === 'active' ? 'Solo activos' : option === 'deleted' ? 'Solo eliminados' : 'Activos + eliminados'}
+              </option>
+            ))}
+          </select>
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
                 <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Beneficiario</th>
@@ -118,17 +226,18 @@ const AdminBeneficiarios = () => {
                 <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Semestre</th>
                 <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Vinculación</th>
                 <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Última actualización</th>
-                <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 text-right">Acción</th>
+                <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Registro</th>
+                <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="px-4 py-20 text-center text-slate-400 italic">Cargando beneficiarios...</td>
+                  <td colSpan="8" className="px-4 py-20 text-center text-slate-400 italic">Cargando beneficiarios...</td>
                 </tr>
               ) : filteredRows.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-4 py-20 text-center text-slate-400 italic">No hay beneficiarios para este filtro.</td>
+                  <td colSpan="8" className="px-4 py-20 text-center text-slate-400 italic">No hay beneficiarios para este filtro.</td>
                 </tr>
               ) : (
                 filteredRows.map((item) => (
@@ -146,13 +255,45 @@ const AdminBeneficiarios = () => {
                     <td className="px-4 py-4 text-sm text-slate-600">{item.semestre_actual || 'No definido'}</td>
                     <td className="px-4 py-4 text-sm text-slate-600">{item.auth_user_id ? 'Activa' : 'Pendiente'}</td>
                     <td className="px-4 py-4 text-sm text-slate-500">{item.updated_at ? new Date(item.updated_at).toLocaleString('es-CO') : 'No disponible'}</td>
-                    <td className="px-4 py-4 text-right">
-                      <Link
-                        to={`/admin/beneficiarios/${item.id}`}
-                        className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-secondary text-white text-sm font-bold"
-                      >
-                        Abrir ficha 360
-                      </Link>
+                    <td className="px-4 py-4 text-xs text-slate-500">
+                      {item.deleted_at ? (
+                        <>
+                          <p className="font-bold text-rose-600">Eliminado</p>
+                          <p>{new Date(item.deleted_at).toLocaleString('es-CO')}</p>
+                        </>
+                      ) : (
+                        'Activo'
+                      )}
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center justify-end gap-2">
+                        <Link
+                          to={`/admin/beneficiarios/${item.id}`}
+                          className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-secondary text-white text-sm font-bold"
+                        >
+                          Abrir ficha 360
+                        </Link>
+
+                        {item.deleted_at ? (
+                          <button
+                            type="button"
+                            onClick={() => handleRestore(item)}
+                            disabled={actionLoadingId === item.id}
+                            className="inline-flex items-center gap-1 px-3 py-2 rounded-xl border border-emerald-200 text-emerald-700 text-xs font-bold hover:bg-emerald-50 disabled:opacity-50"
+                          >
+                            <Undo2 size={14} /> Restaurar
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleSoftDelete(item)}
+                            disabled={actionLoadingId === item.id}
+                            className="inline-flex items-center gap-1 px-3 py-2 rounded-xl border border-rose-200 text-rose-700 text-xs font-bold hover:bg-rose-50 disabled:opacity-50"
+                          >
+                            <Trash2 size={14} /> Eliminar
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))

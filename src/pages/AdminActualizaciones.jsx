@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  BellRing,
   CheckCircle,
   ChevronRight,
   Clock,
@@ -76,12 +77,16 @@ const DocRow = ({ doc, onView }) => (
 
 const UPDATE_STATUS_OPTIONS = ['en_revision', 'aprobada', 'rechazada'];
 
-const UpdateModal = ({ update, beneficiario, ventana, onClose, onSaved }) => {
+const UpdateModal = ({ update, beneficiario, ventana, adminUsers, onClose, onSaved }) => {
   const [docs, setDocs] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(true);
   const [reviewEstado, setReviewEstado] = useState(update.estado || 'en_revision');
   const [reviewObs, setReviewObs] = useState(update.observacion_admin || '');
   const [saving, setSaving] = useState(false);
+  const [notifying, setNotifying] = useState(false);
+  const [notifyMessage, setNotifyMessage] = useState('');
+  const [assigningReviewer, setAssigningReviewer] = useState(false);
+  const [reviewerUserId, setReviewerUserId] = useState(update.revisor_asignado_user_id || '');
   const [viewingDoc, setViewingDoc] = useState(null);
 
   useEffect(() => {
@@ -107,12 +112,12 @@ const UpdateModal = ({ update, beneficiario, ventana, onClose, onSaved }) => {
 
   const payload = update.payload_formulario || {};
 
-  const saveReview = async () => {
+  const persistReview = async () => {
     if (reviewEstado === 'rechazada' && !String(reviewObs || '').trim()) {
       await showErrorAlert({ title: 'Observación requerida', text: 'Al rechazar una actualización debes indicar el motivo.' });
-      return;
+      return { ok: false };
     }
-    setSaving(true);
+
     try {
       const { session } = await getSafeSession();
       const { error } = await supabase
@@ -126,12 +131,118 @@ const UpdateModal = ({ update, beneficiario, ventana, onClose, onSaved }) => {
         })
         .eq('id', update.id);
       if (error) throw error;
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err?.message || 'Ocurrió un error.' };
+    }
+  };
+
+  const saveReview = async () => {
+    setSaving(true);
+    try {
+      const result = await persistReview();
+      if (!result.ok) {
+        await showErrorAlert({ title: 'Error al guardar', text: result.error || 'No se pudo guardar la revisión.' });
+        return;
+      }
+
       await showSuccessAlert({ title: 'Revisión guardada', text: 'El estado de la actualización fue actualizado.' });
       onSaved();
-    } catch (err) {
-      await showErrorAlert({ title: 'Error al guardar', text: err.message || 'Ocurrió un error.' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const notifyBeneficiario = async () => {
+    if (!beneficiario?.email) {
+      await showErrorAlert({ title: 'Sin correo', text: 'El beneficiario no tiene correo registrado para notificar.' });
+      return;
+    }
+
+    setNotifying(true);
+    setNotifyMessage('');
+    try {
+      const reviewResult = await persistReview();
+      if (!reviewResult.ok) {
+        await showErrorAlert({ title: 'No se pudo preparar la notificación', text: reviewResult.error || 'No se pudo guardar la revisión.' });
+        return;
+      }
+
+      const { session } = await getSafeSession();
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        throw new Error('No hay sesión activa de administrador. Inicia sesión de nuevo.');
+      }
+
+      const payload = {
+        email: String(beneficiario.email || '').trim().toLowerCase(),
+        nombre_estudiante: beneficiario.nombre_completo || 'Estudiante',
+        numero_peticion: `ACT-${update.id}`,
+        estado: estadoLabel(reviewEstado),
+        nota: String(reviewObs || '').trim(),
+        portal_url: `${window.location.origin}/beneficiario/login`,
+      };
+
+      const { data, error } = await supabase.functions.invoke('notify-beneficiario-novedad', {
+        body: payload,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (error) {
+        throw new Error(error.message || 'No se pudo invocar la función de notificación.');
+      }
+
+      if (!data?.ok) {
+        throw new Error(data?.message || 'La notificación no pudo ser enviada.');
+      }
+
+      setNotifyMessage('Notificación enviada al beneficiario correctamente.');
+      await showSuccessAlert({
+        title: 'Notificación enviada',
+        text: `Se envió correo a ${beneficiario.email} con el estado ${estadoLabel(reviewEstado)}.`,
+      });
+      onSaved();
+    } catch (err) {
+      const detail = err?.message || 'No se pudo enviar la notificación.';
+      setNotifyMessage(detail);
+      await showErrorAlert({ title: 'Error al notificar', text: detail });
+    } finally {
+      setNotifying(false);
+    }
+  };
+
+  const assignReviewer = async () => {
+    if (!reviewerUserId) {
+      await showErrorAlert({ title: 'Revisor requerido', text: 'Selecciona un administrador revisor.' });
+      return;
+    }
+
+    setAssigningReviewer(true);
+    try {
+      const { data, error } = await supabase.rpc('asignar_revisor_actualizacion', {
+        p_actualizacion_id: update.id,
+        p_revisor_user_id: reviewerUserId,
+        p_note: 'Asignación desde panel de actualizaciones',
+      });
+
+      if (error || !data?.ok) {
+        throw new Error(error?.message || data?.message || 'No se pudo asignar el revisor.');
+      }
+
+      await showSuccessAlert({
+        title: 'Revisor asignado',
+        text: 'La asignación quedó registrada en historial.',
+      });
+      onSaved();
+    } catch (err) {
+      await showErrorAlert({
+        title: 'No se pudo asignar',
+        text: err?.message || 'Ocurrió un error al asignar el revisor.',
+      });
+    } finally {
+      setAssigningReviewer(false);
     }
   };
 
@@ -216,6 +327,31 @@ const UpdateModal = ({ update, beneficiario, ventana, onClose, onSaved }) => {
           {/* Revisión admin */}
           <section className="border border-slate-200 rounded-2xl p-4 space-y-3">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Revisión administrativa</p>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Admin revisor asignado</label>
+              <div className="flex items-center gap-2">
+                <select
+                  value={reviewerUserId}
+                  onChange={(e) => setReviewerUserId(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
+                >
+                  <option value="">Selecciona admin...</option>
+                  {(adminUsers || []).map((admin) => (
+                    <option key={admin.user_id} value={admin.user_id}>
+                      {admin.user_id.slice(0, 8)}...{admin.user_id.slice(-4)}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={assignReviewer}
+                  disabled={assigningReviewer || saving || notifying}
+                  className="px-3 py-2 rounded-xl bg-slate-800 text-white text-xs font-bold disabled:opacity-50"
+                >
+                  {assigningReviewer ? '...' : 'Asignar'}
+                </button>
+              </div>
+            </div>
             {update.revisado_at && (
               <p className="text-xs text-slate-500">
                 Última revisión: {formatDateTime(update.revisado_at)}
@@ -245,14 +381,29 @@ const UpdateModal = ({ update, beneficiario, ventana, onClose, onSaved }) => {
                 className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-secondary"
               />
             </div>
-            <button
-              onClick={saveReview}
-              disabled={saving}
-              className="flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-secondary/90 disabled:opacity-50"
-            >
-              {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-              Guardar revisión
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={saveReview}
+                disabled={saving || notifying}
+                className="flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-secondary/90 disabled:opacity-50"
+              >
+                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                Guardar revisión
+              </button>
+              <button
+                onClick={notifyBeneficiario}
+                disabled={saving || notifying}
+                className="flex items-center gap-2 bg-accent text-white px-4 py-2 rounded-xl text-sm font-semibold hover:brightness-110 disabled:opacity-50"
+              >
+                {notifying ? <Loader2 size={16} className="animate-spin" /> : <BellRing size={16} />}
+                Notificar beneficiario
+              </button>
+            </div>
+            {notifyMessage && (
+              <p className={`text-xs ${notifyMessage.includes('correctamente') ? 'text-emerald-600' : 'text-red-600'}`}>
+                {notifyMessage}
+              </p>
+            )}
           </section>
         </div>
       </div>
@@ -276,6 +427,7 @@ const DataField = ({ label, value }) => (
 const AdminActualizaciones = () => {
   const [rows, setRows] = useState([]);
   const [ventanas, setVentanas] = useState([]);
+  const [adminUsers, setAdminUsers] = useState([]);
   const [beneficiariosMap, setBeneficiariosMap] = useState({});
   const [ventanasMap, setVentanasMap] = useState({});
   const [loading, setLoading] = useState(true);
@@ -287,10 +439,10 @@ const AdminActualizaciones = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [{ data: updatesData }, { data: benefData }, { data: ventData }] = await Promise.all([
+      const [{ data: updatesData }, { data: benefData }, { data: ventData }, { data: adminsData }] = await Promise.all([
         supabase
           .from('portal_actualizaciones')
-          .select('id,beneficiario_id,ventana_id,estado,semestre_actual,promedio_semestre_anterior,observacion_admin,revisado_at,created_at,updated_at,payload_formulario,email,telefono,direccion,revisado_por_user_id')
+          .select('id,beneficiario_id,ventana_id,estado,semestre_actual,promedio_semestre_anterior,observacion_admin,revisado_at,created_at,updated_at,payload_formulario,email,telefono,direccion,revisado_por_user_id,revisor_asignado_user_id,revisor_asignado_at')
           .order('created_at', { ascending: false })
           .limit(500),
         supabase
@@ -301,10 +453,15 @@ const AdminActualizaciones = () => {
           .from('portal_ventanas_actualizacion')
           .select('id,nombre,fecha_inicio,fecha_fin')
           .order('fecha_inicio', { ascending: false }),
+        supabase
+          .from('portal_admin_users')
+          .select('user_id,created_at')
+          .order('created_at', { ascending: true }),
       ]);
 
       setRows(Array.isArray(updatesData) ? updatesData : []);
       setVentanas(Array.isArray(ventData) ? ventData : []);
+      setAdminUsers(Array.isArray(adminsData) ? adminsData : []);
 
       const bMap = {};
       (benefData || []).forEach((b) => { bMap[b.id] = b; });
@@ -525,6 +682,7 @@ const AdminActualizaciones = () => {
           update={selectedRow}
           beneficiario={beneficiariosMap[selectedRow.beneficiario_id]}
           ventana={selectedRow.ventana_id ? ventanasMap[selectedRow.ventana_id] : null}
+          adminUsers={adminUsers}
           onClose={() => setSelectedRow(null)}
           onSaved={handleSaved}
         />

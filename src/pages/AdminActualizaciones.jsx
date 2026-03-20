@@ -1,20 +1,31 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 import {
+  AlertTriangle,
   BellRing,
   CheckCircle,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
   Clock,
+  Download,
   Eye,
   FileText,
+  FileSpreadsheet,
+  Keyboard,
   Loader2,
+  Mail,
   RefreshCw,
   Save,
   Search,
+  StickyNote,
+  Users,
   XCircle,
 } from 'lucide-react';
+import ReviewChecklist from '../components/ReviewChecklist';
 import { showErrorAlert, showSuccessAlert } from '../lib/alerts';
-import { getSafeSession, supabase } from '../lib/supabase';
+import { clearLocalAuthSession, getSafeSession, supabase } from '../lib/supabase';
 import DocViewerModal from '../components/DocViewerModal';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -24,6 +35,28 @@ const formatDateTime = (value) => {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleString('es-CO');
+};
+
+const getVentanaEstado = (ventana) => {
+  if (!ventana) return { key: 'sin_periodo', label: 'Sin periodo', className: 'bg-slate-100 text-slate-600 ring-slate-200' };
+
+  const now = new Date();
+  const start = ventana?.fecha_inicio ? new Date(ventana.fecha_inicio) : null;
+  const end = ventana?.fecha_fin ? new Date(ventana.fecha_fin) : null;
+
+  if (!ventana.is_active) {
+    return { key: 'inactiva', label: 'Inactiva', className: 'bg-slate-100 text-slate-700 ring-slate-200' };
+  }
+
+  if (start && now < start) {
+    return { key: 'proxima', label: 'Próxima', className: 'bg-blue-100 text-blue-700 ring-blue-200' };
+  }
+
+  if (end && now > end) {
+    return { key: 'cerrada', label: 'Cerrada', className: 'bg-amber-100 text-amber-700 ring-amber-200' };
+  }
+
+  return { key: 'activa', label: 'Activa', className: 'bg-emerald-100 text-emerald-700 ring-emerald-200' };
 };
 
 const estadoClassName = (status) => {
@@ -88,6 +121,35 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, onClose, onSav
   const [assigningReviewer, setAssigningReviewer] = useState(false);
   const [reviewerUserId, setReviewerUserId] = useState(update.revisor_asignado_user_id || '');
   const [viewingDoc, setViewingDoc] = useState(null);
+  const [reviewChecklist, setReviewChecklist] = useState({});
+  const [notasAdmin, setNotasAdmin] = useState(() => {
+    try { return localStorage.getItem(`notas_actualizacion_${update?.id}`) || ''; }
+    catch { return ''; }
+  });
+  const [notasSaved, setNotasSaved] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`checklist_actualizacion_${update?.id}`);
+      if (!raw) {
+        setReviewChecklist({});
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      setReviewChecklist(parsed && typeof parsed === 'object' ? parsed : {});
+    } catch {
+      setReviewChecklist({});
+    }
+  }, [update?.id]);
+
+  useEffect(() => {
+    if (!update?.id) return;
+    try {
+      localStorage.setItem(`checklist_actualizacion_${update.id}`, JSON.stringify(reviewChecklist || {}));
+    } catch {
+      // ignore localStorage errors
+    }
+  }, [update?.id, reviewChecklist]);
 
   useEffect(() => {
     let mounted = true;
@@ -109,6 +171,40 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, onClose, onSav
     fetchDocs();
     return () => { mounted = false; };
   }, [update.id]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (viewingDoc) return; // otra capa activa
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
+      if (event.key === 'Escape') { event.preventDefault(); onClose(); return; }
+      if (event.key.toLowerCase() === 's' && event.ctrlKey) {
+        event.preventDefault();
+        if (!saving) saveReview();
+        return;
+      }
+      if (event.key.toLowerCase() === 'a' && event.ctrlKey) {
+        event.preventDefault();
+        if (!saving && reviewEstado !== 'aprobada') { setReviewEstado('aprobada'); }
+        return;
+      }
+      if (event.key.toLowerCase() === 'r' && event.ctrlKey) {
+        event.preventDefault();
+        if (!saving && reviewEstado !== 'rechazada') { setReviewEstado('rechazada'); }
+        return;
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [viewingDoc, saving, reviewEstado, onClose]);
+
+  const handleSaveNotasAdmin = () => {
+    try {
+      localStorage.setItem(`notas_actualizacion_${update?.id}`, notasAdmin);
+      setNotasSaved(true);
+      window.setTimeout(() => setNotasSaved(false), 1500);
+    } catch {}
+  };
 
   const payload = update.payload_formulario || {};
 
@@ -146,6 +242,12 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, onClose, onSav
         return;
       }
 
+      // Para estados críticos, enviar notificación automática al guardar.
+      const shouldAutoNotify = ['rechazada', 'aprobada'].includes(String(reviewEstado || '').toLowerCase());
+      if (shouldAutoNotify && beneficiario?.email) {
+        await notifyBeneficiario({ skipPersist: true, silentSuccess: true });
+      }
+
       await showSuccessAlert({ title: 'Revisión guardada', text: 'El estado de la actualización fue actualizado.' });
       onSaved();
     } finally {
@@ -153,7 +255,7 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, onClose, onSav
     }
   };
 
-  const notifyBeneficiario = async () => {
+  const notifyBeneficiario = async ({ skipPersist = false, silentSuccess = false } = {}) => {
     if (!beneficiario?.email) {
       await showErrorAlert({ title: 'Sin correo', text: 'El beneficiario no tiene correo registrado para notificar.' });
       return;
@@ -162,10 +264,12 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, onClose, onSav
     setNotifying(true);
     setNotifyMessage('');
     try {
-      const reviewResult = await persistReview();
-      if (!reviewResult.ok) {
-        await showErrorAlert({ title: 'No se pudo preparar la notificación', text: reviewResult.error || 'No se pudo guardar la revisión.' });
-        return;
+      if (!skipPersist) {
+        const reviewResult = await persistReview();
+        if (!reviewResult.ok) {
+          await showErrorAlert({ title: 'No se pudo preparar la notificación', text: reviewResult.error || 'No se pudo guardar la revisión.' });
+          return;
+        }
       }
 
       const { session } = await getSafeSession();
@@ -174,13 +278,26 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, onClose, onSav
         throw new Error('No hay sesión activa de administrador. Inicia sesión de nuevo.');
       }
 
+      // Detectar documentos faltantes si es rechazado
+      let documentosFaltantes = [];
+      const isRechazada = reviewEstado === 'rechazada';
+      if (isRechazada && Array.isArray(docs)) {
+        const docsEnviados = new Set(docs.map(d => d.tipo_documento));
+        const docsEsperados = ['certificado_bancario', 'certificado_notas', 'certificado_matricula'];
+        documentosFaltantes = docsEsperados.filter(d => !docsEnviados.has(d));
+      }
+
       const payload = {
         email: String(beneficiario.email || '').trim().toLowerCase(),
         nombre_estudiante: beneficiario.nombre_completo || 'Estudiante',
         numero_peticion: `ACT-${update.id}`,
         estado: estadoLabel(reviewEstado),
         nota: String(reviewObs || '').trim(),
-        portal_url: `${window.location.origin}/beneficiario/login`,
+        portal_url: `${window.location.origin}/beneficiario`,
+        beneficiario_id: beneficiario.id,
+        actualizacion_id: update.id,
+        documentos_faltantes: documentosFaltantes,
+        plazo_reenvio: isRechazada ? '7 días' : undefined,
       };
 
       const { data, error } = await supabase.functions.invoke('notify-beneficiario-novedad', {
@@ -199,10 +316,12 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, onClose, onSav
       }
 
       setNotifyMessage('Notificación enviada al beneficiario correctamente.');
-      await showSuccessAlert({
-        title: 'Notificación enviada',
-        text: `Se envió correo a ${beneficiario.email} con el estado ${estadoLabel(reviewEstado)}.`,
-      });
+      if (!silentSuccess) {
+        await showSuccessAlert({
+          title: 'Notificación enviada',
+          text: `Se envió correo a ${beneficiario.email} con el estado ${estadoLabel(reviewEstado)}.`,
+        });
+      }
       onSaved();
     } catch (err) {
       const detail = err?.message || 'No se pudo enviar la notificación.';
@@ -251,7 +370,7 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, onClose, onSav
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 rounded-t-3xl flex items-start justify-between z-10">
           <div>
@@ -266,7 +385,7 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, onClose, onSav
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="overflow-y-auto flex-1 p-6 space-y-6">
           {/* Beneficiario info */}
           <section className="bg-slate-50 rounded-2xl p-4 space-y-1">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Beneficiario</p>
@@ -324,6 +443,42 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, onClose, onSav
             )}
           </section>
 
+          {/* Lista de revisión */}
+          <section>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Lista de revisión</p>
+            <ReviewChecklist
+              aspiranteId={update.id}
+              checklist={reviewChecklist}
+              onChecklistChange={setReviewChecklist}
+            />
+          </section>
+
+          {/* Notas privadas del revisor */}
+          <section className="bg-amber-950 rounded-2xl p-4 space-y-2">
+            <p className="text-[10px] font-black uppercase tracking-widest text-amber-400 flex items-center gap-2">
+              <StickyNote size={12} /> Notas privadas del revisor
+            </p>
+            <textarea
+              value={notasAdmin}
+              onChange={(e) => setNotasAdmin(e.target.value)}
+              placeholder="Escribe tus notas internas sobre esta actualización…"
+              rows={3}
+              className="w-full bg-amber-900/40 border border-amber-800 rounded-xl px-3 py-2 text-sm text-amber-100 placeholder-amber-700 resize-none focus:outline-none focus:ring-1 focus:ring-amber-500"
+            />
+            <div className="flex items-center justify-between">
+              <p className="text-[9px] text-amber-700 uppercase tracking-wider">Solo visible localmente</p>
+              <button
+                type="button"
+                onClick={handleSaveNotasAdmin}
+                className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all active:scale-95 ${
+                  notasSaved ? 'bg-green-700 text-white' : 'bg-amber-600 hover:bg-amber-500 text-white'
+                }`}
+              >
+                {notasSaved ? '✓ Guardado' : 'Guardar nota'}
+              </button>
+            </div>
+          </section>
+
           {/* Revisión admin */}
           <section className="border border-slate-200 rounded-2xl p-4 space-y-3">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Revisión administrativa</p>
@@ -338,7 +493,7 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, onClose, onSav
                   <option value="">Selecciona admin...</option>
                   {(adminUsers || []).map((admin) => (
                     <option key={admin.user_id} value={admin.user_id}>
-                      {admin.user_id.slice(0, 8)}...{admin.user_id.slice(-4)}
+                      {admin.nombre_completo || (admin.user_id.slice(0, 8) + '...' + admin.user_id.slice(-4))}
                     </option>
                   ))}
                 </select>
@@ -406,6 +561,49 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, onClose, onSav
             )}
           </section>
         </div>
+
+        {/* Floating action bar */}
+        <div className="sticky bottom-0 bg-white/95 backdrop-blur-sm border-t border-slate-200 px-6 py-3 rounded-b-3xl flex items-center gap-2 flex-wrap">
+          <button
+            onClick={saveReview}
+            disabled={saving || notifying}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 disabled:opacity-50 ${
+              reviewEstado === 'aprobada'
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                : reviewEstado === 'rechazada'
+                ? 'bg-red-600 hover:bg-red-700 text-white'
+                : 'bg-secondary hover:brightness-110 text-white'
+            }`}
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+            {saving ? 'Guardando…' : `Guardar (${estadoLabel(reviewEstado)})`}
+          </button>
+          <button
+            onClick={() => { setReviewEstado('aprobada'); }}
+            disabled={saving || notifying || reviewEstado === 'aprobada'}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-40 transition-all"
+          >
+            <CheckCircle size={14} /> Aprobar
+          </button>
+          <button
+            onClick={() => { setReviewEstado('rechazada'); }}
+            disabled={saving || notifying || reviewEstado === 'rechazada'}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-40 transition-all"
+          >
+            <XCircle size={14} /> Rechazar
+          </button>
+          <button
+            onClick={notifyBeneficiario}
+            disabled={saving || notifying}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-40 transition-all"
+          >
+            {notifying ? <Loader2 size={14} className="animate-spin" /> : <BellRing size={14} />}
+            Notificar
+          </button>
+          <span className="ml-auto text-[9px] text-slate-300 uppercase tracking-wide hidden sm:block">
+            Ctrl+S guardar · Ctrl+A aprobar · Ctrl+R rechazar · Esc cerrar
+          </span>
+        </div>
       </div>
 
       {viewingDoc && (
@@ -422,6 +620,438 @@ const DataField = ({ label, value }) => (
   </div>
 );
 
+const alertaClassName = (tipo) => {
+  if (tipo === 'no_enviado') return 'bg-amber-100 text-amber-700 ring-1 ring-amber-200';
+  if (tipo === 'rechazada') return 'bg-red-100 text-red-700 ring-1 ring-red-200';
+  return 'bg-slate-100 text-slate-600 ring-1 ring-slate-200';
+};
+
+const alertaLabel = (tipo) => {
+  if (tipo === 'no_enviado') return 'No enviada';
+  if (tipo === 'rechazada') return 'Rechazada';
+  return '—';
+};
+
+const NOTIFY_TEMPLATES = [
+  { code: 'ultimo_aviso', label: 'Último aviso' },
+  { code: 'cierre_periodo_sin_pago', label: 'Cierre de periodo / sin pago' },
+];
+
+const SUPABASE_FUNCTIONS_BASE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+const getFreshAdminAccessToken = async () => {
+  // Primero intentamos refrescar para evitar JWT expirado o desincronizado.
+  const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+  if (!refreshError && refreshed?.session?.access_token) {
+    const refreshedToken = String(refreshed.session.access_token).trim();
+    if (refreshedToken) {
+      const { error: refreshedUserError } = await supabase.auth.getUser(refreshedToken);
+      if (!refreshedUserError) return refreshedToken;
+    }
+  }
+
+  const { session } = await getSafeSession();
+  const token = String(session?.access_token || '').trim();
+  if (token) {
+    const { error: userError } = await supabase.auth.getUser(token);
+    if (!userError) return token;
+  }
+
+  // Ultimo intento: refresh + validación explícita.
+  const { data: retryRefreshed } = await supabase.auth.refreshSession();
+  const retryToken = String(retryRefreshed?.session?.access_token || '').trim();
+  if (retryToken) {
+    const { error: retryUserError } = await supabase.auth.getUser(retryToken);
+    if (!retryUserError) return retryToken;
+  }
+
+  await clearLocalAuthSession();
+  throw new Error('Tu sesión expiró o es inválida. Inicia sesión nuevamente para continuar.');
+};
+
+const invokeNotifyBulkDirect = async (payload, token) => {
+  const response = await fetch(`${SUPABASE_FUNCTIONS_BASE_URL}/notify-bulk-sin-actualizar`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const rawText = await response.text().catch(() => '');
+  let parsed = null;
+  try {
+    parsed = rawText ? JSON.parse(rawText) : null;
+  } catch {
+    parsed = null;
+  }
+
+  if (!response.ok) {
+    const remoteMessage = String(parsed?.message || parsed?.error || rawText || '').trim();
+    const message = remoteMessage || `Error HTTP ${response.status} al invocar notificación masiva.`;
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
+  }
+
+  return parsed || {};
+};
+
+const ReporteSinActualizarModal = ({ ventanas, onClose }) => {
+  const [ventanaId, setVentanaId] = useState('');
+  const [query, setQuery] = useState('');
+  const [loadingReport, setLoadingReport] = useState(false);
+  const [rows, setRows] = useState([]);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [templateCode, setTemplateCode] = useState(NOTIFY_TEMPLATES[0].code);
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    const activeWindow = (ventanas || []).find((v) => v?.is_active) || (ventanas || [])[0];
+    if (activeWindow?.id) {
+      setVentanaId(String(activeWindow.id));
+    }
+  }, [ventanas]);
+
+  const loadReport = async () => {
+    const parsedWindowId = Number(ventanaId);
+    if (!Number.isInteger(parsedWindowId) || parsedWindowId <= 0) {
+      await showErrorAlert({ title: 'Periodo requerido', text: 'Selecciona un periodo para cargar el reporte.' });
+      return;
+    }
+
+    setLoadingReport(true);
+    setSelectedIds([]);
+    try {
+      const { data, error } = await supabase.rpc('admin_beneficiarios_sin_actualizar', {
+        p_ventana_id: parsedWindowId,
+        p_query: String(query || '').trim() || null,
+        p_limit: 5000,
+      });
+
+      if (error) throw error;
+      setRows(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setRows([]);
+      await showErrorAlert({
+        title: 'No se pudo cargar el reporte',
+        text: err?.message || 'No fue posible consultar los beneficiarios sin actualizar.',
+      });
+    } finally {
+      setLoadingReport(false);
+    }
+  };
+
+  const selectedWindow = useMemo(
+    () => (ventanas || []).find((v) => String(v.id) === String(ventanaId)) || null,
+    [ventanas, ventanaId]
+  );
+
+  const selectedRows = useMemo(() => {
+    const selected = new Set(selectedIds);
+    return rows.filter((row) => selected.has(row.beneficiario_id));
+  }, [rows, selectedIds]);
+
+  const selectedWithEmail = useMemo(
+    () => selectedRows.filter((row) => String(row.email || '').includes('@')),
+    [selectedRows]
+  );
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === rows.length) {
+      setSelectedIds([]);
+      return;
+    }
+    setSelectedIds(rows.map((row) => row.beneficiario_id));
+  };
+
+  const toggleOne = (beneficiarioId) => {
+    setSelectedIds((prev) => {
+      if (prev.includes(beneficiarioId)) {
+        return prev.filter((id) => id !== beneficiarioId);
+      }
+      return [...prev, beneficiarioId];
+    });
+  };
+
+  const exportXlsx = async () => {
+    if (!rows.length) {
+      await showErrorAlert({ title: 'Sin datos', text: 'Primero carga el reporte para exportar.' });
+      return;
+    }
+
+    const dataForSheet = rows.map((row) => ({
+      beneficiario_id: row.beneficiario_id,
+      nombre_completo: row.nombre_completo || '',
+      documento: row.n_documento || '',
+      email: row.email || '',
+      estado_beneficiario: row.estado_beneficiario || '',
+      periodo: row.ventana_nombre || '',
+      tipo_alerta: alertaLabel(row.tipo_alerta),
+      ultimo_estado_actualizacion: row.ultimo_estado_actualizacion || '',
+      ultima_actualizacion: row.ultima_actualizacion_at ? formatDateTime(row.ultima_actualizacion_at) : '',
+    }));
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(dataForSheet);
+    XLSX.utils.book_append_sheet(wb, ws, 'Sin actualizar');
+    const safePeriodName = String(selectedWindow?.nombre || 'periodo').replace(/[^a-zA-Z0-9_-]+/g, '_');
+    const fileName = `reporte_sin_actualizar_${safePeriodName}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
+
+  const sendNotifications = async () => {
+    const parsedWindowId = Number(ventanaId);
+    if (!Number.isInteger(parsedWindowId) || parsedWindowId <= 0) {
+      await showErrorAlert({ title: 'Periodo requerido', text: 'Selecciona un periodo antes de notificar.' });
+      return;
+    }
+
+    if (!selectedIds.length) {
+      await showErrorAlert({ title: 'Sin selección', text: 'Selecciona al menos un beneficiario para notificar.' });
+      return;
+    }
+
+    if (!selectedWithEmail.length) {
+      await showErrorAlert({ title: 'Sin correos válidos', text: 'Ningún seleccionado tiene correo válido.' });
+      return;
+    }
+
+    setSending(true);
+    try {
+      const token = await getFreshAdminAccessToken();
+
+      const payload = {
+        ventana_id: parsedWindowId,
+        periodo_nombre: selectedWindow?.nombre || 'Periodo vigente',
+        template_code: templateCode,
+        recipient_ids: selectedWithEmail.map((row) => row.beneficiario_id),
+        portal_url: `${window.location.origin}/beneficiario/login`,
+        caller_token: token,
+      };
+
+      const data = await invokeNotifyBulkDirect(payload, token);
+
+      if (!data?.ok) {
+        const resolvedMessage = String(data?.message || 'La función devolvió un resultado inválido.');
+        if (resolvedMessage.toLowerCase().includes('invalid jwt')) {
+          await clearLocalAuthSession();
+          await showErrorAlert({
+            title: 'Sesión expirada',
+            text: 'Tu sesión de administrador expiró o es inválida. Te redirigiremos al login para reingresar.',
+          });
+          window.location.assign('/admin/login');
+          return;
+        }
+        throw new Error(resolvedMessage);
+      }
+
+      await showSuccessAlert({
+        title: 'Notificaciones enviadas',
+        text: `Campaña #${data.campania_id}. Enviados: ${data.enviados}. Fallidos: ${data.fallidos}.`,
+      });
+    } catch (err) {
+      const message = String(err?.message || 'No fue posible enviar las notificaciones.');
+      if (message.toLowerCase().includes('invalid jwt')) {
+        await clearLocalAuthSession();
+        await showErrorAlert({
+          title: 'Sesión expirada',
+          text: 'Tu sesión de administrador expiró o es inválida. Te redirigiremos al login para reingresar.',
+        });
+        window.location.assign('/admin/login');
+        return;
+      }
+      await showErrorAlert({
+        title: 'Error al notificar',
+        text: message,
+      });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[92vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 rounded-t-3xl flex items-start justify-between z-10">
+          <div>
+            <h2 className="text-lg font-black text-slate-800">Reporte de beneficiarios sin actualizar</h2>
+            <p className="text-sm text-slate-500">
+              Incluye beneficiarios activos sin actualización enviada o con última actualización rechazada.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-700 text-xl font-bold leading-none mt-1"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-wrap items-end gap-3">
+            <div className="min-w-56 flex-1">
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Periodo</label>
+              <select
+                value={ventanaId}
+                onChange={(e) => setVentanaId(e.target.value)}
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
+              >
+                <option value="">Selecciona periodo...</option>
+                {(ventanas || []).map((v) => (
+                  <option key={v.id} value={String(v.id)}>
+                    {v.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-56 flex-1">
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Buscar</label>
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Nombre, documento o correo"
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
+              />
+            </div>
+            <button
+              onClick={loadReport}
+              disabled={loadingReport}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-secondary text-white text-sm font-bold disabled:opacity-50"
+            >
+              {loadingReport ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+              Cargar reporte
+            </button>
+            <button
+              onClick={exportXlsx}
+              disabled={loadingReport || !rows.length}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-300 text-slate-700 text-sm font-bold disabled:opacity-50"
+            >
+              <FileSpreadsheet size={16} /> Exportar XLSX
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="bg-white border border-slate-200 rounded-2xl p-4">
+              <p className="text-xs text-slate-400">Total reporte</p>
+              <p className="text-2xl font-black text-slate-800 mt-1">{rows.length}</p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-2xl p-4">
+              <p className="text-xs text-slate-400">Seleccionados</p>
+              <p className="text-2xl font-black text-slate-800 mt-1">{selectedIds.length}</p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-2xl p-4">
+              <p className="text-xs text-slate-400">Seleccionados con correo válido</p>
+              <p className="text-2xl font-black text-slate-800 mt-1">{selectedWithEmail.length}</p>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+            {loadingReport ? (
+              <div className="py-16 flex items-center justify-center gap-2 text-slate-400">
+                <Loader2 size={18} className="animate-spin" />
+                <span className="text-sm">Cargando reporte…</span>
+              </div>
+            ) : rows.length === 0 ? (
+              <div className="py-16 flex flex-col items-center justify-center gap-2 text-slate-400">
+                <Users size={28} strokeWidth={1.6} />
+                <p className="text-sm">No hay beneficiarios para mostrar.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[650px]">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="px-4 py-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={rows.length > 0 && selectedIds.length === rows.length}
+                          onChange={toggleSelectAll}
+                        />
+                      </th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Beneficiario</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Documento</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Correo</th>
+                      <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Alerta</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Últ. actualización</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {rows.map((row) => {
+                      const checked = selectedIds.includes(row.beneficiario_id);
+                      return (
+                        <tr key={row.beneficiario_id} className="hover:bg-slate-50">
+                          <td className="px-4 py-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleOne(row.beneficiario_id)}
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-slate-700 font-medium">{row.nombre_completo || '—'}</td>
+                          <td className="px-4 py-3 text-slate-500">{row.n_documento || '—'}</td>
+                          <td className="px-4 py-3 text-slate-500">{row.email || '—'}</td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${alertaClassName(row.tipo_alerta)}`}>
+                              {alertaLabel(row.tipo_alerta)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-500">
+                            {row.ultima_actualizacion_at ? formatDateTime(row.ultima_actualizacion_at) : 'Sin envíos'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center gap-2 text-slate-700">
+              <AlertTriangle size={16} className="text-amber-500" />
+              <p className="text-sm font-medium">Notificación inmediata por plantilla</p>
+            </div>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="min-w-64 flex-1">
+                <label className="block text-xs font-semibold text-slate-500 mb-1">Plantilla</label>
+                <select
+                  value={templateCode}
+                  onChange={(e) => setTemplateCode(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
+                >
+                  {NOTIFY_TEMPLATES.map((tpl) => (
+                    <option key={tpl.code} value={tpl.code}>{tpl.label}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={sendNotifications}
+                disabled={sending || !selectedIds.length}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-accent text-white text-sm font-bold disabled:opacity-50"
+              >
+                {sending ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
+                Enviar notificaciones
+              </button>
+            </div>
+            <p className="text-xs text-slate-500">
+              Se registrará auditoría de campaña y estado por destinatario.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── AdminActualizaciones ────────────────────────────────────────────────────
 
 const AdminActualizaciones = () => {
@@ -435,6 +1065,15 @@ const AdminActualizaciones = () => {
   const [estadoFilter, setEstadoFilter] = useState('all');
   const [ventanaFilter, setVentanaFilter] = useState('all');
   const [selectedRow, setSelectedRow] = useState(null);
+  const [showReporteModal, setShowReporteModal] = useState(false);
+  // Sort
+  const [sortField, setSortField] = useState('created_at');
+  const [sortDir, setSortDir] = useState('desc');
+  // Viewed badge (session-only)
+  const [viewedIds, setViewedIds] = useState(new Set());
+  // Checkbox batch
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [batchLoading, setBatchLoading] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -451,11 +1090,12 @@ const AdminActualizaciones = () => {
           .limit(1000),
         supabase
           .from('portal_ventanas_actualizacion')
-          .select('id,nombre,fecha_inicio,fecha_fin')
+          .select('id,nombre,fecha_inicio,fecha_fin,is_active')
           .order('fecha_inicio', { ascending: false }),
         supabase
           .from('portal_admin_users')
-          .select('user_id,created_at')
+          .select('user_id,nombre_completo,created_at')
+          .eq('is_active', true)
           .order('created_at', { ascending: true }),
       ]);
 
@@ -494,6 +1134,30 @@ const AdminActualizaciones = () => {
     });
   }, [rows, searchTerm, estadoFilter, ventanaFilter, beneficiariosMap]);
 
+  const sortedRows = useMemo(() => {
+    const sorted = [...filteredRows].sort((a, b) => {
+      let av, bv;
+      if (sortField === 'beneficiario') {
+        av = String(beneficiariosMap[a.beneficiario_id]?.nombre_completo || '').toLowerCase();
+        bv = String(beneficiariosMap[b.beneficiario_id]?.nombre_completo || '').toLowerCase();
+      } else if (sortField === 'periodo') {
+        av = String(ventanasMap[a.ventana_id]?.nombre || '').toLowerCase();
+        bv = String(ventanasMap[b.ventana_id]?.nombre || '').toLowerCase();
+      } else if (sortField === 'estado') {
+        av = String(a.estado || '');
+        bv = String(b.estado || '');
+      } else {
+        // created_at default
+        av = a.created_at || '';
+        bv = b.created_at || '';
+      }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }, [filteredRows, sortField, sortDir, beneficiariosMap, ventanasMap]);
+
   const metrics = useMemo(() => {
     return rows.reduce(
       (acc, item) => {
@@ -507,9 +1171,114 @@ const AdminActualizaciones = () => {
     );
   }, [rows]);
 
+  const activeWindow = useMemo(() => {
+    const now = new Date();
+    return (ventanas || []).find((v) => {
+      if (!v?.is_active) return false;
+      const start = v?.fecha_inicio ? new Date(v.fecha_inicio) : null;
+      const end = v?.fecha_fin ? new Date(v.fecha_fin) : null;
+      if (start && now < start) return false;
+      if (end && now > end) return false;
+      return true;
+    }) || null;
+  }, [ventanas]);
+
   const handleSaved = () => {
     setSelectedRow(null);
     loadData();
+  };
+
+  const openRow = (item) => {
+    setViewedIds((prev) => new Set([...prev, item.id]));
+    setSelectedRow(item);
+  };
+
+  const toggleSort = (field) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
+
+  const SortIcon = ({ field }) => {
+    if (sortField !== field) return <ChevronDown size={12} className="opacity-30" />;
+    return sortDir === 'asc'
+      ? <ChevronUp size={12} className="text-secondary" />
+      : <ChevronDown size={12} className="text-secondary" />;
+  };
+
+  const toggleCheckbox = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === sortedRows.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(sortedRows.map((r) => r.id)));
+    }
+  };
+
+  const quickAction = async (item, newEstado, e) => {
+    e.stopPropagation();
+    let obs = null;
+    if (newEstado === 'rechazada') {
+      obs = window.prompt(`Motivo de rechazo para ${beneficiariosMap[item.beneficiario_id]?.nombre_completo || 'este beneficiario'}:`);
+      if (obs === null) return; // cancelado
+      if (!String(obs).trim()) {
+        await showErrorAlert({ title: 'Observación requerida', text: 'Debes ingresar el motivo del rechazo.' });
+        return;
+      }
+    }
+    try {
+      const { session } = await getSafeSession();
+      const { error } = await supabase
+        .from('portal_actualizaciones')
+        .update({
+          estado: newEstado,
+          observacion_admin: obs ? String(obs).trim() : undefined,
+          revisado_por_user_id: session?.user?.id || null,
+          revisado_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', item.id);
+      if (error) throw error;
+      await showSuccessAlert({ title: 'Estado actualizado', text: `Actualización marcada como «${estadoLabel(newEstado)}».` });
+      loadData();
+    } catch (err) {
+      await showErrorAlert({ title: 'Error', text: err?.message || 'No se pudo actualizar el estado.' });
+    }
+  };
+
+  const batchAction = async (newEstado) => {
+    if (!selectedIds.size) return;
+    setBatchLoading(true);
+    try {
+      const { session } = await getSafeSession();
+      const { error } = await supabase
+        .from('portal_actualizaciones')
+        .update({
+          estado: newEstado,
+          revisado_por_user_id: session?.user?.id || null,
+          revisado_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .in('id', [...selectedIds]);
+      if (error) throw error;
+      await showSuccessAlert({ title: 'Listo', text: `${selectedIds.size} actualización(es) marcadas como «${estadoLabel(newEstado)}».` });
+      setSelectedIds(new Set());
+      loadData();
+    } catch (err) {
+      await showErrorAlert({ title: 'Error en batch', text: err?.message || 'No se pudo aplicar la acción.' });
+    } finally {
+      setBatchLoading(false);
+    }
   };
 
   return (
@@ -520,6 +1289,23 @@ const AdminActualizaciones = () => {
         <p className="text-sm text-slate-500 mt-1">
           Todas las actualizaciones periódicas enviadas por los beneficiarios. Filtra por periodo, estado o busca por nombre/documento.
         </p>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Ventana activa:</span>
+          {activeWindow ? (
+            <>
+              <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-bold ring-1 bg-emerald-100 text-emerald-700 ring-emerald-200">
+                {activeWindow.nombre}
+              </span>
+              <span className="text-xs text-slate-500">
+                {formatDateTime(activeWindow.fecha_inicio)} - {formatDateTime(activeWindow.fecha_fin)}
+              </span>
+            </>
+          ) : (
+            <span className="inline-flex px-2.5 py-1 rounded-full text-xs font-bold ring-1 bg-amber-100 text-amber-700 ring-amber-200">
+              No hay ventana activa en este momento
+            </span>
+          )}
+        </div>
       </section>
 
       {/* Metrics */}
@@ -578,9 +1364,14 @@ const AdminActualizaciones = () => {
           className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
         >
           <option value="all">Todos los periodos</option>
-          {ventanas.map((v) => (
-            <option key={v.id} value={String(v.id)}>{v.nombre}</option>
-          ))}
+          {ventanas.map((v) => {
+            const st = getVentanaEstado(v);
+            return (
+              <option key={v.id} value={String(v.id)}>
+                {`${v.nombre} (${st.label})`}
+              </option>
+            );
+          })}
         </select>
         <button
           onClick={loadData}
@@ -589,6 +1380,13 @@ const AdminActualizaciones = () => {
         >
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           Actualizar
+        </button>
+        <button
+          onClick={() => setShowReporteModal(true)}
+          className="flex items-center gap-2 bg-slate-900 text-white rounded-xl px-3 py-2 text-sm font-semibold hover:bg-slate-800"
+        >
+          <Download size={14} />
+          Reporte sin actualizar
         </button>
       </div>
 
@@ -606,35 +1404,119 @@ const AdminActualizaciones = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            {/* Batch action bar */}
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-3 px-5 py-2.5 bg-secondary/10 border-b border-secondary/20">
+                <span className="text-xs font-bold text-secondary">{selectedIds.size} seleccionada(s)</span>
+                <button
+                  onClick={() => batchAction('en_revision')}
+                  disabled={batchLoading}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 transition-all"
+                >
+                  <Clock size={13} /> Marcar en revisión
+                </button>
+                <button
+                  onClick={() => batchAction('aprobada')}
+                  disabled={batchLoading}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-all"
+                >
+                  <CheckCircle size={13} /> Aprobar seleccionadas
+                </button>
+                <button
+                  onClick={() => setSelectedIds(new Set())}
+                  className="ml-auto text-xs text-slate-500 hover:text-slate-800"
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
+            <table className="w-full text-sm min-w-[900px]">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Beneficiario</th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Periodo</th>
+                  <th className="px-4 py-3 w-8">
+                    <input
+                      type="checkbox"
+                      checked={sortedRows.length > 0 && selectedIds.size === sortedRows.length}
+                      onChange={toggleSelectAll}
+                      className="rounded"
+                    />
+                  </th>
+                  <th
+                    className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide cursor-pointer hover:text-slate-800 select-none"
+                    onClick={() => toggleSort('beneficiario')}
+                  >
+                    <span className="inline-flex items-center gap-1">Beneficiario <SortIcon field="beneficiario" /></span>
+                  </th>
+                  <th
+                    className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide cursor-pointer hover:text-slate-800 select-none"
+                    onClick={() => toggleSort('periodo')}
+                  >
+                    <span className="inline-flex items-center gap-1">Periodo <SortIcon field="periodo" /></span>
+                  </th>
                   <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Semestre</th>
                   <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Promedio</th>
-                  <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Estado</th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Enviada</th>
+                  <th
+                    className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide cursor-pointer hover:text-slate-800 select-none"
+                    onClick={() => toggleSort('estado')}
+                  >
+                    <span className="inline-flex items-center gap-1">Estado <SortIcon field="estado" /></span>
+                  </th>
+                  <th
+                    className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide cursor-pointer hover:text-slate-800 select-none"
+                    onClick={() => toggleSort('created_at')}
+                  >
+                    <span className="inline-flex items-center gap-1">Enviada <SortIcon field="created_at" /></span>
+                  </th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Visto</th>
                   <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Revisada</th>
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredRows.map((item) => {
+                {sortedRows.map((item) => {
                   const b = beneficiariosMap[item.beneficiario_id];
                   const v = item.ventana_id ? ventanasMap[item.ventana_id] : null;
+                  const ventanaEstado = getVentanaEstado(v);
+                  const isViewed = viewedIds.has(item.id);
+                  const isSelected = selectedIds.has(item.id);
+                  // Urgency: en_revision sin revisar por más de 3 días
+                  const daysSince = item.created_at
+                    ? (Date.now() - new Date(item.created_at).getTime()) / 86_400_000
+                    : 0;
+                  const isUrgent = item.estado === 'en_revision' && !item.revisado_at && daysSince > 3;
+                  const isOverdue = item.estado === 'en_revision' && !item.revisado_at && daysSince > 7;
+                  const rowClass = isOverdue
+                    ? 'bg-red-50 hover:bg-red-100 border-l-4 border-red-400'
+                    : isUrgent
+                    ? 'bg-amber-50 hover:bg-amber-100 border-l-4 border-amber-400'
+                    : isSelected
+                    ? 'bg-blue-50'
+                    : 'hover:bg-slate-50';
                   return (
                     <tr
                       key={item.id}
-                      className="hover:bg-slate-50 cursor-pointer transition-colors"
-                      onClick={() => setSelectedRow(item)}
+                      className={`cursor-pointer transition-colors ${rowClass}`}
+                      onClick={() => openRow(item)}
                     >
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleCheckbox(item.id)}
+                          className="rounded"
+                        />
+                      </td>
                       <td className="px-5 py-3">
                         <p className="font-semibold text-slate-800 truncate max-w-[200px]">{b?.nombre_completo || '—'}</p>
                         <p className="text-xs text-slate-400 truncate max-w-[200px]">{b?.n_documento || '—'}</p>
                       </td>
                       <td className="px-5 py-3">
-                        <p className="text-slate-700 truncate max-w-[160px]">{v?.nombre || <span className="text-slate-400">Sin periodo</span>}</p>
+                        <div className="max-w-[220px]">
+                          <p className="text-slate-700 truncate">{v?.nombre || <span className="text-slate-400">Sin periodo</span>}</p>
+                          <span className={`inline-flex mt-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ring-1 ${ventanaEstado.className}`}>
+                            {ventanaEstado.label}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-center text-slate-700">{item.semestre_actual ?? '—'}</td>
                       <td className="px-4 py-3 text-center text-slate-700">
@@ -646,8 +1528,19 @@ const AdminActualizaciones = () => {
                         <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${estadoClassName(item.estado)}`}>
                           {estadoLabel(item.estado)}
                         </span>
+                        {isOverdue && <p className="text-[10px] text-red-600 font-bold mt-0.5">+7 días sin revisar</p>}
+                        {isUrgent && !isOverdue && <p className="text-[10px] text-amber-600 font-bold mt-0.5">+3 días sin revisar</p>}
                       </td>
                       <td className="px-5 py-3 text-xs text-slate-500 whitespace-nowrap">{formatDateTime(item.created_at)}</td>
+                      <td className="px-4 py-3 text-center">
+                        {isViewed ? (
+                          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 ring-1 ring-green-200">
+                            ✓ Visto
+                          </span>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-center">
                         {item.revisado_at ? (
                           <CheckCircle size={16} className="text-emerald-500 mx-auto" />
@@ -655,22 +1548,42 @@ const AdminActualizaciones = () => {
                           <Clock size={16} className="text-amber-400 mx-auto" />
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setSelectedRow(item); }}
-                          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium ml-auto"
-                        >
-                          <Eye size={14} />
-                          Ver
-                        </button>
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-1 justify-end">
+                          <button
+                            title="Aprobar directamente"
+                            onClick={(e) => quickAction(item, 'aprobada', e)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all"
+                          >
+                            <CheckCircle size={15} />
+                          </button>
+                          <button
+                            title="Rechazar directamente"
+                            onClick={(e) => quickAction(item, 'rechazada', e)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all"
+                          >
+                            <XCircle size={15} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openRow(item); }}
+                            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
+                          >
+                            <Eye size={14} />
+                            Ver
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-            <div className="px-5 py-3 border-t border-slate-100 text-xs text-slate-400">
-              {filteredRows.length} de {rows.length} actualizaciones
+            <div className="px-5 py-3 border-t border-slate-100 text-xs text-slate-400 flex items-center justify-between">
+              <span>{sortedRows.length} de {rows.length} actualizaciones</span>
+              <span className="hidden sm:flex items-center gap-1 text-slate-300">
+                <span className="w-3 h-0.5 bg-amber-400 inline-block rounded" /> &gt;3 días sin revisar
+                <span className="w-3 h-0.5 bg-red-400 inline-block rounded ml-2" /> &gt;7 días
+              </span>
             </div>
           </div>
         )}
@@ -685,6 +1598,13 @@ const AdminActualizaciones = () => {
           adminUsers={adminUsers}
           onClose={() => setSelectedRow(null)}
           onSaved={handleSaved}
+        />
+      )}
+
+      {showReporteModal && (
+        <ReporteSinActualizarModal
+          ventanas={ventanas}
+          onClose={() => setShowReporteModal(false)}
         />
       )}
     </div>

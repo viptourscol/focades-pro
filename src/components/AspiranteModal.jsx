@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getSafeSession, supabase } from '../lib/supabase';
+import ReviewChecklist from './ReviewChecklist';
 import { 
   X, Copy, Cpu, User, Home, 
   GraduationCap, FileText, CheckCircle, 
-  Briefcase, ShieldAlert, Heart, Eye
+  Briefcase, ShieldAlert, Heart, Eye,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 const DOCUMENT_LABELS = {
@@ -141,7 +143,17 @@ const getFlowHintMessage = ({ etapa, certRequired, hasCertUploaded, permiteReemp
   return 'Sin alertas de flujo. Ajusta etapa y banderas según avance del proceso.';
 };
 
-const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, onPromote }) => {
+const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, onPromote, adminUsers = [], assignReviewer, assignmentDraft, setAssignmentDraft, assigningId }) => {
+    // Para asignar revisor
+    const [showAssign, setShowAssign] = useState(false);
+    const isAdmin = true; // Aquí podrías poner lógica real de permisos si la tienes
+    // Mostrar nombre del revisor asignado
+    const revisorAsignado = (() => {
+      if (!aspirante.revisor_asignado_user_id) return null;
+      const admin = adminUsers.find(a => a.user_id === aspirante.revisor_asignado_user_id);
+      if (admin && admin.nombre_completo) return admin.nombre_completo;
+      return aspirante.revisor_asignado_user_id.slice(0, 8) + '...' + aspirante.revisor_asignado_user_id.slice(-4);
+    })();
   const [animate, setAnimate] = useState(false);
   const [workflowSaving, setWorkflowSaving] = useState(false);
   const [workflowMessage, setWorkflowMessage] = useState('');
@@ -152,6 +164,7 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
   const [observacionPublica, setObservacionPublica] = useState(aspirante.observacion_publica || '');
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [selectedDocUrl, setSelectedDocUrl] = useState('');
+  const [currentDocIndex, setCurrentDocIndex] = useState(-1);
   const [docPreviewLoading, setDocPreviewLoading] = useState(false);
   const [docPreviewError, setDocPreviewError] = useState('');
   const [historialDocs, setHistorialDocs] = useState([]);
@@ -161,10 +174,51 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
   const [decisionLoading, setDecisionLoading] = useState('');
   const [decisionPulse, setDecisionPulse] = useState('');
   const [promoteSemestre, setPromoteSemestre] = useState('1');
+  const [promoveBanco, setPromoveBanco] = useState('');
+  const [promoveTipoCuenta, setPromoveTipoCuenta] = useState('');
+  const [promoveCuenta, setPromoveCuenta] = useState('');
   const [promoteLoading, setPromoteLoading] = useState(false);
   const [promoteMessage, setPromoteMessage] = useState('');
   const [promoteError, setPromoteError] = useState('');
+  const [reviewChecklist, setReviewChecklist] = useState({});
+  const [notasAdmin, setNotasAdmin] = useState(() => {
+    try { return localStorage.getItem(`notas_aspirante_${aspirante?.id}`) || ''; }
+    catch { return ''; }
+  });
+  const [notasSaved, setNotasSaved] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`checklist_aspirante_${aspirante?.id}`);
+      if (!raw) {
+        setReviewChecklist({});
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      setReviewChecklist(parsed && typeof parsed === 'object' ? parsed : {});
+    } catch {
+      setReviewChecklist({});
+    }
+  }, [aspirante?.id]);
+
+  useEffect(() => {
+    if (!aspirante?.id) return;
+    try {
+      localStorage.setItem(`checklist_aspirante_${aspirante.id}`, JSON.stringify(reviewChecklist || {}));
+    } catch {
+      // ignore localStorage errors
+    }
+  }, [aspirante?.id, reviewChecklist]);
+
   useEffect(() => { setAnimate(true); }, []);
+
+  const handleSaveNotasAdmin = () => {
+    try {
+      localStorage.setItem(`notas_aspirante_${aspirante?.id}`, notasAdmin);
+      setNotasSaved(true);
+      window.setTimeout(() => setNotasSaved(false), 1500);
+    } catch {}
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -198,6 +252,83 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
     };
   }, [aspirante?.id]);
 
+  // Calculado aquí para que esté disponible antes del useEffect de keyboard shortcuts
+  const attachedDocuments = buildAttachedDocuments(aspirante, historialDocs);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      // No ejecutar shortcuts si hay input enfocado
+      if (['INPUT', 'TEXTAREA'].includes(event.target.tagName)) return;
+      
+      // Escape: cerrar modal
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose?.();
+        return;
+      }
+
+      // Arrow Left: documento anterior
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        if (selectedDoc && currentDocIndex > 0) {
+          goToPreviousDoc();
+        }
+        return;
+      }
+
+      // Arrow Right: documento siguiente
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        if (selectedDoc && currentDocIndex < attachedDocuments.length - 1) {
+          goToNextDoc();
+        }
+        return;
+      }
+
+      // 'A': Admit (Admit button action)
+      if (event.key.toLowerCase() === 'a' && event.ctrlKey) {
+        event.preventDefault();
+        if (!decisionLoading && etapa !== 'admitido') {
+          handleDecisionAction('admit');
+        }
+        return;
+      }
+
+      // 'R': Reject (Reject button action)
+      if (event.key.toLowerCase() === 'r' && event.ctrlKey) {
+        event.preventDefault();
+        if (!decisionLoading && etapa !== 'rechazado') {
+          handleDecisionAction('reject');
+        }
+        return;
+      }
+
+      // 'S': Save workflow  
+      if (event.key.toLowerCase() === 's' && event.ctrlKey) {
+        event.preventDefault();
+        if (!workflowSaving) {
+          handleSaveWorkflow();
+        }
+        return;
+      }
+
+      // 'D': Close document preview
+      if (event.key.toLowerCase() === 'd' && event.ctrlKey) {
+        event.preventDefault();
+        if (selectedDoc) {
+          closePreviewModal();
+        }
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedDoc, currentDocIndex, attachedDocuments.length, decisionLoading, workflowSaving, onClose, etapa]);
+
   const p = aspirante.personas;
   const puntaje = aspirante.puntaje_total || 0;
   const hasBankCertificateUploaded = Boolean(getBankCertificatePathFromAspirante(aspirante));
@@ -210,7 +341,6 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
     hasCertUploaded: hasBankCertificateUploaded,
     permiteReemplazo,
   });
-  const attachedDocuments = buildAttachedDocuments(aspirante, historialDocs);
   const promoted = Boolean(aspirante?.promovido_a_beneficiario) && Boolean(aspirante?.beneficiario_portal_id);
   const canPromote = legalizacionCompletada && !promoted;
   const nombreCompleto = pickAspiranteValue(aspirante, p, 'nombre_completo') || 'Aspirante';
@@ -247,6 +377,10 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
     setSelectedDocUrl('');
     setDocPreviewError('');
     setDocPreviewLoading(true);
+    
+    // Encontrar el índice del documento en attachedDocuments
+    const idx = attachedDocuments.findIndex(d => d.path === doc.path && d.key === doc.key);
+    setCurrentDocIndex(idx !== -1 ? idx : -1);
 
     try {
       const url = await resolveDocumentUrl(doc.path);
@@ -258,11 +392,56 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
     }
   };
 
+  const goToPreviousDoc = async () => {
+    if (currentDocIndex <= 0) return; // No hay anterior
+    const prevIndex = currentDocIndex - 1;
+    const prevDoc = attachedDocuments[prevIndex];
+    if (prevDoc) {
+      setCurrentDocIndex(prevIndex);
+      setSelectedDoc(prevDoc);
+      setSelectedDocUrl('');
+      setDocPreviewError('');
+      setDocPreviewLoading(true);
+
+      try {
+        const url = await resolveDocumentUrl(prevDoc.path);
+        setSelectedDocUrl(url);
+      } catch (error) {
+        setDocPreviewError(error?.message || 'No se pudo abrir el documento.');
+      } finally {
+        setDocPreviewLoading(false);
+      }
+    }
+  };
+
+  const goToNextDoc = async () => {
+    if (currentDocIndex >= attachedDocuments.length - 1) return; // No hay siguiente
+    const nextIndex = currentDocIndex + 1;
+    const nextDoc = attachedDocuments[nextIndex];
+    if (nextDoc) {
+      setCurrentDocIndex(nextIndex);
+      setSelectedDoc(nextDoc);
+      setSelectedDocUrl('');
+      setDocPreviewError('');
+      setDocPreviewLoading(true);
+
+      try {
+        const url = await resolveDocumentUrl(nextDoc.path);
+        setSelectedDocUrl(url);
+      } catch (error) {
+        setDocPreviewError(error?.message || 'No se pudo abrir el documento.');
+      } finally {
+        setDocPreviewLoading(false);
+      }
+    }
+  };
+
   const closePreviewModal = () => {
     setSelectedDoc(null);
     setSelectedDocUrl('');
     setDocPreviewError('');
     setDocPreviewLoading(false);
+    setCurrentDocIndex(-1);
   };
 
   const handleCopyRadicado = async () => {
@@ -378,6 +557,17 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
       if (!response?.ok) {
         setPromoteError(response?.error || 'No fue posible promover al aspirante.');
       } else {
+        // Guardar datos bancarios en el beneficiario recién creado
+        if (response.beneficiarioId && (promoveBanco || promoveCuenta)) {
+          await supabase
+            .from('portal_beneficiarios')
+            .update({
+              banco: promoveBanco.trim() || null,
+              tipo_cuenta: promoveTipoCuenta || null,
+              cuenta_bancaria: promoveCuenta.trim() || null,
+            })
+            .eq('id', response.beneficiarioId);
+        }
         const email = String(
           aspirante?.email ||
           aspirante?.datos_formulario?.email ||
@@ -406,6 +596,37 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
         <header className="bg-white px-10 py-8 border-b border-slate-100 flex justify-between items-center">
           <div>
             <div className="flex items-center gap-3 mb-2">
+                          {revisorAsignado && (
+                            <span className="bg-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-lg ml-2">Admin revisor asignado: {revisorAsignado}</span>
+                          )}
+                        {/* Asignar revisor solo para admins */}
+                        {isAdmin && (
+                          <div className="mt-6">
+                            <h4 className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Asignar/Reasignar revisor</h4>
+                            <div className="flex flex-col md:flex-row gap-2 items-start md:items-center">
+                              <select
+                                value={assignmentDraft?.[aspirante.id] || ''}
+                                onChange={e => setAssignmentDraft(prev => ({ ...prev, [aspirante.id]: e.target.value }))}
+                                className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm min-w-[180px]"
+                              >
+                                <option value="">Seleccionar revisor...</option>
+                                {adminUsers.map(admin => (
+                                  <option key={admin.user_id} value={admin.user_id}>
+                                    {admin.nombre_completo || (admin.user_id.slice(0, 8) + '...' + admin.user_id.slice(-4))}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => assignReviewer(aspirante.id)}
+                                disabled={assigningId === aspirante.id || !(assignmentDraft?.[aspirante.id])}
+                                className="px-4 py-2 rounded-xl text-xs font-bold bg-secondary text-white disabled:opacity-50"
+                              >
+                                {assigningId === aspirante.id ? 'Asignando...' : 'Asignar revisor'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
               <span className="bg-secondary/10 text-secondary text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-lg">Expediente Digital</span>
               <span className="text-slate-300">|</span>
               <span className="text-slate-500 font-mono text-xs font-bold">RAD: {aspirante.radicado}</span>
@@ -467,21 +688,46 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
-                <p className="text-[10px] font-black uppercase tracking-widest text-blue-700 mb-1 flex items-center gap-2"><Cpu size={14} /> Análisis IA</p>
-                <p className="text-sm text-blue-900 leading-relaxed">
-                  {aspirante.perfil_ia || 'Sin análisis IA registrado para este aspirante.'}
-                </p>
-              </div>
+              {/* IA PROFILE HIGHLIGHTED */}
+              {aspirante.perfil_ia ? (
+                <div className="rounded-2xl border-2 border-blue-300 bg-gradient-to-br from-blue-50 to-indigo-50 p-4 shadow-sm">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-blue-700 flex items-center gap-2">
+                      <Cpu size={14} className="text-blue-600" /> Análisis IA — Perfil del aspirante
+                    </p>
+                    <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-blue-100 text-blue-600 uppercase tracking-wider border border-blue-200">IA</span>
+                  </div>
+                  <div className="bg-white/70 rounded-xl p-3 border border-blue-100">
+                    <p className="text-sm text-blue-900 leading-relaxed font-medium">
+                      {aspirante.perfil_ia}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1 flex items-center gap-2"><Cpu size={14} /> Análisis IA</p>
+                  <p className="text-sm text-slate-400 italic">Sin análisis IA registrado para este aspirante.</p>
+                </div>
+              )}
             </div>
 
             {/* KPI SCORE */}
-            <div className="col-span-12 lg:col-span-4 bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm flex flex-col items-center justify-center">
+            <div className="col-span-12 lg:col-span-4 space-y-6">
+              {/* KPI SCORE */}
+              <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm flex flex-col items-center justify-center">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Puntaje Global</span>
                 <div className="text-7xl font-black text-primary mb-6">{puntaje}</div>
                 <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
                     <div className="h-full bg-accent transition-all duration-1000" style={{ width: `${puntaje}%` }}></div>
                 </div>
+              </div>
+
+              {/* REVIEW CHECKLIST */}
+              <ReviewChecklist 
+                aspiranteId={aspirante.id}
+                checklist={reviewChecklist}
+                onChecklistChange={setReviewChecklist}
+              />
             </div>
 
             {/* BLOQUES DE INFORMACIÓN */}
@@ -582,13 +828,38 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-            <div className="xl:col-span-4 bg-slate-900 rounded-3xl p-8 border border-slate-800">
-              <h5 className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2">
-                <FileText size={14}/> Observaciones Internas
+            {/* NOTAS INTERNAS ADMIN */}
+            <div className="xl:col-span-4 bg-amber-950 rounded-3xl p-6 border border-amber-900 space-y-3">
+              <h5 className="text-amber-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                <FileText size={13} /> Notas internas del revisor
               </h5>
-              <p className="text-slate-300 text-sm font-medium leading-relaxed">
-                {aspirante.observacion_interna || "Sin anotaciones de auditoría."}
-              </p>
+              {aspirante.observacion_interna && (
+                <div className="rounded-xl bg-slate-900/50 border border-slate-700 px-3 py-2 mb-1">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Registro de auditoría</p>
+                  <p className="text-slate-400 text-xs leading-relaxed">{aspirante.observacion_interna}</p>
+                </div>
+              )}
+              <textarea
+                value={notasAdmin}
+                onChange={(e) => setNotasAdmin(e.target.value)}
+                placeholder="Escribe aquí tus notas privadas sobre este aspirante…"
+                rows={5}
+                className="w-full bg-amber-900/40 border border-amber-800 rounded-xl px-3 py-2 text-sm text-amber-100 placeholder-amber-700 resize-none focus:outline-none focus:ring-1 focus:ring-amber-500"
+              />
+              <div className="flex items-center justify-between">
+                <p className="text-[9px] text-amber-700 uppercase tracking-wider">Solo visible localmente</p>
+                <button
+                  type="button"
+                  onClick={handleSaveNotasAdmin}
+                  className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all active:scale-95 ${
+                    notasSaved
+                      ? 'bg-green-700 text-white'
+                      : 'bg-amber-600 hover:bg-amber-500 text-white'
+                  }`}
+                >
+                  {notasSaved ? '✓ Guardado' : 'Guardar nota'}
+                </button>
+              </div>
             </div>
 
             <div className="xl:col-span-8 bg-white rounded-3xl p-8 border border-slate-100 shadow-sm space-y-4">
@@ -759,6 +1030,40 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
                       {promoteLoading ? 'Promoviendo...' : 'Promover a beneficiario'}
                     </button>
                   </div>
+                  <div className="grid md:grid-cols-3 gap-3 mt-2">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Banco (opcional)</label>
+                      <input
+                        type="text"
+                        value={promoveBanco}
+                        onChange={(e) => setPromoveBanco(e.target.value)}
+                        placeholder="Nombre del banco"
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Tipo de cuenta</label>
+                      <select
+                        value={promoveTipoCuenta}
+                        onChange={(e) => setPromoveTipoCuenta(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm"
+                      >
+                        <option value="">Seleccionar…</option>
+                        <option value="Ahorros">Ahorros</option>
+                        <option value="Corriente">Corriente</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Número de cuenta</label>
+                      <input
+                        type="text"
+                        value={promoveCuenta}
+                        onChange={(e) => setPromoveCuenta(e.target.value)}
+                        placeholder="Número de cuenta"
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
                   {promoteMessage ? <p className="text-xs text-emerald-700 font-semibold">{promoteMessage}</p> : null}
                   {promoteError ? <p className="text-xs text-red-600 font-semibold">{promoteError}</p> : null}
                 </div>
@@ -783,10 +1088,79 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
             </div>
             </div>
           </div>
+
+          {/* TIMELINE DE HITOS */}
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
+            <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+              <Heart size={13} /> Hitos del expediente
+            </h5>
+            <div className="relative pl-4 border-l-2 border-slate-200 space-y-4">
+              {/* Radicación */}
+              <div className="relative">
+                <span className="absolute -left-[21px] top-0.5 w-3 h-3 rounded-full bg-blue-400 border-2 border-white shadow" />
+                <p className="text-xs font-bold text-slate-700">Radicación</p>
+                <p className="text-[11px] text-slate-400">
+                  {aspirante.created_at
+                    ? new Date(aspirante.created_at).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                    : 'Fecha no disponible'}
+                </p>
+              </div>
+
+              {/* Etapa actual */}
+              <div className="relative">
+                <span className={`absolute -left-[21px] top-0.5 w-3 h-3 rounded-full border-2 border-white shadow ${
+                  etapa === 'admitido' ? 'bg-green-400' : etapa === 'legalizacion' ? 'bg-amber-400' : 'bg-slate-400'
+                }`} />
+                <p className="text-xs font-bold text-slate-700">Etapa: {etapa.charAt(0).toUpperCase() + etapa.slice(1)}</p>
+                <p className="text-[11px] text-slate-400">
+                  {aspirante.updated_at
+                    ? `Última actualización: ${new Date(aspirante.updated_at).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                    : 'Sin actualizaciones registradas'}
+                </p>
+              </div>
+
+              {/* Certificado bancario */}
+              {hasBankCertificateUploaded && (
+                <div className="relative">
+                  <span className="absolute -left-[21px] top-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-white shadow" />
+                  <p className="text-xs font-bold text-slate-700">Certificado bancario cargado</p>
+                  <p className="text-[11px] text-slate-400">Documento disponible para revisión</p>
+                </div>
+              )}
+
+              {/* Promovido a beneficiario */}
+              {promoted && (
+                <div className="relative">
+                  <span className="absolute -left-[21px] top-0.5 w-3 h-3 rounded-full bg-teal-500 border-2 border-white shadow" />
+                  <p className="text-xs font-bold text-slate-700">Promovido a beneficiario</p>
+                  <Link
+                    to={`/admin/beneficiarios/${aspirante.beneficiario_portal_id}`}
+                    onClick={onClose}
+                    className="text-[11px] text-secondary underline"
+                  >
+                    Ver ficha de beneficiario
+                  </Link>
+                </div>
+              )}
+
+              {/* Estado de decisión */}
+              {aspirante.estado && (
+                <div className="relative">
+                  <span className={`absolute -left-[21px] top-0.5 w-3 h-3 rounded-full border-2 border-white shadow ${
+                    aspirante.estado === 'Admitido' ? 'bg-green-500' :
+                    aspirante.estado === 'No admitido' ? 'bg-red-400' : 'bg-blue-300'
+                  }`} />
+                  <p className="text-xs font-bold text-slate-700">Estado: {aspirante.estado}</p>
+                  <p className="text-[11px] text-slate-400">Estado actual del proceso</p>
+                </div>
+              )}
+            </div>
+          </div>
+
         </div>
 
         {/* FOOTER */}
-        <footer className="bg-white border-t border-slate-100 px-10 py-8 flex justify-between items-center">
+        <footer className="bg-white border-t border-slate-100 px-10 py-8 flex flex-col gap-4 md:flex-row md:justify-between md:items-center">
             <div className="flex gap-4">
                 <button
                   onClick={() => handleDecisionAction('admit')}
@@ -806,8 +1180,25 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
                 >
                     {decisionLoading === 'reject' ? 'Actualizando...' : 'Rechazar'}
                 </button>
+                <button
+                  type="button"
+                  onClick={handleSaveWorkflow}
+                  disabled={workflowSaving}
+                  className={`px-8 py-3 rounded-2xl font-bold text-sm transition-all active:scale-95 disabled:opacity-60 ${
+                    workflowSavedPulse
+                      ? 'bg-green-600 text-white ring-2 ring-green-300'
+                      : 'bg-secondary text-white hover:brightness-110'
+                  }`}
+                >
+                  {workflowSaving ? 'Guardando...' : workflowSavedPulse ? 'Guardado ✓' : 'Guardar flujo'}
+                </button>
             </div>
-            <button onClick={onClose} className="text-slate-400 font-bold text-sm hover:text-slate-600 transition-colors uppercase tracking-widest">Cerrar</button>
+            <div className="flex items-center gap-4">
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider hidden lg:block">
+                Atajos: ← → docs · Ctrl+A admitir · Ctrl+S guardar · Esc cerrar
+              </span>
+              <button onClick={onClose} className="text-slate-400 font-bold text-sm hover:text-slate-600 transition-colors uppercase tracking-widest">Cerrar</button>
+            </div>
         </footer>
 
         {selectedDoc && (
@@ -819,12 +1210,41 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
               className="w-full max-w-5xl max-h-[90vh] bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden"
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 bg-slate-50">
-                <div>
+              <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50">
+                <div className="flex-1 min-w-0">
                   <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Visualización de documento</p>
-                  <p className="text-sm font-bold text-slate-700">{selectedDoc.label}</p>
+                  <p className="text-sm font-bold text-slate-700 truncate">{selectedDoc.label}</p>
+                  {attachedDocuments.length > 1 && (
+                    <p className="text-xs text-slate-500 mt-1">
+                      {currentDocIndex + 1} de {attachedDocuments.length}
+                    </p>
+                  )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
+                  {attachedDocuments.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={goToPreviousDoc}
+                        disabled={currentDocIndex <= 0 || docPreviewLoading}
+                        className="p-2 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                        aria-label="Documento anterior"
+                        title="Anterior"
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={goToNextDoc}
+                        disabled={currentDocIndex >= attachedDocuments.length - 1 || docPreviewLoading}
+                        className="p-2 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                        aria-label="Documento siguiente"
+                        title="Siguiente"
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                    </>
+                  )}
                   <button
                     type="button"
                     onClick={closePreviewModal}

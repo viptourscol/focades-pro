@@ -9,3 +9,15 @@ verify_jwt = false
 
 [functions.notify-beneficiario-novedad]
 verify_jwt = false
+
+[functions.notify-bulk-sin-actualizar]
+verify_jwt = false
+
+[functions.notify-deadline-approaching]
+verify_jwt = false
+
+[functions.notify-window-status]
+verify_jwt = false
+
+[functions.beneficiary-support-tickets]
+verify_jwt = false

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronUp, Edit2, Eye, EyeOff, Plus, Trash2, X } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import { showConfirmAlert, showErrorAlert, showSuccessAlert } from '../lib/alerts';
+import { ChevronDown, ChevronUp, Edit2, Eye, EyeOff, Loader2, Plus, Search, ShieldCheck, ShieldX, Trash2, UserPlus, X } from 'lucide-react';
+import { getSafeSession, supabase } from '../lib/supabase';
+import { showConfirmAlert, showErrorAlert, showSuccessAlert, showTextareaConfirmAlert } from '../lib/alerts';
 
 const emptyNews = {
   title: '',
@@ -41,10 +41,30 @@ const emptyBeneficiario = {
   estado_beneficiario: 'activo',
 };
 
+const emptyAdminForm = {
+  email: '',
+  nombre_completo: '',
+  role: 'admin',
+  notes: '',
+};
+
+const ADMIN_ROLE_OPTIONS = ['admin', 'super_admin'];
+
+const formatDateTime = (value) => {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '—';
+  return parsed.toLocaleString('es-CO');
+};
+
+const getAdminRoleLabel = (role) => (role === 'super_admin' ? 'Super admin' : 'Admin');
+
 const PortalConfig = () => {
   const [config, setConfig] = useState({ promedio_minimo: 3.5, cert_bancario_max_dias: 15 });
   const [news, setNews] = useState([]);
   const [beneficiarios, setBeneficiarios] = useState([]);
+  const [adminUsers, setAdminUsers] = useState([]);
+  const [currentAdmin, setCurrentAdmin] = useState(null);
   const [newsForm, setNewsForm] = useState(emptyNews);
   const [newsFormOpen, setNewsFormOpen] = useState(false);
   const [editNewsId, setEditNewsId] = useState(null);
@@ -53,17 +73,32 @@ const PortalConfig = () => {
   const [newsSaving, setNewsSaving] = useState(false);
   const [newsLoading, setNewsLoading] = useState(false);
   const [modalForm, setModalForm] = useState(emptyModal);
-  const [windowForm, setWindowForm] = useState({ nombre: '', fecha_inicio: '', fecha_fin: '' });
   const [beneficiarioForm, setBeneficiarioForm] = useState(emptyBeneficiario);
+  const [adminForm, setAdminForm] = useState(emptyAdminForm);
+  const [adminUserQuery, setAdminUserQuery] = useState('');
+  const [adminUserCandidates, setAdminUserCandidates] = useState([]);
+  const [adminCandidateLoading, setAdminCandidateLoading] = useState(false);
+  const [selectedAdminCandidateId, setSelectedAdminCandidateId] = useState('');
   const [configSaving, setConfigSaving] = useState(false);
   const [beneficiarioSaving, setBeneficiarioSaving] = useState(false);
+  const [adminSaving, setAdminSaving] = useState(false);
+  const [adminActionUserId, setAdminActionUserId] = useState('');
 
   const loadData = async () => {
     try {
-      const [{ data: cfg }, { data: nws }, { data: beneficiariosData }] = await Promise.all([
+      const { session } = await getSafeSession();
+      const currentUserId = String(session?.user?.id || '').trim();
+
+      const [{ data: cfg }, { data: nws }, { data: beneficiariosData }, { data: adminsData }] = await Promise.all([
         supabase.from('portal_configuracion').select('*').eq('is_active', true).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
         supabase.from('portal_noticias').select('*').order('sort_order', { ascending: true, nullsFirst: false }).order('publish_at', { ascending: false }).limit(50),
         supabase.from('portal_beneficiarios').select('*').order('created_at', { ascending: false }).limit(50),
+        supabase
+          .from('portal_admin_users')
+          .select('user_id,nombre_completo,email,role,is_active,created_at,updated_at,deactivated_at,notes')
+          .order('is_active', { ascending: false })
+          .order('role', { ascending: true })
+          .order('created_at', { ascending: true }),
       ]);
 
       if (cfg) {
@@ -75,15 +110,58 @@ const PortalConfig = () => {
 
       setNews(Array.isArray(nws) ? nws : []);
       setBeneficiarios(Array.isArray(beneficiariosData) ? beneficiariosData : []);
+      const safeAdmins = Array.isArray(adminsData) ? adminsData : [];
+      setAdminUsers(safeAdmins);
+      setCurrentAdmin(safeAdmins.find((item) => item.user_id === currentUserId) || null);
     } catch {
       setNews([]);
       setBeneficiarios([]);
+      setAdminUsers([]);
+      setCurrentAdmin(null);
     }
   };
 
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    const query = String(adminUserQuery || '').trim();
+    if (!query || query.length < 2 || currentAdmin?.role !== 'super_admin') {
+      setAdminUserCandidates([]);
+      setAdminCandidateLoading(false);
+      return undefined;
+    }
+
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      try {
+        setAdminCandidateLoading(true);
+        const { data, error } = await supabase.rpc('admin_search_users_for_management', {
+          p_query: query,
+          p_limit: 12,
+        });
+
+        if (!active) return;
+
+        if (error) {
+          setAdminUserCandidates([]);
+          return;
+        }
+
+        setAdminUserCandidates(Array.isArray(data) ? data : []);
+      } catch {
+        if (active) setAdminUserCandidates([]);
+      } finally {
+        if (active) setAdminCandidateLoading(false);
+      }
+    }, 320);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [adminUserQuery, currentAdmin?.role]);
 
   useEffect(() => {
     if (!newsImageFile) {
@@ -311,14 +389,6 @@ const PortalConfig = () => {
     setModalForm(emptyModal);
   };
 
-  const createWindow = async () => {
-    await supabase.from('portal_ventanas_actualizacion').insert({
-      ...windowForm,
-      is_active: true,
-    });
-    setWindowForm({ nombre: '', fecha_inicio: '', fecha_fin: '' });
-  };
-
   const createBeneficiario = async () => {
     const email = String(beneficiarioForm.email || '').trim().toLowerCase();
 
@@ -388,13 +458,151 @@ const PortalConfig = () => {
     }
   };
 
+  const createOrActivateAdmin = async () => {
+    const email = String(adminForm.email || '').trim().toLowerCase();
+
+    if (!email) {
+      await showErrorAlert({
+        title: 'Correo requerido',
+        text: 'Debes indicar el correo del usuario que tendrá acceso administrativo.',
+      });
+      return;
+    }
+
+    try {
+      setAdminSaving(true);
+      const { data, error } = await supabase.rpc('admin_upsert_portal_admin', {
+        p_email: email,
+        p_role: adminForm.role,
+        p_nombre_completo: String(adminForm.nombre_completo || '').trim() || null,
+        p_note: String(adminForm.notes || '').trim() || null,
+      });
+
+      if (error || !data?.ok) {
+        throw new Error(error?.message || data?.message || 'No se pudo registrar el administrador.');
+      }
+
+      setAdminForm(emptyAdminForm);
+      await loadData();
+      await showSuccessAlert({
+        title: data.action === 'admin_created' ? 'Administrador creado' : 'Administrador actualizado',
+        text: `${data.nombre_completo || data.email} ya tiene acceso con rol ${getAdminRoleLabel(data.role)}.`,
+      });
+    } catch (error) {
+      await showErrorAlert({
+        title: 'No se pudo gestionar el admin',
+        text: error.message || 'Ocurrió un error al guardar el administrador.',
+      });
+    } finally {
+      setAdminSaving(false);
+    }
+  };
+
+  const applyCandidateToForm = (candidate) => {
+    if (!candidate) return;
+
+    const nextRole = String(candidate.admin_role || '').trim();
+    const resolvedRole = ADMIN_ROLE_OPTIONS.includes(nextRole) ? nextRole : 'admin';
+
+    setAdminForm((prev) => ({
+      ...prev,
+      email: String(candidate.email || '').trim().toLowerCase(),
+      nombre_completo: String(candidate.nombre_sugerido || '').trim(),
+      role: resolvedRole,
+    }));
+    setSelectedAdminCandidateId(String(candidate.user_id || ''));
+    setAdminUserQuery(String(candidate.email || candidate.nombre_sugerido || '').trim());
+    setAdminUserCandidates([]);
+  };
+
+  const updateAdminRole = async (adminUserId, nextRole) => {
+    try {
+      setAdminActionUserId(adminUserId);
+      const { data, error } = await supabase.rpc('admin_update_portal_admin_role', {
+        p_target_user_id: adminUserId,
+        p_role: nextRole,
+        p_note: `Cambio de rol desde configuración: ${nextRole}`,
+      });
+
+      if (error || !data?.ok) {
+        throw new Error(error?.message || data?.message || 'No se pudo cambiar el rol.');
+      }
+
+      await loadData();
+      await showSuccessAlert({
+        title: 'Rol actualizado',
+        text: `El rol fue actualizado a ${getAdminRoleLabel(nextRole)}.`,
+      });
+    } catch (error) {
+      await showErrorAlert({
+        title: 'No se pudo cambiar el rol',
+        text: error.message || 'Ocurrió un error al actualizar el rol.',
+      });
+    } finally {
+      setAdminActionUserId('');
+    }
+  };
+
+  const toggleAdminActive = async (item) => {
+    const actionLabel = item.is_active ? 'desactivar' : 'reactivar';
+    const confirmed = await showConfirmAlert({
+      title: `¿Deseas ${actionLabel} este admin?`,
+      text: item.is_active
+        ? 'Perderá acceso al portal administrativo hasta que sea reactivado.'
+        : 'Recuperará acceso al portal administrativo.',
+      confirmButtonText: item.is_active ? 'Sí, desactivar' : 'Sí, reactivar',
+      cancelButtonText: 'Cancelar',
+    });
+
+    if (!confirmed) return;
+
+    let note = null;
+    if (item.is_active) {
+      note = await showTextareaConfirmAlert({
+        title: 'Motivo de desactivación',
+        text: 'Registra una nota corta para la auditoría.',
+        inputLabel: 'Motivo',
+        inputPlaceholder: 'Ejemplo: cambio de equipo o salida del proceso',
+        confirmButtonText: 'Desactivar admin',
+      });
+      if (note === null) return;
+    }
+
+    try {
+      setAdminActionUserId(item.user_id);
+      const rpcName = item.is_active ? 'admin_deactivate_portal_admin' : 'admin_reactivate_portal_admin';
+      const { data, error } = await supabase.rpc(rpcName, {
+        p_target_user_id: item.user_id,
+        p_note: note,
+      });
+
+      if (error || !data?.ok) {
+        throw new Error(error?.message || data?.message || `No se pudo ${actionLabel} el administrador.`);
+      }
+
+      await loadData();
+      await showSuccessAlert({
+        title: item.is_active ? 'Administrador desactivado' : 'Administrador reactivado',
+        text: `${item.nombre_completo || item.email || 'El administrador'} fue ${item.is_active ? 'desactivado' : 'reactivado'} correctamente.`,
+      });
+    } catch (error) {
+      await showErrorAlert({
+        title: `No se pudo ${actionLabel}`,
+        text: error.message || 'Ocurrió un error en la operación.',
+      });
+    } finally {
+      setAdminActionUserId('');
+    }
+  };
+
   const newsPreviewSrc = newsImagePreview || newsForm.image_url;
+  const canManageAdmins = currentAdmin?.role === 'super_admin';
 
   return (
     <div className="space-y-6">
       <section className="bg-white border border-border rounded-2xl p-6">
         <h2 className="text-xl font-black text-primary">Configuración Portal Beneficiarios</h2>
-        <p className="text-sm text-slate-600 mt-1">Administra reglas, noticias, modal informativo y ventanas de actualización.</p>
+        <p className="text-sm text-slate-600 mt-1">Administra reglas, noticias y modal informativo. Las ventanas de actualización se gestionan en el módulo de Actualizaciones.</p>
       </section>
 
       <section className="bg-white border border-border rounded-2xl p-6 space-y-3">
@@ -404,6 +612,142 @@ const PortalConfig = () => {
           <Field label="Vigencia certificado bancario (días)" value={config.cert_bancario_max_dias} onChange={(value) => setConfig((prev) => ({ ...prev, cert_bancario_max_dias: value }))} />
         </div>
         <button type="button" onClick={saveConfig} disabled={configSaving} className="bg-secondary text-white px-4 py-2 rounded-lg font-semibold disabled:opacity-50">{configSaving ? 'Guardando...' : 'Guardar reglas'}</button>
+      </section>
+
+      <section className="bg-white border border-border rounded-2xl p-6 space-y-4">
+        <div>
+          <h3 className="font-bold text-primary">Administradores del portal</h3>
+          <p className="text-sm text-slate-600 mt-1">
+            Alta y revocación de acceso administrativo. Para registrar un nuevo admin, el usuario debe haber iniciado sesión al menos una vez con Google.
+          </p>
+        </div>
+
+        {canManageAdmins ? (
+          <div className="border border-secondary/20 bg-secondary/5 rounded-2xl p-4 space-y-4">
+            <div className="flex items-center gap-2 text-secondary text-sm font-semibold">
+              <UserPlus size={16} /> Alta o reactivación de admin
+            </div>
+            <div className="space-y-2">
+              <label className="grid gap-1">
+                <span className="text-xs uppercase font-bold text-slate-500">Buscar usuario del sistema</span>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={adminUserQuery}
+                    onChange={(event) => {
+                      setAdminUserQuery(event.target.value);
+                      setSelectedAdminCandidateId('');
+                    }}
+                    placeholder="Busca por correo o nombre (mínimo 2 caracteres)"
+                    className="w-full border border-border rounded-lg pl-9 pr-9 py-2 text-sm bg-white"
+                  />
+                  {adminCandidateLoading && (
+                    <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 animate-spin" />
+                  )}
+                </div>
+              </label>
+
+              {adminUserCandidates.length > 0 && (
+                <div className="max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white divide-y divide-slate-100">
+                  {adminUserCandidates.map((candidate) => {
+                    const isSelected = selectedAdminCandidateId === String(candidate.user_id || '');
+                    const candidateRole = candidate.admin_role === 'super_admin' ? 'Super admin' : 'Admin';
+                    const candidateStatus = candidate.is_portal_admin
+                      ? candidate.admin_is_active
+                        ? `${candidateRole} activo`
+                        : `${candidateRole} inactivo`
+                      : 'Sin rol admin';
+
+                    return (
+                      <button
+                        key={candidate.user_id}
+                        type="button"
+                        onClick={() => applyCandidateToForm(candidate)}
+                        className={`w-full text-left px-3 py-2.5 hover:bg-slate-50 transition ${isSelected ? 'bg-secondary/10' : ''}`}
+                      >
+                        <p className="text-sm font-semibold text-slate-800 truncate">{candidate.nombre_sugerido || candidate.email || 'Usuario'}</p>
+                        <p className="text-xs text-slate-500 truncate">{candidate.email || 'Sin correo'} · {candidateStatus}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="grid md:grid-cols-2 gap-3">
+              <Field label="Correo del usuario" type="email" value={adminForm.email} onChange={(value) => setAdminForm((prev) => ({ ...prev, email: value }))} />
+              <Field label="Nombre completo (opcional)" value={adminForm.nombre_completo} onChange={(value) => setAdminForm((prev) => ({ ...prev, nombre_completo: value }))} />
+              <SelectField label="Rol" value={adminForm.role} onChange={(value) => setAdminForm((prev) => ({ ...prev, role: value }))} options={ADMIN_ROLE_OPTIONS} renderOptionLabel={getAdminRoleLabel} />
+              <Field label="Nota interna (opcional)" value={adminForm.notes} onChange={(value) => setAdminForm((prev) => ({ ...prev, notes: value }))} />
+            </div>
+            <button type="button" onClick={createOrActivateAdmin} disabled={adminSaving} className="inline-flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-lg font-semibold disabled:opacity-50">
+              <UserPlus size={16} /> {adminSaving ? 'Guardando admin...' : 'Guardar admin'}
+            </button>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Solo un super admin puede crear, cambiar rol o desactivar administradores.
+          </div>
+        )}
+
+        <div className="space-y-2">
+          {adminUsers.length === 0 ? (
+            <p className="text-sm text-slate-500">Aún no hay administradores registrados.</p>
+          ) : (
+            adminUsers.map((item) => {
+              const isCurrentUser = currentAdmin?.user_id === item.user_id;
+              const isBusy = adminActionUserId === item.user_id;
+              return (
+                <div key={item.user_id} className={`border rounded-2xl px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3 ${item.is_active ? 'border-border bg-white' : 'border-slate-200 bg-slate-50'}`}>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold text-primary truncate">{item.nombre_completo || item.email || item.user_id}</p>
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${item.role === 'super_admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {item.role === 'super_admin' ? <ShieldCheck size={12} /> : <ShieldX size={12} />}
+                        {getAdminRoleLabel(item.role)}
+                      </span>
+                      <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-bold ${item.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
+                        {item.is_active ? 'Activo' : 'Inactivo'}
+                      </span>
+                      {isCurrentUser && (
+                        <span className="inline-flex px-2 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-700">Tu cuenta</span>
+                      )}
+                    </div>
+                    <p className="text-slate-600 text-sm truncate mt-1">{item.email || 'Sin correo registrado'}</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Alta: {formatDateTime(item.created_at)} · Última actualización: {formatDateTime(item.updated_at)}
+                      {item.deactivated_at ? ` · Desactivado: ${formatDateTime(item.deactivated_at)}` : ''}
+                    </p>
+                    {item.notes && <p className="text-xs text-slate-500 mt-1 truncate">Nota: {item.notes}</p>}
+                  </div>
+
+                  {canManageAdmins && !isCurrentUser && (
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <select
+                        value={item.role || 'admin'}
+                        onChange={(event) => updateAdminRole(item.user_id, event.target.value)}
+                        disabled={isBusy}
+                        className="border border-border rounded-lg px-3 py-2 text-sm bg-white disabled:opacity-50"
+                      >
+                        {ADMIN_ROLE_OPTIONS.map((option) => (
+                          <option key={option} value={option}>{getAdminRoleLabel(option)}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => toggleAdminActive(item)}
+                        disabled={isBusy}
+                        className={`px-3 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 ${item.is_active ? 'border border-red-200 text-red-600 hover:bg-red-50' : 'border border-emerald-200 text-emerald-700 hover:bg-emerald-50'}`}
+                      >
+                        {isBusy ? 'Procesando...' : item.is_active ? 'Desactivar' : 'Reactivar'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
       </section>
 
       <section className="bg-white border border-border rounded-2xl p-6 space-y-4">
@@ -697,15 +1041,6 @@ const PortalConfig = () => {
         <button type="button" onClick={createModal} className="bg-secondary text-white px-4 py-2 rounded-lg font-semibold">Publicar modal</button>
       </section>
 
-      <section className="bg-white border border-border rounded-2xl p-6 space-y-3">
-        <h3 className="font-bold text-primary">Ventana de actualización</h3>
-        <div className="grid md:grid-cols-3 gap-3">
-          <Field label="Nombre" value={windowForm.nombre} onChange={(value) => setWindowForm((prev) => ({ ...prev, nombre: value }))} />
-          <Field label="Fecha inicio" type="datetime-local" value={windowForm.fecha_inicio} onChange={(value) => setWindowForm((prev) => ({ ...prev, fecha_inicio: value }))} />
-          <Field label="Fecha fin" type="datetime-local" value={windowForm.fecha_fin} onChange={(value) => setWindowForm((prev) => ({ ...prev, fecha_fin: value }))} />
-        </div>
-        <button type="button" onClick={createWindow} className="bg-secondary text-white px-4 py-2 rounded-lg font-semibold">Crear ventana</button>
-      </section>
     </div>
   );
 };
@@ -717,12 +1052,12 @@ const Field = ({ label, value, onChange, type = 'text' }) => (
   </label>
 );
 
-const SelectField = ({ label, value, onChange, options = [] }) => (
+const SelectField = ({ label, value, onChange, options = [], renderOptionLabel }) => (
   <label className="grid gap-1">
     <span className="text-xs uppercase font-bold text-slate-500">{label}</span>
     <select value={value} onChange={(event) => onChange(event.target.value)} className="border border-border rounded-lg px-3 py-2 bg-white">
       {options.map((option) => (
-        <option key={option} value={option}>{option}</option>
+        <option key={option} value={option}>{renderOptionLabel ? renderOptionLabel(option) : option}</option>
       ))}
     </select>
   </label>

@@ -59,19 +59,24 @@ const DOCUMENT_LABELS = {
 };
 
 const MetricCard = ({ title, value, subtitle, tone }) => (
-  <div className={`rounded-2xl border p-4 ${tone}`}>
-    <p className="text-xs font-bold uppercase tracking-wider">{title}</p>
-    <p className="text-2xl font-black mt-1">{value}</p>
-    {subtitle ? <p className="text-xs mt-1 opacity-80">{subtitle}</p> : null}
+  <div className={`rounded-2xl border p-3 md:p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md ${tone}`}>
+    <p className="text-[10px] md:text-xs font-bold uppercase tracking-wider">{title}</p>
+    <p className="text-lg md:text-2xl font-black mt-1 leading-tight">{value}</p>
+    {subtitle ? <p className="text-[10px] md:text-xs mt-1 opacity-80 leading-tight">{subtitle}</p> : null}
   </div>
 );
 
-const DataPill = ({ icon, label, value }) => (
-  <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-    <p className="text-[11px] text-slate-400 flex items-center gap-1.5">{icon} {label}</p>
-    <p className="text-sm font-semibold text-slate-700 mt-0.5">{value || 'No disponible'}</p>
-  </div>
-);
+const DataPill = ({ icon, label, value }) => {
+  const safeValue = value || 'No disponible';
+  const isLongText = String(safeValue).length > 34;
+
+  return (
+    <div className={`rounded-xl border border-slate-200 bg-white px-2.5 md:px-3 py-2 transition-all duration-300 hover:bg-slate-50 hover:border-slate-300 ${isLongText ? 'col-span-2 md:col-span-1' : ''}`}>
+      <p className="text-[10px] md:text-[11px] text-slate-400 flex items-center gap-1.5">{icon} {label}</p>
+      <p className="text-xs md:text-sm font-semibold text-slate-700 mt-0.5 leading-tight break-words">{safeValue}</p>
+    </div>
+  );
+};
 
 const BeneficiarioHistorial = () => {
   const [loading, setLoading] = useState(true);
@@ -167,14 +172,21 @@ const BeneficiarioHistorial = () => {
   }, [rows]);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 animate-fade-in">
       {viewingDoc && <DocViewerModal doc={viewingDoc} onClose={() => setViewingDoc(null)} />}
 
-      <section className="bg-white border border-border rounded-2xl p-5 md:p-6">
-        <h2 className="text-xl font-extrabold text-primary">Historial de Actualizaciones</h2>
-        <p className="text-sm text-slate-600 mt-1">Trazabilidad detallada de cada envío semestral, su estado de revisión y los documentos registrados.</p>
+      <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-blue-50 p-5 md:p-6 animate-slide-up">
+        <div className="absolute -top-16 -right-10 h-40 w-40 rounded-full bg-blue-100/50 blur-2xl" />
+        <div className="absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-amber-100/40 blur-2xl" />
 
-        <div className="mt-4 grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="relative">
+          <h2 className="text-xl md:text-2xl font-extrabold text-primary">Historial de Actualizaciones</h2>
+          <p className="text-sm text-slate-600 mt-1 max-w-3xl">
+            Trazabilidad completa de cada envío semestral, su estado de revisión, observaciones y soportes adjuntos.
+          </p>
+        </div>
+
+        <div className="mt-5 grid grid-cols-2 lg:grid-cols-5 gap-2.5 md:gap-3 relative">
           <MetricCard title="Total envíos" value={metrics.total} subtitle="Histórico completo" tone="bg-slate-50 text-slate-700 border-slate-200" />
           <MetricCard title="En revisión" value={metrics.pendientes} subtitle="Pendientes de respuesta" tone="bg-amber-50 text-amber-700 border-amber-200" />
           <MetricCard title="Aprobadas" value={metrics.aprobadas} subtitle="Cumplieron revisión" tone="bg-emerald-50 text-emerald-700 border-emerald-200" />
@@ -184,18 +196,22 @@ const BeneficiarioHistorial = () => {
       </section>
 
       {loading ? (
-        <div className="bg-white border border-border rounded-2xl p-8 text-center text-slate-500">Cargando historial...</div>
+        <div className="bg-white border border-border rounded-2xl p-8 text-center text-slate-500 animate-pulse">
+          <div className="flex items-center justify-center gap-2">
+            <span>Cargando historial...</span>
+          </div>
+        </div>
       ) : rows.length === 0 ? (
-        <div className="bg-white border border-border rounded-2xl p-8 text-center text-slate-500">Aún no tienes actualizaciones registradas.</div>
+        <div className="bg-white border border-border rounded-2xl p-8 text-center text-slate-500 animate-fade-in">Aún no tienes actualizaciones registradas.</div>
       ) : (
-        <div className="space-y-4">
-          {rows.map((row) => {
+        <div className="space-y-4 animate-fade-in">
+          {rows.map((row, idx) => {
             const meta = estadoMeta(row.estado);
             const docs = docsByUpdate[row.id] || [];
             const windowInfo = windowsMap[row.ventana_id] || null;
 
             return (
-              <article key={row.id} className="bg-white border border-border rounded-2xl p-4 md:p-5 shadow-sm">
+              <article key={row.id} className="bg-white border border-border rounded-3xl p-4 md:p-5 shadow-sm animate-slide-up hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300" style={{ animationDelay: `${idx * 50}ms` }}>
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                   <div>
                     <p className="text-xs font-black uppercase tracking-wider text-slate-400">Actualización #{String(row.id).slice(0, 8)}</p>
@@ -204,13 +220,13 @@ const BeneficiarioHistorial = () => {
                     <p className="text-xs text-slate-500">Última modificación: {formatDateTime(row.updated_at)}</p>
                   </div>
 
-                  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-black uppercase tracking-wide ${meta.badge}`}>
+                  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-black uppercase tracking-wide transition-all duration-300 ${meta.badge} hover:scale-105 ${row.estado === 'en_revision' ? 'animate-pulse-gentle' : ''}`}>
                     {meta.icon}
                     {meta.label}
                   </div>
                 </div>
 
-                <div className="mt-4 grid sm:grid-cols-2 xl:grid-cols-4 gap-2.5">
+                <div className="mt-4 grid grid-cols-2 xl:grid-cols-4 gap-2">
                   <DataPill icon={<CalendarDays size={12} />} label="Ventana" value={windowInfo?.nombre || 'No definida'} />
                   <DataPill icon={<FileText size={12} />} label="Promedio reportado" value={row.promedio_semestre_anterior ?? 'No disponible'} />
                   <DataPill icon={<Mail size={12} />} label="Correo reportado" value={row.email || 'No disponible'} />
@@ -221,7 +237,7 @@ const BeneficiarioHistorial = () => {
                   <DataPill icon={<MapPin size={12} />} label="Dirección reportada" value={row.direccion || 'No disponible'} />
                 </div>
 
-                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 hover:bg-slate-100 transition-colors duration-300">
                   <p className="text-xs font-black uppercase tracking-wider text-slate-500">Respuesta administrativa</p>
                   <p className="text-sm text-slate-700 mt-1">{row.observacion_admin || 'Sin observaciones registradas hasta el momento.'}</p>
                   <p className="text-xs text-slate-500 mt-2">Fecha de revisión: {formatDateTime(row.revisado_at)}</p>
@@ -238,7 +254,7 @@ const BeneficiarioHistorial = () => {
                   ) : (
                     <div className="divide-y divide-slate-100">
                       {docs.map((doc) => (
-                        <div key={doc.id} className="px-3 py-2.5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
+                        <div key={doc.id} className="px-3 py-2.5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 hover:bg-slate-50 transition-all duration-200">
                           <div>
                             <p className="text-sm font-semibold text-slate-700">{DOCUMENT_LABELS[doc.tipo_documento] || doc.tipo_documento || 'Documento'}</p>
                             <p className="text-xs text-slate-500">{doc.nombre_original || 'Sin nombre'} · {formatFileSize(doc.size_bytes)} · {formatDateTime(doc.created_at)}</p>
@@ -246,7 +262,7 @@ const BeneficiarioHistorial = () => {
                           <button
                             type="button"
                             onClick={() => setViewingDoc(doc)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-secondary hover:bg-slate-50"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-secondary hover:bg-slate-50 hover:scale-105 transition-all duration-200"
                           >
                             <Eye size={13} /> Ver documento
                           </button>

@@ -1630,6 +1630,41 @@ const Registro = () => {
     let bankCertificateUploadedAt = null;
     let bankCertificateStoragePath = '';
 
+    const buildRadicadoResult = (record, options = {}) => {
+      const stage = inferStage(record);
+      const resolvedRaw = options.raw !== undefined ? options.raw : record;
+      const resolvedId = options.id !== undefined ? options.id : record?.id || null;
+      const resolvedBankUploadedAt =
+        options.bankCertificateUploadedAt !== undefined
+          ? options.bankCertificateUploadedAt
+          : record?.certificado_bancario_uploaded_at || null;
+      const resolvedBankStoragePath =
+        options.bankCertificateStoragePath !== undefined
+          ? options.bankCertificateStoragePath
+          : String(record?.certificado_bancario_storage_path || '').trim();
+
+      return {
+        raw: resolvedRaw,
+        id: resolvedId,
+        radicado: record?.radicado || record?.numero_radicado || query,
+        documento: record?.n_documento || record?.documento_persona || record?.documento || '',
+        nombre_completo: record?.nombre_completo || 'No disponible',
+        modalidad: record?.modalidad || record?.modalidad_aspira || 'No disponible',
+        programa: record?.programa_academico || record?.programa || record?.institucion_superior || 'No disponible',
+        estado: record?.estado || 'En revisión',
+        observacion: record?.observacion_publica || record?.observacion || record?.observaciones || '',
+        updated_at: record?.updated_at || record?.created_at || null,
+        etapa: stage,
+        permite_reemplazo_soportes:
+          record?.permite_reemplazo_soportes === true ||
+          record?.autoriza_reemplazo_documentos === true ||
+          record?.autoriza_reemplazo === true,
+        cert_bancario_requerido: isBankCertificateRequired(record, stage),
+        certificado_bancario_uploaded_at: resolvedBankUploadedAt,
+        certificado_bancario_storage_path: resolvedBankStoragePath,
+      };
+    };
+
     const byRadicado = await supabase
       .from('inscripciones')
       .select('*')
@@ -1659,7 +1694,22 @@ const Registro = () => {
     }
 
     if (error || !data) {
-      setRadicadoResult({ error: 'No se encontró una inscripción con ese radicado.' });
+      const { data: publicStatus, error: publicStatusError } = await supabase.rpc('lookup_inscripcion_publica_status', {
+        p_radicado: query,
+      });
+
+      if (!publicStatusError && publicStatus) {
+        setRadicadoResult(
+          buildRadicadoResult(publicStatus, {
+            raw: null,
+            id: null,
+            bankCertificateUploadedAt: publicStatus.certificado_bancario_uploaded_at || null,
+            bankCertificateStoragePath: String(publicStatus.certificado_bancario_storage_path || '').trim(),
+          })
+        );
+      } else {
+        setRadicadoResult({ error: 'No se encontró una inscripción con ese radicado.' });
+      }
     } else {
       const bankDocQueryAttempts = [
         { select: 'uploaded_at,storage_path', orderBy: 'uploaded_at' },
@@ -1717,27 +1767,12 @@ const Registro = () => {
         console.warn('No se pudo resolver una consulta compatible para historial de certificado bancario.');
       }
 
-      const stage = inferStage(data);
-      setRadicadoResult({
-        raw: data,
-        id: data.id,
-        radicado: data.radicado || data.numero_radicado || query,
-        documento: data.n_documento || data.documento_persona || data.documento || '',
-        nombre_completo: data.nombre_completo || 'No disponible',
-        modalidad: data.modalidad || data.modalidad_aspira || 'No disponible',
-        programa: data.programa_academico || data.programa || data.institucion_superior || 'No disponible',
-        estado: data.estado || 'En revisión',
-        observacion: data.observacion_publica || data.observacion || data.observaciones || '',
-        updated_at: data.updated_at || data.created_at || null,
-        etapa: stage,
-        permite_reemplazo_soportes:
-          data.permite_reemplazo_soportes === true ||
-          data.autoriza_reemplazo_documentos === true ||
-          data.autoriza_reemplazo === true,
-        cert_bancario_requerido: isBankCertificateRequired(data, stage),
-        certificado_bancario_uploaded_at: bankCertificateUploadedAt,
-        certificado_bancario_storage_path: bankCertificateStoragePath,
-      });
+      setRadicadoResult(
+        buildRadicadoResult(data, {
+          bankCertificateUploadedAt,
+          bankCertificateStoragePath,
+        })
+      );
     }
 
     setStatusUploadType('');

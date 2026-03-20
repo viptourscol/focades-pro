@@ -44,7 +44,12 @@ export const resolvePortalAccess = async ({ attemptClaim = true } = {}) => {
   const email = normalizeEmail(user.email);
 
   const [{ data: adminRow }, { data: linkedProfile }] = await Promise.all([
-    supabase.from('portal_admin_users').select('user_id').eq('user_id', userId).maybeSingle(),
+    supabase
+      .from('portal_admin_users')
+      .select('user_id, role, is_active')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .maybeSingle(),
     supabase.from('portal_beneficiarios').select('*').eq('auth_user_id', userId).maybeSingle(),
   ]);
 
@@ -53,6 +58,7 @@ export const resolvePortalAccess = async ({ attemptClaim = true } = {}) => {
       ok: true,
       hasSession: true,
       isAdmin: Boolean(adminRow?.user_id),
+      adminRole: adminRow?.role || null,
       profile: linkedProfile,
       session,
       reason: '',
@@ -64,6 +70,7 @@ export const resolvePortalAccess = async ({ attemptClaim = true } = {}) => {
       ok: Boolean(adminRow?.user_id),
       hasSession: true,
       isAdmin: Boolean(adminRow?.user_id),
+      adminRole: adminRow?.role || null,
       profile: null,
       session,
       reason: adminRow?.user_id ? '' : 'NOT_LINKED',
@@ -87,6 +94,7 @@ export const resolvePortalAccess = async ({ attemptClaim = true } = {}) => {
       ok: true,
       hasSession: true,
       isAdmin: Boolean(adminRow?.user_id),
+      adminRole: adminRow?.role || null,
       profile: claimedProfile,
       session,
       reason: 'CLAIMED',
@@ -97,6 +105,7 @@ export const resolvePortalAccess = async ({ attemptClaim = true } = {}) => {
     ok: Boolean(adminRow?.user_id),
     hasSession: true,
     isAdmin: Boolean(adminRow?.user_id),
+    adminRole: adminRow?.role || null,
     profile: null,
     session,
     reason: adminRow?.user_id ? '' : 'NOT_LINKED',

@@ -151,7 +151,24 @@ const TicketsAdmin = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <section className="ui-card p-6 md:p-7">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[var(--gov-accent)]">Soporte institucional</p>
+            <h1 className="mt-1 text-2xl md:text-3xl font-black text-[var(--gov-ink)] tracking-tight">Gestión de Tickets</h1>
+            <p className="mt-1 text-sm text-slate-600">Consolida solicitudes de beneficiarios y administra respuestas desde un solo panel.</p>
+          </div>
+          <button
+            type="button"
+            onClick={loadTickets}
+            className="ui-btn-secondary inline-flex items-center gap-2"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Refrescar
+          </button>
+        </div>
+      </section>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <MetricCard title="Activos" value={stats.activos} tone="text-amber-700 bg-amber-50" />
         <MetricCard title="Nuevos" value={stats.recibido} tone="text-blue-700 bg-blue-50" />
@@ -159,7 +176,7 @@ const TicketsAdmin = () => {
         <MetricCard title="Resueltos" value={stats.resueltos} tone="text-green-700 bg-green-50" />
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-200 p-4 md:p-6 shadow-sm space-y-4">
+      <div className="ui-card p-4 md:p-6 space-y-4">
         <div className="flex flex-wrap items-center gap-3">
           {STATUS_OPTIONS.map((option) => (
             <button
@@ -204,7 +221,7 @@ const TicketsAdmin = () => {
         </div>
 
         <div className="grid lg:grid-cols-2 gap-5">
-          <div className="rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white">
             <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-black uppercase tracking-widest text-slate-500">
               Tickets
             </div>
@@ -319,7 +336,7 @@ const TicketsAdmin = () => {
                     type="button"
                     onClick={handleSaveTicket}
                     disabled={saving}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-secondary text-white text-sm font-bold disabled:opacity-50"
+                    className="ui-btn-primary inline-flex items-center gap-2 disabled:opacity-50"
                   >
                     <Send size={15} />
                     {saving ? 'Guardando...' : 'Guardar gestión'}

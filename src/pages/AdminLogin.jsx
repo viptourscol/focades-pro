@@ -83,7 +83,7 @@ const AdminLogin = () => {
 
   if (checkingAccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-100">
+      <div className="min-h-screen flex items-center justify-center admin-shell">
         <div className="w-10 h-10 border-4 border-slate-200 border-t-secondary rounded-full animate-spin" />
       </div>
     );
@@ -94,20 +94,20 @@ const AdminLogin = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4">
-      <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <section className="px-6 py-5 bg-primary text-white">
-          <p className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-200">
+    <div className="min-h-screen admin-shell flex items-center justify-center px-4">
+      <div className="w-full max-w-md admin-panel rounded-3xl overflow-hidden">
+        <section className="px-6 py-5 bg-[var(--gov-ink)] text-white admin-grid">
+          <p className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-200">
             <ShieldCheck size={14} /> Acceso Administrativo
           </p>
-          <h1 className="text-2xl font-black mt-1">Panel Admin FOCADES</h1>
-          <p className="text-sm text-slate-300 mt-2">
+          <h1 className="text-3xl font-bold mt-2">Panel Admin FOCADES</h1>
+          <p className="text-sm text-slate-300 mt-2 leading-6">
             Solo correos autorizados como administradores pueden ingresar.
           </p>
         </section>
 
         <section className="p-6">
-          <div className="rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-xs px-3 py-2 mb-5 inline-flex items-start gap-2">
+          <div className="ui-alert-warn mb-5 inline-flex items-start gap-2">
             <Lock size={14} className="shrink-0 mt-0.5" />
             Verificamos tu cuenta contra la lista interna de administradores.
           </div>
@@ -116,7 +116,7 @@ const AdminLogin = () => {
             type="button"
             onClick={handleGoogleLogin}
             disabled={loading}
-            className="w-full bg-accent text-white py-3 rounded-xl font-bold inline-flex items-center justify-center gap-2 disabled:opacity-50"
+            className="w-full ui-btn-primary disabled:opacity-50"
           >
             <LogIn size={18} />
             {loading ? 'Redirigiendo...' : 'Continuar con Google'}

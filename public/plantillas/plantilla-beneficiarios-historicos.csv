@@ -1,0 +1,3 @@
+nombre,cedula,correo,telefono,grado_academico,institucion_academica,anio_graduacion,observaciones
+Juan Perez,1032456789,juan.perez@example.com,3001234567,Tecnologo,Instituto Tecnico Municipal,2022,Beneficiario historico de prueba
+Maria Gomez,1009876543,maria.gomez@example.com,3019876543,Profesional,Universidad Publica Regional,2021,Actualizar correo institucional si aplica

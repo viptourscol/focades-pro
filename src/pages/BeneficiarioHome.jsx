@@ -1,18 +1,20 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ExternalLink, Megaphone, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { showInfoAlert } from '../lib/alerts';
+import BeneficiarioNotificacionesPanel from '../components/BeneficiarioNotificacionesPanel';
 
 const NewsModal = ({ item, onClose }) => {
   if (!item) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+      className="ui-modal-backdrop animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+        className="ui-modal-surface max-h-[90vh] flex flex-col animate-modal-enter"
         onClick={(e) => e.stopPropagation()}
       >
         {item.image_url && (
@@ -23,12 +25,12 @@ const NewsModal = ({ item, onClose }) => {
             <p className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-secondary">
               <Megaphone size={13} /> Programa FOCADES
             </p>
-            <h2 className="text-xl font-extrabold text-primary mt-0.5 leading-tight">{item.title || 'Sin título'}</h2>
+            <h2 className="text-2xl font-bold text-[var(--gov-ink)] mt-0.5 leading-tight">{item.title || 'Sin título'}</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors"
+            className="shrink-0 w-9 h-9 rounded-xl border border-[var(--gov-line)] bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors duration-200"
             aria-label="Cerrar"
           >
             <X size={18} />
@@ -49,7 +51,7 @@ const NewsModal = ({ item, onClose }) => {
                 href={item.button_url}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 text-sm font-bold text-secondary hover:underline ml-auto"
+                className="inline-flex items-center gap-2 text-sm font-bold text-secondary hover:underline ml-auto transition-colors duration-200 hover:text-accent"
               >
                 {item.button_label || 'Ver más'} <ExternalLink size={14} />
               </a>
@@ -62,9 +64,19 @@ const NewsModal = ({ item, onClose }) => {
 };
 
 const BeneficiarioHome = () => {
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [news, setNews] = useState([]);
   const [selectedNews, setSelectedNews] = useState(null);
+
+  useEffect(() => {
+    if (location.hash !== '#centro-notificaciones') return;
+    const timer = window.setTimeout(() => {
+      document.getElementById('centro-notificaciones')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+
+    return () => window.clearTimeout(timer);
+  }, [location.hash]);
 
   useEffect(() => {
     let mounted = true;
@@ -116,36 +128,48 @@ const BeneficiarioHome = () => {
   }, []);
 
   return (
-    <div className="space-y-6">
+    <div className="ui-page">
       <NewsModal item={selectedNews} onClose={() => setSelectedNews(null)} />
 
-      <section className="bg-white border border-border rounded-2xl p-5 md:p-6">
-        <h2 className="text-xl font-extrabold text-primary">Inicio</h2>
-        <p className="text-sm text-slate-600 mt-1">Noticias y avisos relevantes del programa.</p>
+      <section className="ui-card animate-slide-up">
+        <h2 className="ui-title text-[clamp(1.4rem,2.4vw,2rem)]">Inicio</h2>
+        <p className="ui-subtitle mt-1">Noticias y avisos relevantes del programa.</p>
       </section>
 
+  <section id="centro-notificaciones" className="scroll-mt-24">
+  {/* Panel de Notificaciones */}
+  <BeneficiarioNotificacionesPanel limit={3} showTitle={true} />
+  </section>
+
       {loading ? (
-        <div className="bg-white border border-border rounded-2xl p-8 text-center text-slate-500">Cargando contenido...</div>
+        <div className="ui-empty animate-pulse">
+          <div className="flex items-center justify-center gap-2">
+            <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce-subtle"></div>
+            <span>Cargando contenido...</span>
+            <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce-subtle" style={{ animationDelay: '0.1s' }}></div>
+          </div>
+        </div>
       ) : news.length === 0 ? (
-        <div className="bg-white border border-border rounded-2xl p-8 text-center text-slate-500">No hay publicaciones activas.</div>
+        <div className="ui-empty animate-fade-in">No hay publicaciones activas.</div>
       ) : (
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {news.map((item) => (
+          {news.map((item, idx) => (
             <article
               key={item.id}
-              className="bg-white border border-border rounded-2xl overflow-hidden cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group"
+              className="ui-card-plain overflow-hidden cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 group animate-slide-up"
+              style={{ animationDelay: `${idx * 50}ms` }}
               onClick={() => setSelectedNews(item)}
             >
               {item.image_url && (
-                <img src={item.image_url} alt={item.title || 'Noticia'} className="w-full h-40 object-cover group-hover:brightness-95 transition-all" />
+                <img src={item.image_url} alt={item.title || 'Noticia'} className="w-full h-40 object-cover group-hover:brightness-95 transition-all duration-300" />
               )}
               <div className="p-4 space-y-2">
-                <p className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-secondary">
-                  <Megaphone size={13} /> Programa FOCADES
+                <p className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-secondary group-hover:text-accent transition-colors duration-200">
+                  <Megaphone size={13} className="group-hover:scale-110 transition-transform duration-200" /> Programa FOCADES
                 </p>
-                <h3 className="font-bold text-primary leading-tight group-hover:text-secondary transition-colors">{item.title || 'Sin título'}</h3>
+                <h3 className="font-bold text-primary leading-tight group-hover:text-secondary transition-colors duration-200">{item.title || 'Sin título'}</h3>
                 <p className="text-sm text-slate-600 line-clamp-3">{item.summary || item.content || 'Sin descripción.'}</p>
-                <p className="text-xs text-secondary font-semibold mt-1">Leer más →</p>
+                <p className="text-xs text-[var(--gov-info)] font-semibold mt-1 group-hover:translate-x-1 transition-transform duration-200">Leer más →</p>
               </div>
             </article>
           ))}

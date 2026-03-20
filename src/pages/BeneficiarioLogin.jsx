@@ -120,7 +120,7 @@ const BeneficiarioLogin = () => {
 
   if (checkingAccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center admin-shell">
         <div className="w-10 h-10 border-4 border-slate-200 border-t-secondary rounded-full animate-spin" />
       </div>
     );
@@ -131,37 +131,35 @@ const BeneficiarioLogin = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen admin-shell flex flex-col">
 
-      {/* ── Header ─────────────────────────────────────────── */}
-      <header className="bg-primary text-white px-4 md:px-10 h-16 flex items-center justify-between shrink-0">
+      <header className="bg-[var(--gov-ink)] text-white px-4 md:px-10 h-16 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-accent text-primary font-black flex items-center justify-center text-sm">F</div>
+          <div className="w-9 h-9 rounded-xl bg-[linear-gradient(135deg,#f1c57f,#bb7d26)] text-[#10233f] font-black flex items-center justify-center text-sm">F</div>
           <div className="leading-tight hidden sm:block">
             <p className="font-black text-sm">FOCADES</p>
-            <p className="text-[11px] text-slate-300">Portal de Beneficiarios</p>
+            <p className="text-[11px] text-slate-300 uppercase tracking-[0.16em]">Portal de Beneficiarios</p>
           </div>
         </div>
         <button
           type="button"
           onClick={scrollToLogin}
-          className="inline-flex items-center gap-2 bg-accent text-primary text-sm font-bold px-4 py-2 rounded-xl hover:opacity-90 transition-opacity"
+          className="inline-flex items-center gap-2 bg-[var(--gov-accent)] text-white text-sm font-bold px-4 py-2 rounded-xl hover:opacity-90 transition-opacity"
         >
           <LogIn size={15} />
           Iniciar sesión
         </button>
       </header>
 
-      {/* ── Hero ───────────────────────────────────────────── */}
-      <section className="bg-primary text-white px-4 md:px-10 py-14 md:py-20">
+      <section className="bg-[var(--gov-ink)] text-white px-4 md:px-10 py-14 md:py-20 animate-fade-in admin-grid">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center gap-10">
-          <div className="flex-1 text-center md:text-left">
-            <span className="inline-block bg-accent/20 text-accent text-xs font-bold px-3 py-1 rounded-full mb-4 uppercase tracking-wide">
+          <div className="flex-1 text-center md:text-left animate-slide-up">
+            <span className="inline-block bg-[var(--gov-accent-soft)] text-[#f3d4a9] text-xs font-bold px-3 py-1 rounded-full mb-4 uppercase tracking-[0.16em]">
               Bienvenido
             </span>
-            <h1 className="text-3xl md:text-4xl font-black leading-tight">
+            <h1 className="text-3xl md:text-5xl font-bold leading-tight">
               Portal de Beneficiarios<br />
-              <span className="text-accent">FOCADES</span>
+              <span className="text-[#f1c57f]">FOCADES</span>
             </h1>
             <p className="mt-4 text-slate-300 text-sm leading-relaxed max-w-md mx-auto md:mx-0">
               Tu plataforma integral para el seguimiento y gestión de tu beneficio educativo. Consulta tu estado, actualiza tus datos semestrales y mantente informado.
@@ -169,29 +167,28 @@ const BeneficiarioLogin = () => {
             <button
               type="button"
               onClick={scrollToLogin}
-              className="mt-7 inline-flex items-center gap-2 bg-accent text-primary font-bold px-6 py-3 rounded-xl hover:opacity-90 transition-opacity"
+              className="mt-7 inline-flex items-center gap-2 bg-[var(--gov-accent)] text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition-all duration-300"
             >
               <LogIn size={16} />
               Consulta tu estado aquí
             </button>
           </div>
-          <div className="shrink-0 w-48 h-48 md:w-64 md:h-64 rounded-2xl bg-white/10 flex items-center justify-center">
-            <div className="text-7xl md:text-8xl font-black text-accent/60 select-none">F</div>
+          <div className="shrink-0 w-48 h-48 md:w-64 md:h-64 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center animate-scale-up">
+            <div className="text-7xl md:text-8xl font-black text-[#f1c57f]/70 select-none">F</div>
           </div>
         </div>
       </section>
 
-      {/* ── Funcionalidades ────────────────────────────────── */}
-      <section className="px-4 md:px-10 py-12 bg-white border-b border-border">
+      <section className="px-4 md:px-10 py-12 bg-white/85 border-b border-[var(--gov-line)] animate-fade-in" style={{ animationDelay: '100ms' }}>
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-xl font-extrabold text-primary text-center mb-8">¿Qué puedes hacer en la plataforma?</h2>
+          <h2 className="text-2xl font-bold text-[var(--gov-ink)] text-center mb-8">¿Qué puedes hacer en la plataforma?</h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {FEATURES.map(({ icon: Icon, title, desc }) => (
-              <div key={title} className="bg-slate-50 border border-border rounded-2xl p-5 space-y-2">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+            {FEATURES.map(({ icon: Icon, title, desc }, idx) => (
+              <div key={title} className="ui-card-plain space-y-2 animate-slide-up hover:shadow-md transition-all duration-300" style={{ animationDelay: `${idx * 50}ms` }}>
+                <div className="w-10 h-10 rounded-xl bg-[var(--gov-accent-soft)] text-[var(--gov-ink)] flex items-center justify-center">
                   <Icon size={20} />
                 </div>
-                <h3 className="font-bold text-primary text-sm">{title}</h3>
+                <h3 className="font-bold text-[var(--gov-ink)] text-sm">{title}</h3>
                 <p className="text-xs text-slate-600 leading-relaxed">{desc}</p>
               </div>
             ))}
@@ -199,37 +196,36 @@ const BeneficiarioLogin = () => {
         </div>
       </section>
 
-      {/* ── Noticias ───────────────────────────────────────── */}
-      <section className="px-4 md:px-10 py-12 bg-background flex-1">
+      <section className="px-4 md:px-10 py-12 flex-1 animate-fade-in" style={{ animationDelay: '150ms' }}>
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-xl font-extrabold text-primary mb-6">Novedades del programa</h2>
+          <h2 className="text-2xl font-bold text-[var(--gov-ink)] mb-6">Novedades del programa</h2>
 
           {newsLoading ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {[1, 2, 3].map((n) => (
-                <div key={n} className="bg-white border border-border rounded-2xl h-48 animate-pulse" />
+                <div key={n} className="ui-card-plain h-48 animate-pulse" />
               ))}
             </div>
           ) : news.length === 0 ? (
-            <div className="bg-white border border-border rounded-2xl p-10 text-center text-slate-500 text-sm">
+            <div className="ui-empty animate-fade-in">
               No hay publicaciones activas en este momento.
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {news.map((item) => (
-                <article key={item.id} className="bg-white border border-border rounded-2xl overflow-hidden flex flex-col">
+              {news.map((item, idx) => (
+                <article key={item.id} className="ui-card-plain overflow-hidden flex flex-col animate-slide-up hover:shadow-lg transition-all duration-300" style={{ animationDelay: `${idx * 50}ms` }}>
                   {item.image_url && (
                     <img
                       src={item.image_url}
                       alt={item.title || 'Noticia'}
-                      className="w-full h-40 object-cover"
+                      className="w-full h-40 object-cover hover:brightness-90 transition-all duration-300"
                     />
                   )}
                   <div className="p-4 space-y-2 flex-1 flex flex-col">
-                    <p className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-secondary">
-                      <Megaphone size={12} /> Programa FOCADES
+                    <p className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-[var(--gov-info)] transition-colors duration-200">
+                      <Megaphone size={12} className="group-hover:scale-125 transition-transform" /> Programa FOCADES
                     </p>
-                    <h3 className="font-bold text-primary text-sm leading-tight">{item.title || 'Sin título'}</h3>
+                    <h3 className="font-bold text-[var(--gov-ink)] text-sm leading-tight">{item.title || 'Sin título'}</h3>
                     <p className="text-xs text-slate-600 line-clamp-4 flex-1">
                       {item.summary || item.content || 'Sin descripción.'}
                     </p>
@@ -238,7 +234,7 @@ const BeneficiarioLogin = () => {
                         href={item.button_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-secondary mt-1"
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--gov-info)] mt-1 hover:translate-x-1 transition-all duration-200"
                       >
                         {item.button_label || 'Ver más'} <ExternalLink size={12} />
                       </a>
@@ -251,14 +247,14 @@ const BeneficiarioLogin = () => {
         </div>
       </section>
 
-      {/* ── Login card ─────────────────────────────────────── */}
       <section
         ref={loginSectionRef}
-        className="px-4 md:px-10 py-12 bg-white border-t border-border"
+        className="px-4 md:px-10 py-12 bg-white/85 border-t border-[var(--gov-line)] animate-fade-in"
+        style={{ animationDelay: '200ms' }}
       >
-        <div className="max-w-md mx-auto bg-white border border-border rounded-2xl shadow-sm overflow-hidden">
-          <div className="bg-primary text-white px-6 py-5">
-            <h2 className="text-lg font-black">Iniciar sesión</h2>
+        <div className="max-w-md mx-auto admin-panel rounded-3xl overflow-hidden animate-modal-enter">
+          <div className="bg-[var(--gov-ink)] text-white px-6 py-5 admin-grid">
+            <h2 className="text-2xl font-bold">Iniciar sesión</h2>
             <p className="text-sm text-slate-300 mt-1">
               Accede con la cuenta de Google registrada en el programa.
             </p>
@@ -271,7 +267,7 @@ const BeneficiarioLogin = () => {
               type="button"
               onClick={handleGoogleLogin}
               disabled={loginLoading}
-              className="w-full bg-accent text-white py-3 rounded-xl font-bold inline-flex items-center justify-center gap-2 disabled:opacity-50 hover:opacity-90 transition-opacity"
+              className="w-full ui-btn-primary disabled:opacity-50"
             >
               <LogIn size={18} />
               {loginLoading ? 'Redirigiendo...' : 'Continuar con Google'}
@@ -280,8 +276,7 @@ const BeneficiarioLogin = () => {
         </div>
       </section>
 
-      {/* ── Footer ─────────────────────────────────────────── */}
-      <footer className="bg-primary text-white text-center text-xs px-4 py-5">
+      <footer className="bg-[var(--gov-ink)] text-white text-center text-xs px-4 py-5 tracking-[0.08em] uppercase">
         © 2026 Alcaldía de Montelíbano – Secretaría de Educación. Todos los derechos reservados.
       </footer>
 

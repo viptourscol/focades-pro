@@ -6,6 +6,32 @@ import { invokeAdminTickets } from '../lib/adminTickets';
 import { getSafeSession, supabase } from '../lib/supabase';
 import DocViewerModal from '../components/DocViewerModal';
 
+const PAYMENT_RIGHTS_RPC_SESSION_KEY = 'focades-payment-rights-rpc-unavailable';
+const ADMIN_PAYMENT_RIGHTS_RPC = 'admin_beneficiario_payment_rights';
+
+const isRpcMarkedUnavailable = (rpcName) => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const raw = window.sessionStorage.getItem(PAYMENT_RIGHTS_RPC_SESSION_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return Boolean(parsed?.[rpcName]);
+  } catch {
+    return false;
+  }
+};
+
+const markRpcUnavailable = (rpcName) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = window.sessionStorage.getItem(PAYMENT_RIGHTS_RPC_SESSION_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    parsed[rpcName] = true;
+    window.sessionStorage.setItem(PAYMENT_RIGHTS_RPC_SESSION_KEY, JSON.stringify(parsed));
+  } catch {
+    // noop
+  }
+};
+
 const BENEFICIARIO_STATES = ['activo', 'suspendido', 'retirado', 'condonado', 'egresado'];
 const UPDATE_STATUS_OPTIONS = ['en_revision', 'aprobada', 'rechazada'];
 const PAYMENT_STATUS_OPTIONS = ['programado', 'pendiente', 'efectuado', 'anulado'];
@@ -47,6 +73,83 @@ const emptyPaymentDraft = {
   observacion: '',
 };
 
+const normalizeBeneficiarioLevel = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return null;
+  if (normalized.includes('tecnol')) return 'tecnologo';
+  if (normalized.includes('tecnic')) return 'tecnico';
+  if (normalized.includes('universi') || normalized.includes('pregrado') || normalized.includes('profesional')) return 'profesional';
+  return null;
+};
+
+const paymentCapForLevel = (value) => {
+  const normalized = normalizeBeneficiarioLevel(value);
+  if (normalized === 'tecnico') return 4;
+  if (normalized === 'tecnologo') return 6;
+  if (normalized === 'profesional') return 10;
+  return null;
+};
+
+const toIntegerOrNull = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : null;
+};
+
+const buildLocalPaymentRights = ({ profile, paymentRows = [], enrollmentData = null }) => {
+  const nivelFormacion =
+    profile?.nivel_formacion ||
+    enrollmentData?.datos_formulario?.nivel_formacion ||
+    null;
+  const modalidad =
+    profile?.modalidad ||
+    enrollmentData?.datos_formulario?.modalidad ||
+    enrollmentData?.datos_formulario?.modalidad_aspira ||
+    null;
+  const semestreIngreso =
+    toIntegerOrNull(profile?.semestre_ingreso) ||
+    toIntegerOrNull(enrollmentData?.datos_formulario?.semestre_ingreso) ||
+    null;
+  const topePagos = paymentCapForLevel(nivelFormacion);
+  const derechoInicial = topePagos && semestreIngreso ? Math.max(0, topePagos - (semestreIngreso - 1)) : 0;
+  const pagosEfectuados = paymentRows.filter((item) => item.estado === 'efectuado').length;
+  const pagosRestantes = Math.max(0, derechoInicial - pagosEfectuados);
+  const esActivo = profile?.estado_beneficiario === 'activo';
+
+  let motivoBloqueo = null;
+  let esElegible = false;
+
+  if (!nivelFormacion) {
+    motivoBloqueo = 'Falta nivel de formacion para calcular derechos de pago.';
+  } else if (!semestreIngreso) {
+    motivoBloqueo = 'Falta semestre de ingreso para calcular derechos de pago.';
+  } else if (!esActivo) {
+    motivoBloqueo = 'El beneficiario no esta en estado activo.';
+  } else if (pagosRestantes <= 0) {
+    motivoBloqueo = 'El beneficiario ya agoto sus cupos de pago.';
+  } else {
+    esElegible = true;
+  }
+
+  return {
+    beneficiarioId: profile?.id || null,
+    nivelFormacion,
+    nivelNormalizado: normalizeBeneficiarioLevel(nivelFormacion),
+    modalidad,
+    semestreIngreso,
+    semestreReferencia: semestreIngreso,
+    topePagos,
+    derechoInicial,
+    ajustesNetos: 0,
+    derechoTotal: derechoInicial,
+    pagosEfectuados,
+    pagosRestantes,
+    estadoBeneficiario: profile?.estado_beneficiario || null,
+    esElegible,
+    motivoBloqueo,
+    source: 'local-fallback',
+  };
+};
+
 const AdminBeneficiarioDetalle = () => {
   const { beneficiarioId } = useParams();
   const [loading, setLoading] = useState(true);
@@ -59,6 +162,8 @@ const AdminBeneficiarioDetalle = () => {
   const [documentsByUpdate, setDocumentsByUpdate] = useState({});
   const [stateHistory, setStateHistory] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [paymentRights, setPaymentRights] = useState(null);
+  const [paymentRightsNotice, setPaymentRightsNotice] = useState('');
   const [tickets, setTickets] = useState([]);
   const [bitacoraRows, setBitacoraRows] = useState([]);
   const [profileForm, setProfileForm] = useState({ email: '', telefono: '', direccion: '', semestre_actual: '' });
@@ -73,6 +178,7 @@ const AdminBeneficiarioDetalle = () => {
   const [loadingByTab, setLoadingByTab] = useState({ perfil: false, actualizaciones: false, expediente: false, pagos: false, tickets: false, bitacora: false });
   const [expedienteDocs, setExpedienteDocs] = useState([]);
   const [expedienteData, setExpedienteData] = useState(null);
+  const [historicoDocs, setHistoricoDocs] = useState([]);
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteMessage, setInviteMessage] = useState('');
 
@@ -167,10 +273,57 @@ const AdminBeneficiarioDetalle = () => {
         .select('*')
         .eq('beneficiario_id', beneficiarioId)
         .order('created_at', { ascending: false });
-      setPayments(Array.isArray(data) ? data : []);
+      const paymentRows = Array.isArray(data) ? data : [];
+      setPayments(paymentRows);
+      await loadPaymentRights(beneficiarioId, beneficiario, paymentRows);
       markTabLoaded('pagos');
     } finally {
       setTabLoading('pagos', false);
+    }
+  };
+
+  const loadPaymentRights = async (targetBeneficiarioId = beneficiarioId, profileOverride = null, paymentRowsOverride = null) => {
+    try {
+      if (isRpcMarkedUnavailable(ADMIN_PAYMENT_RIGHTS_RPC)) {
+        throw new Error('__PAYMENT_RIGHTS_RPC_UNAVAILABLE__');
+      }
+
+      const { data, error } = await supabase.rpc('admin_beneficiario_payment_rights', {
+        p_beneficiario_id: Number(targetBeneficiarioId),
+      });
+
+      if (error) throw error;
+      setPaymentRights(data || null);
+      setPaymentRightsNotice('');
+    } catch (error) {
+      const profile = profileOverride || beneficiario;
+      let enrollmentData = null;
+
+      if (profile?.inscripcion_pk || profile?.inscripcion_id) {
+        const { data: inscripcionData } = await supabase
+          .from('inscripciones')
+          .select('id,datos_formulario')
+          .eq('id', profile.inscripcion_pk || profile.inscripcion_id)
+          .maybeSingle();
+        enrollmentData = inscripcionData || null;
+      }
+
+      const fallback = buildLocalPaymentRights({
+        profile,
+        paymentRows: Array.isArray(paymentRowsOverride) ? paymentRowsOverride : payments,
+        enrollmentData,
+      });
+
+      setPaymentRights(fallback);
+      if (String(error?.message || '').includes('404') || String(error?.message || '').includes('not found')) {
+        markRpcUnavailable(ADMIN_PAYMENT_RIGHTS_RPC);
+      }
+
+      if (String(error?.message || '') === '__PAYMENT_RIGHTS_RPC_UNAVAILABLE__' || String(error?.message || '').includes('404') || String(error?.message || '').includes('not found')) {
+        setPaymentRightsNotice('La funcion de backend para derechos de pago aun no esta desplegada en Supabase. Se muestra un calculo local estimado.');
+      } else {
+        setPaymentRightsNotice('No fue posible consultar el calculo centralizado. Se muestra un calculo local estimado.');
+      }
     }
   };
 
@@ -278,11 +431,22 @@ const AdminBeneficiarioDetalle = () => {
       if (!inscripcionPk) {
         setExpedienteData(null);
         setExpedienteDocs([]);
+        // Cargar documentos históricos incluso sin inscripción
+        if (profile?.id) {
+          const { data: historicoData } = await supabase
+            .from('portal_beneficiario_documentos_historicos')
+            .select('*')
+            .eq('beneficiario_id', profile.id)
+            .order('created_at', { ascending: false });
+          setHistoricoDocs(Array.isArray(historicoData) ? historicoData : []);
+        } else {
+          setHistoricoDocs([]);
+        }
         markTabLoaded('expediente');
         return;
       }
 
-      const [{ data: inscripcion }, { data: docs }] = await Promise.all([
+      const [{ data: inscripcion }, { data: docs }, { data: historicoData }] = await Promise.all([
         supabase
           .from('inscripciones')
           .select('id,radicado,estado,etapa,observacion_publica,convocatoria_id,puntaje_total,datos_formulario,created_at,updated_at')
@@ -293,10 +457,16 @@ const AdminBeneficiarioDetalle = () => {
           .select('*')
           .eq('inscripcion_id', inscripcionPk)
           .order('uploaded_at', { ascending: false }),
+        supabase
+          .from('portal_beneficiario_documentos_historicos')
+          .select('*')
+          .eq('beneficiario_id', profile.id)
+          .order('created_at', { ascending: false }),
       ]);
 
       setExpedienteData(inscripcion || null);
       setExpedienteDocs(Array.isArray(docs) ? docs : []);
+      setHistoricoDocs(Array.isArray(historicoData) ? historicoData : []);
       markTabLoaded('expediente');
     } finally {
       setTabLoading('expediente', false);
@@ -343,6 +513,7 @@ const AdminBeneficiarioDetalle = () => {
       setUpdates([]);
       setDocumentsByUpdate({});
       setPayments([]);
+      setPaymentRights(null);
       setTickets([]);
       setBitacoraRows([]);
       setExpedienteDocs([]);
@@ -351,6 +522,9 @@ const AdminBeneficiarioDetalle = () => {
 
       const profile = await loadProfileData();
       if (!mounted) return;
+      if (profile?.id) {
+        await loadPaymentRights(profile.id, profile, []);
+      }
       await loadTabData('actualizaciones', profile);
     };
 
@@ -398,6 +572,7 @@ const AdminBeneficiarioDetalle = () => {
       if (loadedTabs.expediente) {
         await loadExpedienteData(profile);
       }
+      await loadPaymentRights(beneficiario.id);
     } catch (error) {
       await showErrorAlert({ title: 'No se pudo guardar el perfil', text: error.message || 'Ocurrió un error.' });
     } finally {
@@ -440,6 +615,7 @@ const AdminBeneficiarioDetalle = () => {
       setStatusReason('');
       await showSuccessAlert({ title: 'Estado actualizado', text: 'El cambio quedó registrado en el historial.' });
       await loadProfileData();
+      await loadPaymentRights(beneficiario.id);
     } catch (error) {
       await showErrorAlert({ title: 'No se pudo cambiar el estado', text: error.message || 'Ocurrió un error.' });
     } finally {
@@ -538,6 +714,7 @@ const AdminBeneficiarioDetalle = () => {
       resetPaymentForm();
       await showSuccessAlert({ title: 'Pago guardado', text: 'El registro financiero fue actualizado.' });
       await loadPagosData();
+      await loadPaymentRights(beneficiario.id);
     } catch (error) {
       await showErrorAlert({ title: 'No se pudo guardar el pago', text: error.message || 'Ocurrió un error.' });
     } finally {
@@ -586,6 +763,7 @@ const AdminBeneficiarioDetalle = () => {
       if (error) throw error;
       await showSuccessAlert({ title: 'Pago eliminado', text: 'El registro fue eliminado correctamente.' });
       await loadPagosData();
+      await loadPaymentRights(beneficiario.id);
     } catch (error) {
       await showErrorAlert({ title: 'No se pudo eliminar el pago', text: error.message || 'Ocurrió un error.' });
     }
@@ -874,6 +1052,44 @@ const AdminBeneficiarioDetalle = () => {
             </div>
           </>
         )}
+
+        {!loadingByTab.expediente && historicoDocs.length > 0 && (
+          <div className="border-t border-slate-200 pt-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">📁</span>
+              <h3 className="text-lg font-bold text-slate-800">Expediente Histórico</h3>
+            </div>
+            <p className="text-sm text-slate-600">Documentos migrados del sistema anterior como respaldo histórico.</p>
+            <div className="space-y-2">
+              {historicoDocs.map((doc) => (
+                <div key={doc.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border border-slate-200 rounded-2xl px-4 py-3 bg-slate-50 hover:bg-slate-100 transition">
+                  <div>
+                    <p className="font-semibold text-slate-800">{doc.titulo}</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {doc.tipo_documento && <span>{doc.tipo_documento} · </span>}
+                      {doc.fecha_documento && <span>Fecha: {formatDate(doc.fecha_documento)} · </span>}
+                      Importado: {formatDateTime(doc.created_at)}
+                    </p>
+                    {doc.descripcion && <p className="text-sm text-slate-700 mt-2">{doc.descripcion}</p>}
+                  </div>
+                  {doc.storage_path && (
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        // Intenta descargar el documento del storage
+                        const path = doc.storage_path.replace('soportes/', '')
+                        window.open(`/storage/download?path=${encodeURIComponent(path)}`, '_blank')
+                      }}
+                      className="px-3 py-2 rounded-xl border border-slate-200 text-sm font-bold text-secondary hover:bg-white"
+                    >
+                      Ver documento
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
       )}
 
@@ -883,6 +1099,47 @@ const AdminBeneficiarioDetalle = () => {
         <section className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
           <SectionTitle title="Pagos y desembolsos" subtitle="Registra pagos manuales y mantén trazabilidad financiera básica." />
           {loadingByTab.pagos && <p className="text-sm text-slate-500">Cargando pagos...</p>}
+
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-widest text-slate-400">Derechos de pago</p>
+                <p className="text-sm text-slate-600 mt-1">
+                  El tope por nivel es un máximo posible. El derecho real depende del semestre de ingreso, pagos efectuados y ajustes administrativos.
+                </p>
+              </div>
+              <span className={`inline-flex px-3 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest ${paymentRights?.esElegible ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200' : 'bg-amber-100 text-amber-700 ring-1 ring-amber-200'}`}>
+                {paymentRights?.esElegible ? 'Elegible para pago' : 'Pago bloqueado'}
+              </span>
+            </div>
+
+            {paymentRightsNotice ? (
+              <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+                {paymentRightsNotice}
+              </div>
+            ) : null}
+
+            <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-3">
+              <SummaryCard title="Tope por nivel" value={paymentRights ? paymentRights.topePagos : '...'} icon={<ShieldAlert size={18} className="text-sky-600" />} tone="bg-sky-50" />
+              <SummaryCard title="Derecho total" value={paymentRights ? paymentRights.derechoTotal : '...'} icon={<CircleDollarSign size={18} className="text-teal-700" />} tone="bg-teal-50" />
+              <SummaryCard title="Pagos efectuados" value={paymentRights ? paymentRights.pagosEfectuados : '...'} icon={<CircleDollarSign size={18} className="text-emerald-600" />} tone="bg-emerald-50" />
+              <SummaryCard title="Pagos restantes" value={paymentRights ? paymentRights.pagosRestantes : '...'} icon={<Ticket size={18} className="text-amber-600" />} tone="bg-amber-50" />
+            </div>
+
+            <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-3 text-sm">
+              <InfoCard label="Nivel formación" value={paymentRights?.nivelFormacion || beneficiario.nivel_formacion || 'No definido'} />
+              <InfoCard label="Modalidad" value={paymentRights?.modalidad || beneficiario.modalidad || 'No definida'} />
+              <InfoCard label="Semestre ingreso" value={paymentRights?.semestreIngreso || beneficiario.semestre_ingreso || 'No definido'} />
+              <InfoCard label="Ajustes netos" value={paymentRights ? paymentRights.ajustesNetos : '...'} />
+            </div>
+
+            {!paymentRights?.esElegible && paymentRights?.motivoBloqueo ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                {paymentRights.motivoBloqueo}
+              </div>
+            ) : null}
+          </div>
+
           <div className="grid md:grid-cols-2 gap-3">
             <Field label="Concepto" value={paymentDraft.concepto} onChange={(value) => setPaymentDraft((prev) => ({ ...prev, concepto: value }))} />
             <Field label="Periodo" value={paymentDraft.periodo} onChange={(value) => setPaymentDraft((prev) => ({ ...prev, periodo: value }))} />

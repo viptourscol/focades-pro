@@ -55,3 +55,41 @@ export const showConfirmAlert = async ({
 
   return result.isConfirmed;
 };
+
+export const showTextareaConfirmAlert = async ({
+  title = 'Escribe una observación',
+  text = '',
+  inputLabel = 'Observación',
+  inputPlaceholder = 'Escribe aquí...',
+  inputValue = '',
+  confirmButtonText = 'Guardar',
+  cancelButtonText = 'Cancelar',
+  requiredMessage = 'Este campo es obligatorio.',
+} = {}) => {
+  const result = await Swal.fire({
+    title,
+    text,
+    input: 'textarea',
+    inputLabel,
+    inputPlaceholder,
+    inputValue,
+    inputAttributes: {
+      'aria-label': inputLabel,
+      maxlength: '2000',
+    },
+    inputValidator: (value) => {
+      if (!String(value || '').trim()) {
+        return requiredMessage;
+      }
+      return undefined;
+    },
+    showCancelButton: true,
+    confirmButtonText,
+    cancelButtonText,
+    confirmButtonColor: '#0f2b54',
+    cancelButtonColor: '#64748b',
+  });
+
+  if (!result.isConfirmed) return null;
+  return String(result.value || '').trim();
+};

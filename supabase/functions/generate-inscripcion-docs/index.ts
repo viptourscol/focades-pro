@@ -5,6 +5,7 @@ import type { RenderContext } from './document-model.ts';
 import { TEMPLATES } from './templates.ts';
 import { renderWithHtml } from './renderers/html-renderer.ts';
 import { renderWithPdfLib } from './renderers/pdf-lib-renderer.ts';
+import { encodeBytesToBase64, generatePdfDocumentsWithGas, resolveTemplateId } from '../_shared/gas-docs.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -37,6 +38,11 @@ const parseBoolean = (value: string | undefined, defaultValue: boolean) => {
   if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
   if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
   return defaultValue;
+};
+
+const parseTimeout = (value: string | undefined, defaultValue: number) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
 };
 
 const sanitizePathSegment = (value: string) =>
@@ -290,6 +296,22 @@ const buildSignatureTokens = async ({
 
 const renderConfig = getRenderConfig();
 const requireJwt = parseBoolean(Deno.env.get('DOCS_REQUIRE_JWT'), false);
+const gasEnabled = parseBoolean(Deno.env.get('DOCS_GAS_ENABLED'), true);
+const gasFallbackToLegacy = parseBoolean(Deno.env.get('DOCS_GAS_FALLBACK_LOCAL'), true);
+const gasTimeoutMs = parseTimeout(Deno.env.get('DOCS_GAS_TIMEOUT_MS'), 20000);
+
+const resolveInscripcionTemplateId = (tipo: string) => {
+  if (tipo === 'formulario_credito_educativo') {
+    return resolveTemplateId('DOCS_GAS_TEMPLATE_FORMULARIO_ID');
+  }
+  if (tipo === 'aceptacion_terminos_condiciones') {
+    return resolveTemplateId('DOCS_GAS_TEMPLATE_TERMINOS_ID');
+  }
+  if (tipo === 'autorizacion_tratamiento_datos') {
+    return resolveTemplateId('DOCS_GAS_TEMPLATE_DATOS_ID');
+  }
+  return undefined;
+};
 
 const renderDocument = async (context: RenderContext) => {
   if (renderConfig.engine === 'html_pdf') {
@@ -357,6 +379,7 @@ Deno.serve(async (req) => {
     }
 
     const signatureBytes = new Uint8Array(await signatureData.arrayBuffer());
+    const signatureMimeType = String(signatureData.type || '').trim() || 'image/png';
     const logoBytes = await loadHeaderLogoBytes(admin);
     if (!logoBytes) {
       console.warn('No se pudo cargar logo para encabezado (logoBytes=null).');
@@ -391,6 +414,8 @@ Deno.serve(async (req) => {
       size_bytes: number;
     }> = [];
 
+    const templatesToGenerate = [];
+
     for (const template of TEMPLATES) {
       const { data: existingDoc, error: existingDocError } = await admin
         .from('inscripciones_documentos')
@@ -416,25 +441,113 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const pdfBytes = await renderDocument({
-        template,
-        formData: form_data || {},
-        radicado,
-        signatureBytes,
-        inscripcionId: inscripcion_id,
-        logoBytes,
-        generatedAtLabel,
-        tokens,
-      });
+      templatesToGenerate.push(template);
+    }
 
-      const fileName = `${template.tipo}.pdf`;
+    const generatedDocsByType = new Map<string, { fileName: string; mimeType: string; pdfBytes: Uint8Array }>();
+
+    if (templatesToGenerate.length > 0) {
+      if (gasEnabled) {
+        try {
+          const gasDocs = await generatePdfDocumentsWithGas({
+            source: 'aspirantes',
+            timeoutMs: gasTimeoutMs,
+            documents: templatesToGenerate.map((template) => ({
+              tipo: template.tipo,
+              titulo: template.titulo,
+              fileName: `${template.tipo}.pdf`,
+              templateId: resolveInscripcionTemplateId(template.tipo),
+            })),
+            payload: {
+              radicado,
+              inscripcion_id,
+              documento_persona: documento_persona || '',
+              generated_at_label: generatedAtLabel,
+              tokens,
+              form_data: form_data || {},
+              signature: {
+                mime_type: signatureMimeType,
+                base64: encodeBytesToBase64(signatureBytes),
+              },
+            },
+          });
+
+          for (const gasDoc of gasDocs) {
+            generatedDocsByType.set(gasDoc.tipo, {
+              fileName: gasDoc.fileName || `${gasDoc.tipo}.pdf`,
+              mimeType: gasDoc.mimeType || 'application/pdf',
+              pdfBytes: gasDoc.pdfBytes,
+            });
+          }
+
+          if (gasFallbackToLegacy) {
+            for (const template of templatesToGenerate) {
+              if (generatedDocsByType.has(template.tipo)) continue;
+
+              const fallbackPdfBytes = await renderDocument({
+                template,
+                formData: form_data || {},
+                radicado,
+                signatureBytes,
+                inscripcionId: inscripcion_id,
+                logoBytes,
+                generatedAtLabel,
+                tokens,
+              });
+
+              generatedDocsByType.set(template.tipo, {
+                fileName: `${template.tipo}.pdf`,
+                mimeType: 'application/pdf',
+                pdfBytes: fallbackPdfBytes,
+              });
+            }
+          }
+        } catch (gasError) {
+          if (!gasFallbackToLegacy) {
+            throw new Error(
+              `No se pudieron generar documentos con GAS: ${gasError instanceof Error ? gasError.message : 'error desconocido'}`
+            );
+          }
+          console.error('Fallo generación con GAS. Se usará renderer local como fallback:', gasError);
+        }
+      }
+
+      if (!gasEnabled || generatedDocsByType.size === 0) {
+        for (const template of templatesToGenerate) {
+          const pdfBytes = await renderDocument({
+            template,
+            formData: form_data || {},
+            radicado,
+            signatureBytes,
+            inscripcionId: inscripcion_id,
+            logoBytes,
+            generatedAtLabel,
+            tokens,
+          });
+
+          generatedDocsByType.set(template.tipo, {
+            fileName: `${template.tipo}.pdf`,
+            mimeType: 'application/pdf',
+            pdfBytes,
+          });
+        }
+      }
+    }
+
+    for (const template of templatesToGenerate) {
+      const generatedDoc = generatedDocsByType.get(template.tipo);
+      if (!generatedDoc) {
+        throw new Error(`No se recibió el PDF del documento ${template.tipo} desde el proveedor configurado.`);
+      }
+
+      const fileName = generatedDoc.fileName || `${template.tipo}.pdf`;
       const path = `expedientes/${cleanDocumento}/${cleanRadicado}/generados/${fileName}`;
 
       const { error: uploadError } = await admin.storage
         .from('soportes')
-        .upload(path, new Blob([pdfBytes], { type: 'application/pdf' }), {
+        .upload(path, new Blob([generatedDoc.pdfBytes], { type: generatedDoc.mimeType || 'application/pdf' }), {
           upsert: true,
-          contentType: 'application/pdf',
+          contentType: generatedDoc.mimeType || 'application/pdf',
         });
 
       if (uploadError) {
@@ -445,8 +558,8 @@ Deno.serve(async (req) => {
         tipo_documento: template.tipo,
         storage_path: path,
         nombre_original: fileName,
-        mime_type: 'application/pdf',
-        size_bytes: pdfBytes.byteLength,
+        mime_type: generatedDoc.mimeType || 'application/pdf',
+        size_bytes: generatedDoc.pdfBytes.byteLength,
       });
 
       const { error: insertDocError } = await admin.from('inscripciones_documentos').insert({
@@ -454,8 +567,8 @@ Deno.serve(async (req) => {
         tipo_documento: template.tipo,
         storage_path: path,
         nombre_original: fileName,
-        mime_type: 'application/pdf',
-        size_bytes: pdfBytes.byteLength,
+        mime_type: generatedDoc.mimeType || 'application/pdf',
+        size_bytes: generatedDoc.pdfBytes.byteLength,
         version: 1,
       });
 

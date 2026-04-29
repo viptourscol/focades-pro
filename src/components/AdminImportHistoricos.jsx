@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-import { getSafeSession } from '../lib/supabase'
 import * as XLSX from 'xlsx'
+import ImportStepper from './ImportStepper'
+import LoteInfoBanner from './LoteInfoBanner'
 
 const TIPO_DOCUMENTO_VALIDO = new Set(['CC', 'TI', 'CE', 'PAS'])
 const MODALIDAD_MAP = [
@@ -14,13 +15,34 @@ const NIVEL_MAP = [
   { test: /univers|pregrado|profesional/i, value: 'Universitario (Pregrado)' }
 ]
 const GRADO_MAP = [
-  { test: /^bach/i, value: 'Bachiller' },
-  { test: /^tecnic/i, value: 'Técnico' },
-  { test: /^tecnol/i, value: 'Tecnólogo' },
-  { test: /^prof/i, value: 'Profesional' },
-  { test: /especial/i, value: 'Especialista' },
-  { test: /magist|maestr/i, value: 'Magíster' },
-  { test: /doctor/i, value: 'Doctorado' }
+  // Títulos específicos del formulario de convocatoria
+  { test: /^bachiller acad[eé]mico$/i, value: 'Bachiller Académico' },
+  { test: /^bachiller t[eé]cnico$/i, value: 'Bachiller Técnico' },
+  { test: /^bachiller comercial$/i, value: 'Bachiller Comercial' },
+  { test: /^bachiller pedag[oó]gico$/i, value: 'Bachiller Pedagógico' },
+  { test: /^normalista superior$/i, value: 'Normalista Superior' },
+  { test: /^bachiller rural$/i, value: 'Bachiller Rural' },
+  { test: /^bachiller con profundizaci[oó]n$/i, value: 'Bachiller con Profundización' },
+  // Patrones de compatibilidad
+  { test: /normalista/i, value: 'Normalista Superior' },
+  { test: /^bach/i, value: 'Bachiller Académico' },
+  { test: /^tecnic/i, value: 'Bachiller Técnico' },
+  { test: /^tecnol/i, value: 'Bachiller Técnico' },
+  { test: /^prof/i, value: 'Bachiller Académico' },
+  { test: /especial/i, value: 'Bachiller Académico' },
+  { test: /magist|maestr/i, value: 'Bachiller Académico' },
+  { test: /doctor/i, value: 'Bachiller Académico' }
+]
+const ESTADO_MAP = [
+  { test: /^activ/i, value: 'activo' },
+  { test: /^suspen/i, value: 'suspendido' },
+  { test: /^retir/i, value: 'retirado' },
+  { test: /^condon/i, value: 'condonado' },
+  { test: /^egres/i, value: 'egresado' }
+]
+const TIPO_CUENTA_MAP = [
+  { test: /ahorr/i, value: 'Ahorros' },
+  { test: /corr/i, value: 'Corriente' }
 ]
 
 const normalizeText = (value) => {
@@ -51,6 +73,29 @@ const normalizeSemestre = (value) => {
   if (!Number.isFinite(n)) return null
   if (n < 1 || n > 20) return null
   return n
+}
+
+const validateRows = (rows) => {
+  const errors = []
+  const warnings = []
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+  rows.forEach((row, idx) => {
+    const n = idx + 2
+    if (!row.nombre) errors.push({ fila: n, campo: 'nombre', msg: 'Nombre obligatorio' })
+    if (!row.cedula) errors.push({ fila: n, campo: 'cedula', msg: 'Cédula obligatoria' })
+    if (!row.correo) {
+      warnings.push({ fila: n, campo: 'correo', msg: 'Sin correo — no podrá activar portal hasta agregarlo' })
+    } else if (!EMAIL_RE.test(row.correo)) {
+      warnings.push({ fila: n, campo: 'correo', msg: `Correo con formato inválido: ${row.correo} — verificar antes de activar` })
+    }
+    if (!row.modalidad) warnings.push({ fila: n, campo: 'modalidad', msg: 'Sin modalidad' })
+    if (!row.programa_academico) warnings.push({ fila: n, campo: 'programa_academico', msg: 'Sin programa académico' })
+    if (!row.convocatoria_nombre && !row.convocatoria_id) warnings.push({ fila: n, campo: 'convocatoria', msg: 'Sin convocatoria' })
+    if (!row.nivel_formacion) warnings.push({ fila: n, campo: 'nivel_formacion', msg: 'Sin nivel de formación' })
+  })
+
+  return { errors, warnings, valid: errors.length === 0 }
 }
 
 const AdminImportHistoricos = () => {
@@ -99,11 +144,11 @@ const AdminImportHistoricos = () => {
       }
 
       const beneficiarios = rows
-        .filter((row) => row.nombre && row.cedula && row.correo)
+        .filter((row) => row.nombre && row.cedula)
         .map((row) => ({
           nombre: String(row.nombre || '').trim(),
           cedula: String(row.cedula || '').trim().toUpperCase(),
-          correo: String(row.correo || '').trim().toLowerCase(),
+          correo: row.correo ? String(row.correo).trim().toLowerCase() : null,
           tipo_documento: normalizeTipoDocumento(row.tipo_documento),
           telefono: normalizeText(row.telefono),
           direccion: normalizeText(row.direccion),
@@ -118,10 +163,17 @@ const AdminImportHistoricos = () => {
           grado_academico: normalizeByMap(row.grado_academico, GRADO_MAP),
           institucion_academica: normalizeText(row.institucion_academica),
           anio_graduacion: row.anio_graduacion ? parseInt(String(row.anio_graduacion), 10) : null,
-          observaciones: normalizeText(row.observaciones)
+          observaciones: normalizeText(row.observaciones),
+          estado_beneficiario: normalizeByMap(row.estado_beneficiario, ESTADO_MAP) || 'activo',
+          cuenta_bancaria: normalizeText(row.cuenta_bancaria),
+          banco: normalizeText(row.banco),
+          tipo_cuenta: normalizeByMap(row.tipo_cuenta, TIPO_CUENTA_MAP)
         }))
 
+      const validacion = validateRows(rows.filter((row) => row.nombre && row.cedula))
+
       setPreview(beneficiarios.slice(0, 10))
+      setValidacionResult(validacion)
       setLoteInfo({
         archivo_nombre: file.name,
         archivo_size_bytes: file.size,
@@ -152,21 +204,9 @@ const AdminImportHistoricos = () => {
     setPaso('validacion')
 
     try {
-      const { session } = await getSafeSession()
-      const accessToken = String(session?.access_token || '').trim()
-
-      if (!accessToken) {
-        setError('Tu sesión de administrador expiró. Inicia sesión nuevamente para importar.')
-        setPaso('preview')
-        return
-      }
-
       const { data, error: invokeError } = await supabase.functions.invoke(
         'import-historicos-lote',
         {
-          headers: {
-            Authorization: `Bearer ${accessToken}`
-          },
           body: {
             titulo: titulo.trim(),
             descripcion: descripcion.trim() || null,
@@ -209,7 +249,10 @@ const AdminImportHistoricos = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <ImportStepper currentStep={1} loteId={loteInfo?.lote_id || (validacionResult?.lote_id)} />
+      {loteInfo?.lote_id && <LoteInfoBanner loteId={loteInfo.lote_id} />}
+
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
         {paso === 'upload' && (
           <div className="space-y-4">
@@ -302,27 +345,81 @@ const AdminImportHistoricos = () => {
 
             <div className="space-y-2">
               <h4 className="text-sm font-medium text-gray-700">Primeros 10 registros</h4>
+
+              {validacionResult && (
+                <div className="space-y-2">
+                  {validacionResult.errors.length > 0 && (
+                    <details open className="bg-red-50 border border-red-200 rounded p-3">
+                      <summary className="cursor-pointer text-sm font-semibold text-red-800">
+                        🔴 {validacionResult.errors.length} error(es) — bloquean la importación
+                      </summary>
+                      <ul className="mt-2 space-y-1">
+                        {validacionResult.errors.slice(0, 20).map((e, idx) => (
+                          <li key={idx} className="text-xs text-red-700">Fila {e.fila} · <span className="font-mono">{e.campo}</span>: {e.msg}</li>
+                        ))}
+                        {validacionResult.errors.length > 20 && (
+                          <li className="text-xs text-red-500">... y {validacionResult.errors.length - 20} más</li>
+                        )}
+                      </ul>
+                    </details>
+                  )}
+                  {validacionResult.warnings.length > 0 && (
+                    <details className="bg-amber-50 border border-amber-200 rounded p-3">
+                      <summary className="cursor-pointer text-sm font-semibold text-amber-800">
+                        🟡 {validacionResult.warnings.length} advertencia(s) — se puede importar igual
+                      </summary>
+                      <ul className="mt-2 space-y-1">
+                        {validacionResult.warnings.slice(0, 20).map((w, idx) => (
+                          <li key={idx} className="text-xs text-amber-700">Fila {w.fila} · <span className="font-mono">{w.campo}</span>: {w.msg}</li>
+                        ))}
+                        {validacionResult.warnings.length > 20 && (
+                          <li className="text-xs text-amber-500">... y {validacionResult.warnings.length - 20} más</li>
+                        )}
+                      </ul>
+                    </details>
+                  )}
+                  {validacionResult.valid && validacionResult.warnings.length === 0 && (
+                    <div className="bg-green-50 border border-green-200 rounded p-3 text-sm text-green-800">
+                      ✅ Sin errores ni advertencias — datos listos para importar
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm border border-gray-200 rounded">
                   <thead className="bg-gray-100">
                     <tr>
-                      <th className="px-4 py-2 text-left">Nombre</th>
-                      <th className="px-4 py-2 text-left">Cédula</th>
-                      <th className="px-4 py-2 text-left">Correo</th>
-                      <th className="px-4 py-2 text-left">Modalidad</th>
-                      <th className="px-4 py-2 text-left">Convocatoria</th>
-                      <th className="px-4 py-2 text-left">Programa</th>
+                      <th className="px-3 py-2 text-left whitespace-nowrap">Nombre</th>
+                      <th className="px-3 py-2 text-left whitespace-nowrap">Cédula</th>
+                      <th className="px-3 py-2 text-left whitespace-nowrap">Correo</th>
+                      <th className="px-3 py-2 text-left whitespace-nowrap">Modalidad</th>
+                      <th className="px-3 py-2 text-left whitespace-nowrap">Convocatoria</th>
+                      <th className="px-3 py-2 text-left whitespace-nowrap">Programa</th>
+                      <th className="px-3 py-2 text-left whitespace-nowrap">Estado</th>
+                      <th className="px-3 py-2 text-left whitespace-nowrap">Banco</th>
+                      <th className="px-3 py-2 text-left whitespace-nowrap">Tipo Cuenta</th>
                     </tr>
                   </thead>
                   <tbody>
                     {preview.map((row, i) => (
                       <tr key={i} className="border-t border-gray-200 hover:bg-gray-50">
-                        <td className="px-4 py-2">{row.nombre}</td>
-                        <td className="px-4 py-2 font-mono text-xs">{row.cedula}</td>
-                        <td className="px-4 py-2 text-xs text-gray-600">{row.correo}</td>
-                        <td className="px-4 py-2 text-xs">{row.modalidad || '-'}</td>
-                        <td className="px-4 py-2 text-xs">{row.convocatoria_nombre || row.convocatoria_id || '-'}</td>
-                        <td className="px-4 py-2 text-xs">{row.programa_academico || '-'}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{row.nombre}</td>
+                        <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">{row.cedula}</td>
+                        <td className="px-3 py-2 text-xs text-gray-600 whitespace-nowrap">{row.correo}</td>
+                        <td className="px-3 py-2 text-xs whitespace-nowrap">{row.modalidad || '-'}</td>
+                        <td className="px-3 py-2 text-xs whitespace-nowrap">{row.convocatoria_nombre || row.convocatoria_id || '-'}</td>
+                        <td className="px-3 py-2 text-xs whitespace-nowrap">{row.programa_academico || '-'}</td>
+                        <td className="px-3 py-2 text-xs whitespace-nowrap">
+                          <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                            row.estado_beneficiario === 'activo' ? 'bg-green-100 text-green-800' :
+                            row.estado_beneficiario === 'suspendido' ? 'bg-amber-100 text-amber-800' :
+                            row.estado_beneficiario === 'condonado' ? 'bg-blue-100 text-blue-800' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>{row.estado_beneficiario || 'activo'}</span>
+                        </td>
+                        <td className="px-3 py-2 text-xs whitespace-nowrap">{row.banco || '-'}</td>
+                        <td className="px-3 py-2 text-xs whitespace-nowrap">{row.tipo_cuenta || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -348,10 +445,10 @@ const AdminImportHistoricos = () => {
               </button>
               <button
                 onClick={validateAndImport}
-                disabled={loading || !titulo.trim()}
+                disabled={loading || !titulo.trim() || (validacionResult && !validacionResult.valid)}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
               >
-                {loading ? 'Procesando...' : 'Importar'}
+                {loading ? 'Procesando...' : validacionResult && !validacionResult.valid ? 'Corrige los errores primero' : 'Importar'}
               </button>
             </div>
           </div>
@@ -376,10 +473,41 @@ const AdminImportHistoricos = () => {
               <p className="text-green-900 font-medium">Resumen de carga:</p>
               <ul className="text-sm text-green-800 space-y-1">
                 <li>✓ Beneficiarios insertados: {validacionResult.beneficiarios_insertados}</li>
+                {validacionResult.omitidos?.length > 0 && (
+                  <li className="text-amber-700">⚠ Omitidos (ya existían): {validacionResult.omitidos.length}</li>
+                )}
                 <li>✓ Documentos cargados: {validacionResult.documentos_insertados || 0}</li>
                 <li>ID del lote: {validacionResult.lote_id}</li>
               </ul>
             </div>
+
+            {validacionResult.omitidos?.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <h4 className="font-semibold text-amber-800 text-sm mb-3">
+                  ⚠ {validacionResult.omitidos.length} beneficiario(s) no importados — ya existían en la base de datos
+                </h4>
+                <div className="overflow-x-auto max-h-64 overflow-y-auto">
+                  <table className="min-w-full text-xs">
+                    <thead className="sticky top-0 bg-amber-100">
+                      <tr>
+                        <th className="text-left px-3 py-1.5 text-amber-800 font-medium">Nombre</th>
+                        <th className="text-left px-3 py-1.5 text-amber-800 font-medium">Cédula</th>
+                        <th className="text-left px-3 py-1.5 text-amber-800 font-medium">Motivo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {validacionResult.omitidos.map((o, i) => (
+                        <tr key={i} className="border-t border-amber-100 hover:bg-amber-100/50">
+                          <td className="px-3 py-1.5 text-amber-900">{o.nombre}</td>
+                          <td className="px-3 py-1.5 font-mono text-amber-900">{o.cedula}</td>
+                          <td className="px-3 py-1.5 text-amber-700">{o.motivo}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-3 pt-4">
               <button
@@ -398,7 +526,15 @@ const AdminImportHistoricos = () => {
               </button>
               <button
                 onClick={() => {
-                  window.location.href = '/admin/importar-pagos?lote=' + validacionResult.lote_id
+                  window.location.href = '/admin/historicos/documentos?lote=' + validacionResult.lote_id
+                }}
+                className="flex-1 px-4 py-2 border border-indigo-300 text-indigo-700 rounded-md hover:bg-indigo-50"
+              >
+                Subir documentos
+              </button>
+              <button
+                onClick={() => {
+                  window.location.href = '/admin/historicos/pagos?lote=' + validacionResult.lote_id
                 }}
                 className="flex-1 px-4 py-2 border border-emerald-300 text-emerald-700 rounded-md hover:bg-emerald-50"
               >
@@ -406,7 +542,7 @@ const AdminImportHistoricos = () => {
               </button>
               <button
                 onClick={() => {
-                  window.location.href = '/admin/activacion?lote=' + validacionResult.lote_id
+                  window.location.href = '/admin/historicos/activacion?lote=' + validacionResult.lote_id
                 }}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
               >

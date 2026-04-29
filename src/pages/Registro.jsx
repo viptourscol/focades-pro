@@ -490,25 +490,8 @@ const SUPPORT_STATUS_LABELS = {
   cerrado: 'Cerrado',
 };
 
-const TERMS_AND_CONDITIONS_TEXT = [
-  'ACEPTACIÓN DE TÉRMINOS Y CONDICIONES FONDO EDUCATIVO PARA EL APOYO DE LA EDUCACIÓN SUPERIOR (FOCADES).',
-  'Yo, como aspirante al programa FOCADES, declaro de manera libre y voluntaria que he leído, comprendido y acepto en su totalidad los siguientes términos y condiciones, los cuales se basan en el Acuerdo N° 014 del 04 de septiembre de 2020 expedido por el Concejo Municipal de Montelíbano.',
-  'CLÁUSULA PRIMERA: OBJETO DEL APOYO. Entiendo que el apoyo otorgado por FOCADES es un CRÉDITO EDUCATIVO CONDONABLE, blando y sin intereses, destinado a financiar estudios de educación técnica profesional, tecnológica o de pregrado. La exoneración del pago de hasta el 100% de la deuda está sujeta al cumplimiento estricto de las condiciones aquí descritas (Acuerdo N° 014 de 2020, Artículos Tercero y Cuarto).',
-  'CLÁUSULA SEGUNDA: REQUISITOS DE ELEGIBILIDAD. Manifiesto que cumplo con los requisitos de la modalidad a la que aplico (Apoyo al Mérito Educativo o Apoyo a Sueños Educativos), los cuales incluyen, entre otros: ser egresado de una institución educativa oficial de Montelíbano, tener mi núcleo familiar domiciliado en el municipio, y no ser beneficiario de otra beca o estímulo de valor superior al crédito de FOCADES (Acuerdo N° 014 de 2020, Artículo Sexto).',
-  'CLÁUSULA TERCERA: CONDICIÓN FUNDAMENTAL PARA LA CONDONACIÓN. Soy consciente de que la condición principal para que el crédito sea condonado es que, una vez finalizado cada semestre académico financiado, debo obtener un promedio de notas igual o superior a 3.2. El incumplimiento de esta condición me hará deudor del monto desembolsado en dicho semestre (Acuerdo N° 014 de 2020, Artículo Quinto y Noveno).',
-  'CLÁUSULA CUARTA: CAUSALES DE PÉRDIDA DEL BENEFICIO. Acepto que el derecho al apoyo de FOCADES se pierde de forma inmediata si incurro en cualquiera de las siguientes causales: obtener un promedio académico inferior a 3.2 en el semestre financiado; haber perdido el semestre académico en el cual se me entregó el crédito; retirarme del programa académico por un semestre sin justa causa y sin notificar oportunamente al Comité de FOCADES; que mi matrícula sea cancelada por la Institución de Educación Superior por incumplimiento del reglamento interno; incurrir en cualquier acción delictiva o fraudulenta para favorecerme de los beneficios del programa (Acuerdo N° 014 de 2020, Artículo Noveno).',
-  'CLÁUSULA QUINTA: VERACIDAD Y AUTENTICIDAD. Doy fe de que toda la información suministrada en el formulario de inscripción y los documentos adjuntos son veraces, exactos y auténticos. Autorizo al Comité Administrador del FOCADES a realizar las verificaciones pertinentes para comprobar la veracidad de los datos y documentos presentados (Acuerdo N° 014 de 2020, Artículo Décimo Noveno).',
-  'CLÁUSULA SEXTA: COMPROMISO. Me comprometo a cumplir con todas las normativas, reglamentos y procesos establecidos por el programa FOCADES, incluyendo el proceso de actualización semestral de documentos para la renovación del beneficio, en caso de ser seleccionado.',
-];
-
-const DATA_POLICY_TEXT = [
-  'AUTORIZACIÓN PARA EL TRATAMIENTO DE DATOS PERSONALES PROGRAMA FOCADES - MUNICIPIO DE MONTELÍBANO.',
-  'Yo, como aspirante, de manera libre, previa, expresa e informada, autorizo al Municipio de Montelíbano y al Comité Administrador del Fondo Educativo para el Apoyo de la Educación Superior (FOCADES), en adelante EL PROGRAMA, para realizar el tratamiento de mis datos personales, en cumplimiento de la Ley 1581 de 2012 y demás normas concordantes.',
-  'CLÁUSULA PRIMERA: DATOS A TRATAR. La autorización se otorga para el tratamiento de la siguiente información: Datos de Identificación (nombres, apellidos, tipo y número de documento, fecha de nacimiento, género, correo electrónico, celular, dirección), Datos Socioeconómicos (núcleo familiar, ingresos, SISBEN, subsidios, zona y enfoque diferencial) y Datos Académicos (institución de egreso, Saber 11, institución de educación superior y programa).',
-  'CLÁUSULA SEGUNDA: FINALIDADES DEL TRATAMIENTO. Autorizo que mis datos personales sean recolectados, almacenados, usados, circulados, actualizados y procesados para: verificar identidad y elegibilidad; evaluar solicitud y asignar puntaje de selección; comprobar veracidad de información y documentos; contactarme sobre el estado de postulación; gestionar vinculación, desembolsos y seguimiento académico en caso de selección; y generar informes estadísticos y reportes anónimos del impacto del programa.',
-  'CLÁUSULA TERCERA: DERECHOS DEL TITULAR. Declaro que he sido informado(a) de mis derechos como titular de los datos: conocer, actualizar y rectificar mi información; solicitar prueba de la autorización otorgada; ser informado sobre el uso de mis datos; presentar quejas ante la autoridad competente; y revocar la autorización o solicitar supresión del dato cuando no se respeten los principios, derechos y garantías constitucionales y legales.',
-  'Por lo anterior, otorgo mi consentimiento explícito a EL PROGRAMA para el tratamiento de mis datos personales de acuerdo con las finalidades aquí descritas.',
-];
+// Textos legales movidos a src/lib/legalTexts.js para reutilización en el onboarding de beneficiarios
+import { TERMS_AND_CONDITIONS_TEXT, DATA_POLICY_TEXT } from '../lib/legalTexts';
 
 const Registro = () => {
   const [activeView, setActiveView] = useState('landing');
@@ -1318,8 +1301,42 @@ const Registro = () => {
         };
       }
 
-      lastError = error?.message || data?.error || 'Error desconocido al registrar la inscripción.';
-      lastCode = data?.code || '';
+      let errorFromContext = '';
+      let codeFromContext = '';
+      let contextJsonDump = null;
+      if (error?.context?.json) {
+        try {
+          const contextJson = await error.context.json();
+          contextJsonDump = contextJson;
+          errorFromContext = contextJson?.error || contextJson?.message || '';
+          codeFromContext = contextJson?.code || '';
+        } catch (jsonErr) {
+          errorFromContext = '';
+          codeFromContext = '';
+          // eslint-disable-next-line no-console
+          console.warn('[register-inscripcion] No se pudo parsear context.json()', jsonErr);
+        }
+      }
+
+      // eslint-disable-next-line no-console
+      console.error('[register-inscripcion] Respuesta backend', {
+        attempt,
+        sdkError: error,
+        sdkErrorMessage: error?.message,
+        contextStatus: error?.context?.status,
+        contextJson: contextJsonDump,
+        data,
+        payloadKeys: Object.keys(payloadWithAuth || {}),
+        inscripcionFieldsKeys: Object.keys(payloadWithAuth?.inscripcion_fields || {}),
+        personaKeys: Object.keys(payloadWithAuth?.persona || {}),
+      });
+
+      lastError =
+        errorFromContext ||
+        error?.message ||
+        data?.error ||
+        'Error desconocido al registrar la inscripción.';
+      lastCode = codeFromContext || data?.code || '';
 
       if (error || data?.ok === false) {
         try {
@@ -1342,11 +1359,21 @@ const Registro = () => {
           });
 
           let fallbackJson = null;
+          let fallbackText = '';
           try {
-            fallbackJson = await fallbackResponse.json();
+            fallbackText = await fallbackResponse.text();
+            fallbackJson = fallbackText ? JSON.parse(fallbackText) : null;
           } catch {
             fallbackJson = null;
           }
+
+          // eslint-disable-next-line no-console
+          console.error('[register-inscripcion] Fallback fetch response', {
+            status: fallbackResponse.status,
+            statusText: fallbackResponse.statusText,
+            bodyText: fallbackText,
+            bodyJson: fallbackJson,
+          });
 
           if (fallbackResponse.ok && fallbackJson?.ok !== false && fallbackJson?.inscripcion?.id) {
             return {
@@ -1357,7 +1384,9 @@ const Registro = () => {
 
           lastCode = fallbackJson?.code || lastCode;
           const fallbackDetail = fallbackJson?.error || fallbackJson?.message || fallbackResponse.statusText;
-          lastError = `HTTP ${fallbackResponse.status}: ${fallbackDetail}`;
+          lastError = lastCode
+            ? `HTTP ${fallbackResponse.status} (${lastCode}): ${fallbackDetail}`
+            : `HTTP ${fallbackResponse.status}: ${fallbackDetail}`;
         } catch (httpError) {
           lastError = httpError?.message || lastError;
         }
@@ -1615,6 +1644,59 @@ const Registro = () => {
     setEmailVerified(true);
     setOtpSuccess('Correo validado correctamente.');
     setOtpLoading(false);
+
+    // Bloquear si ya existe una inscripción enviada para este correo (en convocatoria activa)
+    try {
+      const normalizedEmail = String(email || '').trim().toLowerCase();
+      let existingQuery = supabase
+        .from('inscripciones')
+        .select('id,radicado,estado,convocatoria_id,created_at')
+        .ilike('email', normalizedEmail)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (activeConv?.id) {
+        existingQuery = existingQuery.eq('convocatoria_id', activeConv.id);
+      }
+
+      const { data: existingInscripcion } = await existingQuery.maybeSingle();
+
+      if (existingInscripcion?.id) {
+        const radicadoExistente = existingInscripcion.radicado || 'No disponible';
+        const estadoExistente = existingInscripcion.estado || 'Radicado';
+
+        // Limpiar borrador si existe (ya no aplica)
+        try {
+          localStorage.removeItem(getDraftStorageKey(normalizedEmail));
+        } catch {
+          // Ignorar
+        }
+        try {
+          await supabase.from('inscripciones_drafts').delete().eq('email', normalizedEmail);
+        } catch {
+          // Ignorar
+        }
+
+        await showConfirmAlert({
+          title: 'Ya enviaste tu inscripción',
+          text: `Este correo ya tiene una inscripción registrada (Radicado: ${radicadoExistente}, Estado: ${estadoExistente}). No es posible enviar una nueva inscripción con el mismo correo. Si necesitas modificar tus datos, contacta a soporte o consulta tu radicado.`,
+          confirmButtonText: 'Consultar mi radicado',
+          cancelButtonText: 'Cerrar',
+        });
+
+        await supabase.auth.signOut();
+        setEmailVerified(false);
+        setOtpStep('enter-email');
+        setOtpCode('');
+        resetRegistrationFlow();
+        setActiveView('landing');
+        return;
+      }
+    } catch (blockError) {
+      // eslint-disable-next-line no-console
+      console.warn('No se pudo verificar inscripción previa, continuando:', blockError);
+    }
+
     await loadDraftAfterVerification(email);
   };
 
@@ -1673,25 +1755,9 @@ const Registro = () => {
 
     data = byRadicado.data;
     error = byRadicado.error;
-
-    if (!data) {
-      const byNumeroRadicado = await supabase
-        .from('inscripciones')
-        .select('*')
-        .eq('numero_radicado', query)
-        .maybeSingle();
-
-      const missingColumnError =
-        byNumeroRadicado.error &&
-        /column\s+inscripciones\.numero_radicado does not exist|Could not find the 'numero_radicado' column/i.test(
-          byNumeroRadicado.error.message || ''
-        );
-
-      if (!missingColumnError) {
-        data = byNumeroRadicado.data;
-        error = byNumeroRadicado.error;
-      }
-    }
+    // Nota: no consultamos por `numero_radicado` directamente porque la columna no existe en
+    // todos los entornos y produce 400 ruidoso en consola. El RPC público
+    // `lookup_inscripcion_publica_status` ya cubre ambas variantes.
 
     if (error || !data) {
       const { data: publicStatus, error: publicStatusError } = await supabase.rpc('lookup_inscripcion_publica_status', {
@@ -2268,6 +2334,14 @@ const Registro = () => {
     setSubmitSuccess('');
 
     try {
+      if (!activeConv?.id) {
+        throw new Error('No hay convocatoria activa para registrar la inscripción. Contacta al administrador para habilitar una convocatoria vigente.');
+      }
+
+      if (!isConvOpen) {
+        throw new Error('La convocatoria no se encuentra vigente en este momento. Verifica las fechas publicadas e inténtalo nuevamente.');
+      }
+
       const tokenState = await resolveValidAccessToken();
       if (!tokenState.ok || !tokenState.token) {
         throw new Error(OTP_SESSION_EXPIRED_MESSAGE);

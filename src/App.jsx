@@ -25,6 +25,10 @@ import VerificarCertificado from './pages/VerificarCertificado';
 import AdminImportHistoricos from './components/AdminImportHistoricos';
 import AdminMigracionHistoricos from './pages/AdminMigracionHistoricos';
 import AdminImportPagosHistoricos from './pages/AdminImportPagosHistoricos';
+import AdminDocumentosHistoricos from './pages/AdminDocumentosHistoricos';
+import AdminHistoricosHub from './pages/AdminHistoricosHub';
+import AdminConvocatorias from './pages/AdminConvocatorias';
+import BeneficiarioOnboarding from './pages/BeneficiarioOnboarding';
 import { supabase } from './lib/supabase';
 import { resolvePortalAccess, setPortalAuthErrorMessage } from './lib/portalAuth';
 const AdminAnalytics = lazy(() => import('./pages/AdminAnalytics'));
@@ -34,6 +38,7 @@ const AdminResoluciones = lazy(() => import('./pages/AdminResoluciones'));
 function BeneficiarioAuthGuard({ children }) {
   const [ready, setReady] = useState(false);
   const [hasAccess, setHasAccess] = useState(false);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -48,6 +53,20 @@ function BeneficiarioAuthGuard({ children }) {
         );
         await supabase.auth.signOut();
         if (!mounted) return;
+      }
+
+      // El onboarding solo aplica a beneficiarios históricos (importados por el admin).
+      // Los que pasaron por el flujo de convocatoria ya tienen sus documentos y van directo al portal.
+      if (
+        access.ok &&
+        access.profile &&
+        access.profile.origen_registro === 'historico' &&
+        !access.profile.onboarding_completado
+      ) {
+        setNeedsOnboarding(true);
+        setHasAccess(false);
+        setReady(true);
+        return;
       }
 
       setHasAccess(access.ok);
@@ -93,6 +112,10 @@ function BeneficiarioAuthGuard({ children }) {
         <div className="w-10 h-10 border-4 border-slate-200 border-t-secondary rounded-full animate-spin" />
       </div>
     );
+  }
+
+  if (needsOnboarding) {
+    return <Navigate to="/beneficiario/onboarding" replace />;
   }
 
   if (!hasAccess) {
@@ -180,6 +203,7 @@ function App() {
         <Route path="/registro" element={<Registro />} />
         <Route path="/verificar-certificado" element={<VerificarCertificado />} />
         <Route path="/beneficiario/login" element={<BeneficiarioLogin />} />
+        <Route path="/beneficiario/onboarding" element={<BeneficiarioOnboarding />} />
         <Route path="/admin/login" element={<AdminLogin />} />
 
         <Route
@@ -241,10 +265,18 @@ function App() {
           <Route path="actualizaciones" element={<AdminActualizaciones />} />
           <Route path="actualizaciones/ventanas" element={<AdminVentanasActualizacion />} />
           <Route path="condonaciones" element={<AdminCondonaciones />} />
-          <Route path="importar" element={<AdminImportHistoricos />} />
-          <Route path="importar-pagos" element={<AdminImportPagosHistoricos />} />
-          <Route path="activacion" element={<AdminMigracionHistoricos />} />
+          <Route path="historicos" element={<AdminHistoricosHub />} />
+          <Route path="historicos/importar" element={<AdminImportHistoricos />} />
+          <Route path="historicos/documentos" element={<AdminDocumentosHistoricos />} />
+          <Route path="historicos/pagos" element={<AdminImportPagosHistoricos />} />
+          <Route path="historicos/activacion" element={<AdminMigracionHistoricos />} />
+          {/* Redirects de compatibilidad con rutas anteriores */}
+          <Route path="importar" element={<Navigate to="/admin/historicos/importar" replace />} />
+          <Route path="documentos-historicos" element={<Navigate to="/admin/historicos/documentos" replace />} />
+          <Route path="importar-pagos" element={<Navigate to="/admin/historicos/pagos" replace />} />
+          <Route path="activacion" element={<Navigate to="/admin/historicos/activacion" replace />} />
           <Route path="aspirantes" element={<Aspirantes />} />
+          <Route path="convocatorias" element={<AdminConvocatorias />} />
           <Route path="tickets" element={<TicketsAdmin />} />
           <Route path="configuracion" element={<PortalConfig />} />
           <Route

@@ -12,7 +12,8 @@ async function main() {
   const headers = [
     'nombre','cedula','correo','tipo_documento','telefono','direccion','semestre_actual','semestre_ingreso',
     'nivel_formacion','modalidad','convocatoria_id','convocatoria_nombre','programa_academico','institucion_superior',
-    'grado_academico','institucion_academica','anio_graduacion','observaciones'
+    'grado_academico','institucion_academica','anio_graduacion','observaciones',
+    'estado_beneficiario','cuenta_bancaria','banco','tipo_cuenta'
   ];
 
   ws.addRow(headers);
@@ -20,7 +21,7 @@ async function main() {
   ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4B99' } };
   ws.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
 
-  const widths = [28,16,30,18,16,30,16,16,24,22,38,30,30,30,22,30,18,36];
+  const widths = [28,16,30,18,16,30,16,16,24,22,38,30,30,30,22,62,18,36,24,22,28,16];
   widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
 
   ws.getCell('A2').value = 'Nombre Apellido';
@@ -37,10 +38,14 @@ async function main() {
   ws.getCell('L2').value = 'Convocatoria 2026-1';
   ws.getCell('M2').value = 'Ingeniería de Sistemas';
   ws.getCell('N2').value = 'Universidad Nacional';
-  ws.getCell('O2').value = 'Bachiller';
-  ws.getCell('P2').value = 'Universidad Nacional';
+  ws.getCell('O2').value = 'Bachiller Académico';
+  ws.getCell('P2').value = 'INSTITUCION EDUCATIVA JOSE MARIA CORDOBA';
   ws.getCell('Q2').value = new Date().getFullYear();
   ws.getCell('R2').value = 'Registro historico';
+  ws.getCell('S2').value = 'activo';
+  ws.getCell('T2').value = '';
+  ws.getCell('U2').value = 'Bancolombia';
+  ws.getCell('V2').value = 'Ahorros';
 
   ws.views = [{ state: 'frozen', ySplit: 1 }];
 
@@ -48,14 +53,41 @@ async function main() {
   const modalidades = ['Sueño Educativo', 'Mérito Educativo'];
   const niveles = ['Técnico Profesional', 'Tecnológico', 'Universitario (Pregrado)'];
   const convocatorias = ['Convocatoria 2024-2', 'Convocatoria 2025-1', 'Convocatoria 2025-2', 'Convocatoria 2026-1'];
-  const grados = ['Bachiller', 'Técnico', 'Tecnólogo', 'Profesional', 'Especialista', 'Magíster', 'Doctorado'];
+  const grados = [
+    'Bachiller Académico', 'Bachiller Técnico', 'Bachiller Comercial',
+    'Bachiller Pedagógico', 'Normalista Superior', 'Bachiller Rural', 'Bachiller con Profundización'
+  ];
   const instituciones = [
-    'Universidad Nacional', 'Universidad de Antioquia', 'Universidad del Valle', 'SENA',
-    'Universidad de Cartagena', 'Universidad del Atlántico', 'Universidad Industrial de Santander'
+    'CENTRO EDUCATIVO ESPIRITU SANTO',
+    'CENTRO EDUCATIVO RURAL ETNOEDUCATIVO INDIGENA ZENU ALTO SAN JORGE - CEIZASAJ',
+    'INSTITUCION EDUCATIVA ALIANZA PARA EL PROGRESO',
+    'INSTITUCION EDUCATIVA ANTONIO NARIÑO',
+    'INSTITUCION EDUCATIVA BELEN',
+    'INSTITUCION EDUCATIVA CONCENTRACION EDUCATIVA DEL SUR DE MONTELIBANO',
+    'INSTITUCION EDUCATIVA DULCE NOMBRE DE JESUS',
+    'INSTITUCION EDUCATIVA EL PALMAR',
+    'INSTITUCION EDUCATIVA JOSE MARIA CORDOBA',
+    'INSTITUCION EDUCATIVA JUAN XXIII',
+    'INSTITUCION EDUCATIVA LA ESPERANZA',
+    'INSTITUCION EDUCATIVA MARIA GORETTI',
+    'INSTITUCION EDUCATIVA SAN ANTONIO MARÍA CLARET',
+    'INSTITUCION EDUCATIVA SAN BERNARDO',
+    'INSTITUCION EDUCATIVA SAN FRANCISCO DEL RAYO',
+    'INSTITUCION EDUCATIVA SAN JORGE',
+    'INSTITUCION EDUCATIVA SAN JOSE',
+    'INSTITUCION EDUCATIVA SIMON BOLIVAR',
+    'INSTITUCION EDUCATIVA TECNICO AGROPECUARIO CLARET'
   ];
   const semestres = Array.from({ length: 20 }, (_, i) => i + 1);
   const currentYear = new Date().getFullYear();
   const anios = Array.from({ length: currentYear - 1980 + 3 }, (_, i) => 1980 + i);
+  const estadosBeneficiario = ['activo', 'suspendido', 'retirado', 'condonado', 'egresado'];
+  const bancos = [
+    'Bancolombia', 'Davivienda', 'BBVA Colombia', 'Banco de Bogotá', 'Banco Popular',
+    'Banco Occidente', 'Banco AV Villas', 'Banco Caja Social', 'Nequi', 'Daviplata',
+    'Banco Agrario', 'Banco Falabella', 'Banco Finandina', 'Banco Mundo Mujer', 'Otro'
+  ];
+  const tiposCuenta = ['Ahorros', 'Corriente'];
 
   const catalogs = [
     { title: 'tipo_documento', values: docTypes },
@@ -65,7 +97,10 @@ async function main() {
     { title: 'grado_academico', values: grados },
     { title: 'institucion_academica', values: instituciones },
     { title: 'semestres', values: semestres },
-    { title: 'anio_graduacion', values: anios }
+    { title: 'anio_graduacion', values: anios },
+    { title: 'estado_beneficiario', values: estadosBeneficiario },
+    { title: 'banco', values: bancos },
+    { title: 'tipo_cuenta', values: tiposCuenta }
   ];
 
   catalogs.forEach((item, idx) => {
@@ -100,10 +135,13 @@ async function main() {
   addValidation('I', '=Catalogos!$C$2:$C$4');
   addValidation('L', '=Catalogos!$D$2:$D$5');
   addValidation('O', '=Catalogos!$E$2:$E$8');
-  addValidation('P', '=Catalogos!$F$2:$F$8');
+  addValidation('P', `=Catalogos!$F$2:$F${instituciones.length + 1}`);
   addValidation('G', '=Catalogos!$G$2:$G$21');
   addValidation('H', '=Catalogos!$G$2:$G$21');
   addValidation('Q', `=Catalogos!$H$2:$H$${anios.length + 1}`);
+  addValidation('S', '=Catalogos!$I$2:$I$6');
+  addValidation('U', `=Catalogos!$J$2:$J$${bancos.length + 1}`);
+  addValidation('V', '=Catalogos!$K$2:$K$3');
 
   const out = path.join(process.cwd(), 'public', 'plantillas', 'plantilla-beneficiarios-historicos.xlsx');
   await workbook.xlsx.writeFile(out);

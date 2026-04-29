@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { getSafeSession } from '../lib/supabase'
+import ImportStepper from '../components/ImportStepper'
+import LoteInfoBanner from '../components/LoteInfoBanner'
 
 const ESTADOS_VALIDOS = new Set(['programado', 'efectuado', 'pendiente', 'anulado'])
 
@@ -155,7 +157,10 @@ const AdminImportPagosHistoricos = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <ImportStepper currentStep={3} loteId={loteId || undefined} />
+      {loteId && <LoteInfoBanner loteId={loteId} />}
+
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
         {paso === 'upload' && (
           <div className="space-y-4">

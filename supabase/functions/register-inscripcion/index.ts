@@ -33,30 +33,59 @@ const normalizeRadicado = (value: unknown) => sanitizeText(value, 50).toUpperCas
 
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
 
+const extractMissingColumn = (message = '') => {
+  const patterns = [
+    /Could not find the '([^']+)' column/i,
+    /column\s+"?([a-zA-Z0-9_]+)"?\s+does not exist/i,
+    /record\s+"?new"?\s+has no field\s+"?([a-zA-Z0-9_]+)"?/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = String(message).match(pattern);
+    if (match?.[1]) return match[1];
+  }
+
+  return '';
+};
+
 const withSchemaFallbackInsert = async ({ admin, table, payload, select }) => {
   const workingPayload = { ...payload };
+  const workingSelect = String(select || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
 
-  for (let attempts = 0; attempts < 30; attempts += 1) {
+  for (let attempts = 0; attempts < 40; attempts += 1) {
     const query = admin.from(table).insert(workingPayload);
-    const result = select ? await query.select(select).single() : await query.select('*').single();
+    const result = workingSelect.length > 0 ? await query.select(workingSelect.join(',')).single() : await query.select('*').single();
 
     if (!result.error) {
       return result;
     }
 
     const message = String(result.error?.message || '');
-    const missingColumnMatch = message.match(/Could not find the '([^']+)' column/i);
+    const missingColumn = extractMissingColumn(message);
 
-    if (!missingColumnMatch?.[1]) {
+    if (!missingColumn) {
       return result;
     }
 
-    const missingColumn = missingColumnMatch[1];
-    if (!(missingColumn in workingPayload)) {
-      return result;
+    let handled = false;
+
+    if (missingColumn in workingPayload) {
+      delete workingPayload[missingColumn];
+      handled = true;
     }
 
-    delete workingPayload[missingColumn];
+    const selectIndex = workingSelect.indexOf(missingColumn);
+    if (selectIndex >= 0) {
+      workingSelect.splice(selectIndex, 1);
+      handled = true;
+    }
+
+    if (!handled) {
+      return result;
+    }
   }
 
   return {
@@ -172,6 +201,7 @@ Deno.serve(async (req) => {
 
     let personaId = null;
 
+    // 1) Buscar por documento exacto (tipo + número)
     const existingPersona = await admin
       .from('personas')
       .select('id')
@@ -181,6 +211,27 @@ Deno.serve(async (req) => {
 
     if (!existingPersona.error && existingPersona.data?.id) {
       personaId = existingPersona.data.id;
+    }
+
+    // 2) Si no se encontró, buscar solo por n_documento (la unique constraint real es 'personas_n_documento_key')
+    if (!personaId) {
+      const existingByDocumentOnly = await admin
+        .from('personas')
+        .select('id,tipo_documento,n_documento,email')
+        .eq('n_documento', numeroDocumento)
+        .maybeSingle();
+
+      if (!existingByDocumentOnly.error && existingByDocumentOnly.data?.id) {
+        const existingEmail = normalizeEmail(existingByDocumentOnly.data.email || '');
+        if (existingEmail && existingEmail !== email) {
+          throw new HttpError(
+            'Este número de documento ya está registrado con otro correo. Usa el correo registrado previamente o contacta soporte para actualización de datos.',
+            409,
+            'EMAIL_DOCUMENT_MISMATCH'
+          );
+        }
+        personaId = existingByDocumentOnly.data.id;
+      }
     }
 
     const existingPersonaByEmail = await admin
@@ -216,45 +267,61 @@ Deno.serve(async (req) => {
       });
 
       if (createPersona.error) {
-        if (createPersona.error.code === '23505') {
-          const retryPersonaByEmail = await admin
+        const errorMessage = String(createPersona.error.message || '');
+        const errorCode = String(createPersona.error.code || '');
+        const isUniqueViolation =
+          errorCode === '23505' || /duplicate key|unique constraint/i.test(errorMessage);
+
+        if (isUniqueViolation) {
+          // a) Reintentar por n_documento solo (constraint personas_n_documento_key)
+          const retryByDocumentOnly = await admin
             .from('personas')
-            .select('id,tipo_documento,n_documento')
-            .ilike('email', email)
+            .select('id,tipo_documento,n_documento,email')
+            .eq('n_documento', numeroDocumento)
             .maybeSingle();
 
-          if (!retryPersonaByEmail.error && retryPersonaByEmail.data?.id) {
-            const sameIdentityByEmail =
-              normalizeDocumentType(retryPersonaByEmail.data.tipo_documento) === tipoDocumento &&
-              normalizeDocumentNumber(retryPersonaByEmail.data.n_documento) === numeroDocumento;
-
-            if (!sameIdentityByEmail) {
+          if (!retryByDocumentOnly.error && retryByDocumentOnly.data?.id) {
+            const existingEmail = normalizeEmail(retryByDocumentOnly.data.email || '');
+            if (existingEmail && existingEmail !== email) {
               throw new HttpError(
-                'El correo ya está asociado a otro documento de identidad. Usa el correo registrado previamente o contacta soporte para actualización de datos.',
+                'Este número de documento ya está registrado con otro correo. Usa el correo registrado previamente o contacta soporte para actualización de datos.',
                 409,
                 'EMAIL_DOCUMENT_MISMATCH'
               );
             }
-
-            personaId = retryPersonaByEmail.data.id;
+            personaId = retryByDocumentOnly.data.id;
           }
 
+          // b) Reintentar por email
           if (!personaId) {
-            const retryPersonaByIdentity = await admin
+            const retryPersonaByEmail = await admin
               .from('personas')
-              .select('id')
-              .eq('tipo_documento', tipoDocumento)
-              .eq('n_documento', numeroDocumento)
+              .select('id,tipo_documento,n_documento')
+              .ilike('email', email)
               .maybeSingle();
 
-            if (!retryPersonaByIdentity.error && retryPersonaByIdentity.data?.id) {
-              personaId = retryPersonaByIdentity.data.id;
+            if (!retryPersonaByEmail.error && retryPersonaByEmail.data?.id) {
+              const sameIdentityByEmail =
+                normalizeDocumentNumber(retryPersonaByEmail.data.n_documento) === numeroDocumento;
+
+              if (!sameIdentityByEmail) {
+                throw new HttpError(
+                  'El correo ya está asociado a otro documento de identidad. Usa el correo registrado previamente o contacta soporte para actualización de datos.',
+                  409,
+                  'EMAIL_DOCUMENT_MISMATCH'
+                );
+              }
+              personaId = retryPersonaByEmail.data.id;
             }
           }
         }
 
         if (!personaId) {
-          throw new HttpError(createPersona.error.message || 'No se pudo registrar la persona.', 400, 'PERSONA_INSERT_ERROR');
+          throw new HttpError(
+            createPersona.error.message || 'No se pudo registrar la persona.',
+            400,
+            'PERSONA_INSERT_ERROR'
+          );
         }
       } else {
         personaId = createPersona.data?.id || null;

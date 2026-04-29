@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Settings, LogOut, Bell, LifeBuoy, IdCard, ClipboardList, Menu, X, BarChart3, Calculator, FileText, CalendarClock, ShieldCheck, Search, ArrowUpRight, UploadCloud, UserPlus, HandCoins } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, LogOut, Bell, LifeBuoy, IdCard, ClipboardList, Menu, X, BarChart3, Calculator, FileText, CalendarClock, ShieldCheck, Search, ArrowUpRight, UploadCloud, UserPlus, HandCoins, FolderOpen, Database, ChevronDown, ChevronRight, Megaphone } from 'lucide-react';
 import { invokeAdminTickets } from '../lib/adminTickets';
 import { supabase } from '../lib/supabase';
 
@@ -10,12 +10,10 @@ const NAV_ITEMS = [
   { to: '/admin/proyecciones', label: 'Proyecciones', icon: <Calculator size={20} />, match: (path) => path.startsWith('/admin/proyecciones') },
   { to: '/admin/beneficiarios', label: 'Beneficiarios', icon: <IdCard size={20} />, match: (path) => path.startsWith('/admin/beneficiarios') },
   { to: '/admin/actualizaciones', label: 'Actualizaciones', icon: <ClipboardList size={20} />, match: (path) => path.startsWith('/admin/actualizaciones') },
-  { to: '/admin/importar', label: 'Importar Históricos', icon: <UploadCloud size={20} />, match: (path) => path === '/admin/importar' || path.startsWith('/admin/importar/') },
-  { to: '/admin/importar-pagos', label: 'Importar Pagos', icon: <HandCoins size={20} />, match: (path) => path.startsWith('/admin/importar-pagos') },
-  { to: '/admin/activacion', label: 'Activar Históricos', icon: <UserPlus size={20} />, match: (path) => path.startsWith('/admin/activacion') },
   { to: '/admin/condonaciones', label: 'Condonaciones', icon: <ShieldCheck size={20} />, match: (path) => path.startsWith('/admin/condonaciones') },
   { to: '/admin/resoluciones', label: 'Resoluciones', icon: <FileText size={20} />, match: (path) => path.startsWith('/admin/resoluciones') },
   { to: '/admin/aspirantes', label: 'Aspirantes', icon: <Users size={20} />, match: (path) => path === '/admin/aspirantes' },
+  { to: '/admin/convocatorias', label: 'Convocatorias', icon: <Megaphone size={20} />, match: (path) => path.startsWith('/admin/convocatorias') },
   { to: '/admin/tickets', label: 'Tickets', icon: <LifeBuoy size={20} />, match: (path) => path === '/admin/tickets' },
   { to: '/admin/configuracion', label: 'Configuración', icon: <Settings size={20} />, match: (path) => path === '/admin/configuracion' },
 ];
@@ -25,9 +23,11 @@ const getPageMeta = (pathname) => {
   if (pathname.startsWith('/admin/beneficiarios')) return { title: 'Beneficiarios', subtitle: 'Vista maestra de estado, vinculación y seguimiento institucional.' };
   if (pathname.startsWith('/admin/actualizaciones/ventanas')) return { title: 'Ventanas', subtitle: 'Calendario de actualización y control de periodos.' };
   if (pathname.startsWith('/admin/actualizaciones')) return { title: 'Actualizaciones', subtitle: 'Revisión documental y aprobación del ciclo académico.' };
-  if (pathname.startsWith('/admin/importar-pagos')) return { title: 'Importar Pagos', subtitle: 'Carga masiva de pagos históricos y conciliación por documento.' };
-  if (pathname.startsWith('/admin/importar')) return { title: 'Importar Históricos', subtitle: 'Carga masiva de beneficiarios y soportes históricos por lote.' };
-  if (pathname.startsWith('/admin/activacion')) return { title: 'Activar Históricos', subtitle: 'Clasificación y activación de acceso para beneficiarios migrados.' };
+  if (pathname.startsWith('/admin/historicos/importar')) return { title: 'Importar Beneficiarios', subtitle: 'Carga masiva de beneficiarios históricos por lote.' };
+  if (pathname.startsWith('/admin/historicos/documentos')) return { title: 'Documentos Históricos', subtitle: 'Carga individual de soportes por beneficiario histórico.' };
+  if (pathname.startsWith('/admin/historicos/pagos')) return { title: 'Importar Pagos', subtitle: 'Carga masiva de pagos históricos y conciliación por documento.' };
+  if (pathname.startsWith('/admin/historicos/activacion')) return { title: 'Activar Históricos', subtitle: 'Clasificación y activación de acceso para beneficiarios migrados.' };
+  if (pathname.startsWith('/admin/historicos')) return { title: 'Gestión Históricos', subtitle: 'Hub central de importación, documentos, pagos y activación.' };
   if (pathname.startsWith('/admin/analiticas')) return { title: 'Analíticas', subtitle: 'Lectura ejecutiva del comportamiento del portal.' };
   if (pathname.startsWith('/admin/proyecciones')) return { title: 'Proyecciones', subtitle: 'Planeación financiera y escenarios de desembolso.' };
   if (pathname.startsWith('/admin/condonaciones')) return { title: 'Condonaciones', subtitle: 'Seguimiento normativo, certificaciones y decisiones.' };
@@ -35,6 +35,7 @@ const getPageMeta = (pathname) => {
   if (pathname.startsWith('/admin/tickets')) return { title: 'Tickets', subtitle: 'Atención, seguimiento y trazabilidad de solicitudes.' };
   if (pathname.startsWith('/admin/configuracion')) return { title: 'Configuración', subtitle: 'Parámetros del portal y control administrativo.' };
   if (pathname.startsWith('/admin/aspirantes')) return { title: 'Aspirantes', subtitle: 'Ruta de admisión, legalización y revisión de soportes.' };
+  if (pathname.startsWith('/admin/convocatorias')) return { title: 'Convocatorias', subtitle: 'Gestión de cohortes, periodos de inscripción y cupos admitidos.' };
   return { title: 'Centro de Control', subtitle: 'Operación institucional unificada para el portal FOCADES.' };
 };
 
@@ -113,6 +114,7 @@ const AdminLayout = () => {
             <NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} active={item.match(location.pathname)} onClick={() => setMobileMenuOpen(false)} badge={item.to === '/admin/tickets' ? pendingTickets : 0} />
           ))}
           <SubNavItem to="/admin/actualizaciones/ventanas" icon={<CalendarClock size={16} />} label="Ventanas de Actualización" active={location.pathname.startsWith('/admin/actualizaciones/ventanas')} onClick={() => setMobileMenuOpen(false)} />
+          <HistoricosGroup location={location} onClick={() => setMobileMenuOpen(false)} />
           {NAV_ITEMS.slice(5).map((item) => (
             <NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} active={item.match(location.pathname)} onClick={() => setMobileMenuOpen(false)} badge={item.to === '/admin/tickets' ? pendingTickets : 0} />
           ))}
@@ -184,6 +186,44 @@ const AdminLayout = () => {
     </div>
   );
 };
+
+function HistoricosGroup({ location, onClick }) {
+  const isActive = location.pathname.startsWith('/admin/historicos')
+  const [open, setOpen] = useState(isActive)
+
+  useEffect(() => {
+    if (isActive) setOpen(true)
+  }, [isActive])
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => { setOpen(o => !o); }}
+        className={`group flex items-center gap-4 w-full px-4 py-3.5 rounded-2xl transition-all duration-300 ${
+          isActive ? 'bg-white text-[#10233f] shadow-xl shadow-slate-950/10' : 'text-slate-300 hover:bg-white/5'
+        }`}
+      >
+        <span className={`${isActive ? 'text-[#c88c3a]' : 'text-slate-400 group-hover:text-amber-200'} transition-colors`}>
+          <Database size={20} />
+        </span>
+        <span className="font-bold text-sm flex-1 text-left">Gestión Históricos</span>
+        <span className={`${isActive ? 'text-[#c88c3a]' : 'text-slate-400 group-hover:text-amber-200'} transition-colors`}>
+          {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        </span>
+      </button>
+      {open && (
+        <div className="mt-1 space-y-1">
+          <SubNavItem to="/admin/historicos" icon={<Database size={16} />} label="Resumen de lotes" active={location.pathname === '/admin/historicos'} onClick={onClick} />
+          <SubNavItem to="/admin/historicos/importar" icon={<UploadCloud size={16} />} label="Importar Beneficiarios" active={location.pathname.startsWith('/admin/historicos/importar')} onClick={onClick} />
+          <SubNavItem to="/admin/historicos/documentos" icon={<FolderOpen size={16} />} label="Documentos" active={location.pathname.startsWith('/admin/historicos/documentos')} onClick={onClick} />
+          <SubNavItem to="/admin/historicos/pagos" icon={<HandCoins size={16} />} label="Pagos" active={location.pathname.startsWith('/admin/historicos/pagos')} onClick={onClick} />
+          <SubNavItem to="/admin/historicos/activacion" icon={<UserPlus size={16} />} label="Activación" active={location.pathname.startsWith('/admin/historicos/activacion')} onClick={onClick} />
+        </div>
+      )}
+    </div>
+  )
+}
 
 function NavItem({ to, icon, label, active, badge = 0, onClick }) {
   return (

@@ -1,12 +1,10 @@
 ﻿import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const privateKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-const projectUrl = Deno.env.get('SUPABASE_URL')
+const privateKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
+const projectUrl = Deno.env.get('SUPABASE_URL')!
 
-if (!privateKey || !projectUrl) {
-  throw new Error('SUPABASE_SERVICE_ROLE_KEY y SUPABASE_URL requeridos')
-}
-
+// Cliente admin (service role) para operaciones de DB
 const supabase = createClient(projectUrl, privateKey)
 
 const corsHeaders = {
@@ -37,7 +35,7 @@ function decodeBase64ToUint8Array(base64: string): Uint8Array {
 interface BeneficiarioHistorico {
   nombre: string
   cedula: string
-  correo: string
+  correo?: string
   tipo_documento?: string
   telefono?: string
   direccion?: string
@@ -53,6 +51,10 @@ interface BeneficiarioHistorico {
   institucion_academica?: string
   anio_graduacion?: number
   observaciones?: string
+  estado_beneficiario?: string
+  cuenta_bancaria?: string
+  banco?: string
+  tipo_cuenta?: string
   documentos?: {
     titulo: string
     tipo: string
@@ -106,13 +108,22 @@ function normalizeNivelFormacion(value: unknown): string | null {
 function normalizeGradoAcademico(value: unknown): string | null {
   const text = String(value || '').trim()
   if (!text) return null
-  if (/^bach/i.test(text)) return 'Bachiller'
-  if (/^tecnic/i.test(text)) return 'Técnico'
-  if (/^tecnol/i.test(text)) return 'Tecnólogo'
-  if (/^prof/i.test(text)) return 'Profesional'
-  if (/especial/i.test(text)) return 'Especialista'
-  if (/magist|maestr/i.test(text)) return 'Magíster'
-  if (/doctor/i.test(text)) return 'Doctorado'
+
+  const VALID_GRADOS = [
+    'Bachiller Académico', 'Bachiller Técnico', 'Bachiller Comercial',
+    'Bachiller Pedagógico', 'Normalista Superior', 'Bachiller Rural',
+    'Bachiller con Profundización'
+  ]
+  if (VALID_GRADOS.includes(text)) return text
+
+  if (/normalista/i.test(text)) return 'Normalista Superior'
+  if (/^bach/i.test(text)) return 'Bachiller Académico'
+  if (/^tecnic/i.test(text)) return 'Bachiller Técnico'
+  if (/^tecnol/i.test(text)) return 'Bachiller Técnico'
+  if (/^prof/i.test(text)) return 'Bachiller Académico'
+  if (/especial/i.test(text)) return 'Bachiller Académico'
+  if (/magist|maestr/i.test(text)) return 'Bachiller Académico'
+  if (/doctor/i.test(text)) return 'Bachiller Académico'
   return text
 }
 
@@ -136,6 +147,17 @@ function parseUuidOrNull(value: unknown): string | null {
     : null
 }
 
+function normalizeEstadoBeneficiario(value: unknown): string {
+  const text = String(value || '').trim().toLowerCase()
+  if (!text) return 'activo'
+  if (/^activ/i.test(text)) return 'activo'
+  if (/^suspen/i.test(text)) return 'suspendido'
+  if (/^retir/i.test(text)) return 'retirado'
+  if (/^condon/i.test(text)) return 'condonado'
+  if (/^egres/i.test(text)) return 'egresado'
+  return 'activo'
+}
+
 export async function handleImportHistoricosLote(req: Request) {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -145,19 +167,20 @@ export async function handleImportHistoricosLote(req: Request) {
     return jsonResponse({ error: 'Metodo no permitido' }, 405)
   }
 
-  // Verificar autorizaci\u00f3n
+  // Verificar autorización
   const authHeader = req.headers.get('Authorization')
   if (!authHeader?.startsWith('Bearer ')) {
     return jsonResponse({ error: 'No autorizado' }, 401)
   }
 
-  const token = authHeader.substring(7)
-
   try {
-    // Verificar token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    // Crear cliente con el token del usuario para validar la sesión
+    const userClient = createClient(projectUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } }
+    })
+    const { data: { user }, error: authError } = await userClient.auth.getUser()
     if (authError || !user) {
-      return jsonResponse({ error: 'Token inv\u00e1lido' }, 401)
+      return jsonResponse({ error: 'Token inválido', detalle: authError?.message }, 401)
     }
 
     // Verificar que sea admin
@@ -194,12 +217,34 @@ export async function handleImportHistoricosLote(req: Request) {
       return jsonResponse({ error: 'Error en validaci\u00f3n', detalles: validacionError }, 500)
     }
 
+    // Correo es advertencia, no error bloqueante. Filtramos errores de correo y los
+    // movemos a advertencias para permitir importar beneficiarios sin correo conocido.
     if (!validacionResult.valido) {
-      return jsonResponse({
-        error: 'Datos inv\u00e1lidos',
-        validacion: validacionResult,
-        status: 'error'
-      }, 400)
+      const erroresCorrectos = (validacionResult.errores || []).filter(
+        (e: string) => !e.toLowerCase().includes('correo')
+      )
+      const advertenciasDeCorreo = (validacionResult.errores || []).filter(
+        (e: string) => e.toLowerCase().includes('correo')
+      )
+      if (erroresCorrectos.length > 0) {
+        // Hay errores reales (nombre/cédula faltantes) — bloquear
+        return jsonResponse({
+          error: 'Datos inv\u00e1lidos',
+          validacion: {
+            ...validacionResult,
+            errores: erroresCorrectos,
+            advertencias: [...(validacionResult.advertencias || []), ...advertenciasDeCorreo],
+          },
+          status: 'error'
+        }, 400)
+      }
+      // Solo eran errores de correo — continuar con las advertencias
+      validacionResult.valido = true
+      validacionResult.errores = []
+      validacionResult.advertencias = [
+        ...(validacionResult.advertencias || []),
+        ...advertenciasDeCorreo,
+      ]
     }
 
     // 2. Crear lote directamente.
@@ -256,7 +301,7 @@ export async function handleImportHistoricosLote(req: Request) {
       nombre_completo: b.nombre.trim() || null,
       tipo_documento: normalizeTipoDocumento(b.tipo_documento),
       n_documento: b.cedula.trim().toUpperCase() || null,
-      email: b.correo.trim().toLowerCase() || null,
+      email: b.correo ? b.correo.trim().toLowerCase() : null,
       telefono: normalizeText(b.telefono),
       direccion: normalizeText(b.direccion),
       semestre_actual: parseSemestreOrNull(b.semestre_actual),
@@ -273,18 +318,75 @@ export async function handleImportHistoricosLote(req: Request) {
         null,
       programa_academico: normalizeText(b.programa_academico),
       institucion_superior: normalizeText(b.institucion_superior),
-      estado_beneficiario: 'activo',
+      estado_beneficiario: normalizeEstadoBeneficiario(b.estado_beneficiario),
       origen_registro: 'historico',
       grado_academico: normalizeGradoAcademico(b.grado_academico),
       institucion_academica: b.institucion_academica || null,
       anio_graduacion: b.anio_graduacion || null,
       observaciones_historicas: b.observaciones || null,
-      pertenece_lote_id: loteId
+      pertenece_lote_id: loteId,
+      cuenta_bancaria: normalizeText(b.cuenta_bancaria),
+      banco: normalizeText(b.banco),
+      tipo_cuenta: normalizeText(b.tipo_cuenta)
     }))
+
+    // 4a. Detectar duplicados — buscar cédulas ya existentes en DB (chunking para evitar límite de URL)
+    const todasLasCedulas = beneficiariosMappering
+      .map((b) => b.n_documento)
+      .filter((c): c is string => !!c)
+
+    const cedulasExistentes: string[] = []
+    const CHUNK_SIZE = 500
+    for (let i = 0; i < todasLasCedulas.length; i += CHUNK_SIZE) {
+      const chunk = todasLasCedulas.slice(i, i + CHUNK_SIZE)
+      const { data: chunk_data } = await supabase
+        .from('portal_beneficiarios')
+        .select('n_documento')
+        .in('n_documento', chunk)
+      if (chunk_data) {
+        cedulasExistentes.push(...chunk_data.map((e) => String(e.n_documento)))
+      }
+    }
+
+    const existentesSet = new Set(cedulasExistentes)
+    const omitidos = beneficiariosMappering
+      .filter((b) => b.n_documento && existentesSet.has(b.n_documento))
+      .map((b) => ({
+        nombre: b.nombre_completo ?? '',
+        cedula: b.n_documento ?? '',
+        motivo: 'Ya existe en la base de datos'
+      }))
+
+    const aInsertar = beneficiariosMappering.filter(
+      (b) => !b.n_documento || !existentesSet.has(b.n_documento)
+    )
+
+    // Si todos eran duplicados, retornar éxito sin intentar INSERT vacío
+    if (aInsertar.length === 0) {
+      await supabase
+        .from('portal_migracion_lotes')
+        .update({
+          estado: 'cargado',
+          carga_timestamp: new Date().toISOString(),
+          carga_resultado: { insertados: 0, omitidos_duplicados: omitidos.length },
+          carga_por_user_id: user.id
+        })
+        .eq('id', loteId)
+
+      return jsonResponse({
+        exito: true,
+        lote_id: loteId,
+        beneficiarios_insertados: 0,
+        omitidos,
+        documentos_insertados: 0,
+        validacion: validacionResult,
+        status: 'cargado'
+      }, 200)
+    }
 
     const { data: insertedBeneficiarios, error: insertError, count } = await supabase
       .from('portal_beneficiarios')
-      .insert(beneficiariosMappering, { count: 'exact' })
+      .insert(aInsertar, { count: 'exact' })
       .select('id, n_documento')
 
     if (insertError) {
@@ -293,7 +395,7 @@ export async function handleImportHistoricosLote(req: Request) {
         .from('portal_migracion_lotes')
         .update({
           estado: 'error',
-          carga_resultado: { error: insertError.message, intentados: beneficiarios.length }
+          carga_resultado: { error: insertError.message, intentados: aInsertar.length, omitidos: omitidos.length }
         })
         .eq('id', loteId)
 
@@ -375,6 +477,7 @@ export async function handleImportHistoricosLote(req: Request) {
     // 6. Actualizar lote con resultado de carga
     const resultadoCarga = {
       insertados: count || insertedBeneficiarios?.length || 0,
+      omitidos_duplicados: omitidos.length,
       documentos_insertados: documentosInsertados,
       documentos_con_error: documentosConError.length,
       errores: documentosConError
@@ -395,6 +498,7 @@ export async function handleImportHistoricosLote(req: Request) {
       exito: true,
       lote_id: loteId,
       beneficiarios_insertados: count || insertedBeneficiarios?.length || 0,
+      omitidos,
       documentos_insertados: documentosInsertados,
       validacion: validacionResult,
       status: 'cargado'

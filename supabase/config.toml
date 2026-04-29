@@ -1,6 +1,12 @@
 [functions.generate-inscripcion-docs]
 verify_jwt = false
 
+[functions.generate-beneficiario-onboarding-docs]
+verify_jwt = false
+
+[functions.import-historicos-lote]
+verify_jwt = false
+
 [functions.register-inscripcion]
 verify_jwt = false
 

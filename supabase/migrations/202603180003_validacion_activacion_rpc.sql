@@ -97,35 +97,35 @@ BEGIN
   RETURN QUERY
   SELECT 
     pb.id,
-    pb.nombre,
-    pb.cedula,
-    pb.correo,
-    pb.correo ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$',
+    pb.nombre_completo,
+    pb.n_documento,
+    pb.email,
+    pb.email ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$',
     pb.auth_user_id,
     pb.auth_user_id IS NOT NULL,
     CASE 
       WHEN pb.auth_user_id IS NOT NULL THEN 'ya_portal'
-      WHEN pb.correo IS NULL OR length(trim(pb.correo)) = 0 THEN 'sin_correo'
-      WHEN NOT (pb.correo ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$') THEN 'correo_dudoso'
-      WHEN correo IS NOT NULL AND length(trim(pb.correo)) > 0 THEN 'activo_confiable'
+      WHEN pb.email IS NULL OR length(trim(pb.email)) = 0 THEN 'sin_correo'
+      WHEN NOT (pb.email ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$') THEN 'correo_dudoso'
+      WHEN pb.email IS NOT NULL AND length(trim(pb.email)) > 0 THEN 'activo_confiable'
       ELSE 'sin_correo'
     END,
     CASE 
       WHEN pb.auth_user_id IS NOT NULL THEN ARRAY['Ya tiene cuenta', 'Verificar si puede acceder']
-      WHEN pb.correo IS NULL OR length(trim(pb.correo)) = 0 THEN ARRAY['Obtener correo de contacto', 'Actualizaci\u00f3n manual requerida']
-      WHEN NOT (pb.correo ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$') THEN ARRAY['Validar correo con el beneficiario', 'Considerar contacto alternativo']
+      WHEN pb.email IS NULL OR length(trim(pb.email)) = 0 THEN ARRAY['Obtener correo de contacto', 'Actualizaci\u00f3n manual requerida']
+      WHEN NOT (pb.email ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$') THEN ARRAY['Validar correo con el beneficiario', 'Considerar contacto alternativo']
       ELSE ARRAY['Enviar invitaci\u00f3n', 'Esperar confirmaci\u00f3n de activaci\u00f3n']
     END
   FROM public.portal_beneficiarios pb
-  WHERE pb.estado IN ('activo', 'pausado')
+  WHERE pb.estado_beneficiario IN ('activo', 'pausado')
   ORDER BY 
     CASE 
       WHEN pb.auth_user_id IS NOT NULL THEN 4
-      WHEN pb.correo IS NULL OR length(trim(pb.correo)) = 0 THEN 3
-      WHEN NOT (pb.correo ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$') THEN 2
+      WHEN pb.email IS NULL OR length(trim(pb.email)) = 0 THEN 3
+      WHEN NOT (pb.email ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$') THEN 2
       ELSE 1
     END,
-    pb.nombre;
+    pb.nombre_completo;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -187,14 +187,14 @@ BEGIN
   WITH clasificados AS (
     SELECT 
       pb.id,
-      pb.nombre,
-      pb.cedula,
-      pb.correo,
+      pb.nombre_completo,
+      pb.n_documento,
+      pb.email,
       pb.auth_user_id,
       CASE 
         WHEN pb.auth_user_id IS NOT NULL THEN 'ya_portal'
-        WHEN pb.correo IS NULL OR length(trim(pb.correo)) = 0 THEN 'sin_correo'
-        WHEN NOT (pb.correo ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$') THEN 'correo_dudoso'
+        WHEN pb.email IS NULL OR length(trim(pb.email)) = 0 THEN 'sin_correo'
+        WHEN NOT (pb.email ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$') THEN 'correo_dudoso'
         ELSE 'activo_confiable'
       END as clase
     FROM public.portal_beneficiarios pb
@@ -202,15 +202,15 @@ BEGIN
   )
   SELECT 
     c.clase,
-    COUNT(*),
+    CAST(COUNT(*) AS integer),
     ARRAY_AGG(
       jsonb_build_object(
         'id', c.id,
-        'nombre', c.nombre,
-        'cedula', c.cedula,
-        'correo', c.correo,
+        'nombre', c.nombre_completo,
+        'cedula', c.n_documento,
+        'correo', c.email,
         'auth_user_id', c.auth_user_id
-      ) ORDER BY c.nombre
+      ) ORDER BY c.nombre_completo
     )
   FROM clasificados c
   GROUP BY c.clase

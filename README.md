@@ -52,3 +52,30 @@ Variables recomendadas para la Edge Function durante pruebas:
 - `DOCS_RENDER_FALLBACK_TO_PDF_LIB=true`
 - `DOCS_HTML_PDF_ENDPOINT=http://host.docker.internal:8789/render` (si la función corre en contenedor)
 - `DOCS_HTML_PDF_TIMEOUT_MS=12000`
+
+## Generación de PDFs con Google Docs + GAS
+
+La generación de documentos automáticos ahora puede ejecutarse con Google Apps Script
+usando plantillas de Google Docs y devolviendo PDFs para almacenar en Supabase Storage.
+
+Variables requeridas/recomendadas:
+
+- `DOCS_GAS_ENABLED=true`
+- `DOCS_GAS_WEBHOOK_URL=https://script.google.com/macros/s/.../exec`
+- `DOCS_GAS_API_KEY=...` (opcional, si el Web App valida API key)
+- `DOCS_GAS_SHARED_SECRET=...` (opcional, para validación adicional)
+- `DOCS_GAS_TIMEOUT_MS=20000`
+- `DOCS_GAS_FALLBACK_LOCAL=true` (solo aplica a `generate-inscripcion-docs`)
+
+Template IDs opcionales por tipo de documento:
+
+- `DOCS_GAS_TEMPLATE_FORMULARIO_ID=...`
+- `DOCS_GAS_TEMPLATE_TERMINOS_ID=...`
+- `DOCS_GAS_TEMPLATE_DATOS_ID=...`
+- `DOCS_GAS_TEMPLATE_HISTORICOS_TERMINOS_ID=...`
+- `DOCS_GAS_TEMPLATE_HISTORICOS_DATOS_ID=...`
+
+Funciones involucradas:
+
+- `generate-inscripcion-docs` (aspirantes)
+- `generate-beneficiario-onboarding-docs` (beneficiarios históricos onboarding)

@@ -13,7 +13,7 @@ const getSupabaseSingleton = () => {
 				persistSession: true,
 				autoRefreshToken: true,
 				detectSessionInUrl: true,
-				flowType: 'pkce',
+				flowType: 'implicit',
 				storageKey: 'focades-auth-token',
 			},
 		})

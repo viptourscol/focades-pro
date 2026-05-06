@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Settings, LogOut, Bell, LifeBuoy, IdCard, ClipboardList, Menu, X, BarChart3, Calculator, FileText, CalendarClock, ShieldCheck, Search, ArrowUpRight, UploadCloud, UserPlus, HandCoins, FolderOpen, Database, ChevronDown, ChevronRight, Megaphone } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, LogOut, Bell, LifeBuoy, IdCard, ClipboardList, Menu, X, BarChart3, Calculator, FileText, CalendarClock, ShieldCheck, Search, ArrowUpRight, UploadCloud, UserPlus, HandCoins, FolderOpen, Database, ChevronDown, ChevronRight, Megaphone, HelpCircle } from 'lucide-react';
 import { invokeAdminTickets } from '../lib/adminTickets';
 import { supabase } from '../lib/supabase';
 
@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { to: '/admin/aspirantes', label: 'Aspirantes', icon: <Users size={20} />, match: (path) => path === '/admin/aspirantes' },
   { to: '/admin/convocatorias', label: 'Convocatorias', icon: <Megaphone size={20} />, match: (path) => path.startsWith('/admin/convocatorias') },
   { to: '/admin/tickets', label: 'Tickets', icon: <LifeBuoy size={20} />, match: (path) => path === '/admin/tickets' },
+  { to: '/admin/faq', label: 'FAQ Pública', icon: <HelpCircle size={20} />, match: (path) => path.startsWith('/admin/faq') },
   { to: '/admin/configuracion', label: 'Configuración', icon: <Settings size={20} />, match: (path) => path === '/admin/configuracion' },
 ];
 
@@ -36,6 +37,7 @@ const getPageMeta = (pathname) => {
   if (pathname.startsWith('/admin/configuracion')) return { title: 'Configuración', subtitle: 'Parámetros del portal y control administrativo.' };
   if (pathname.startsWith('/admin/aspirantes')) return { title: 'Aspirantes', subtitle: 'Ruta de admisión, legalización y revisión de soportes.' };
   if (pathname.startsWith('/admin/convocatorias')) return { title: 'Convocatorias', subtitle: 'Gestión de cohortes, periodos de inscripción y cupos admitidos.' };
+  if (pathname.startsWith('/admin/faq')) return { title: 'FAQ Pública', subtitle: 'Preguntas frecuentes que se muestran en la página principal del portal.' };
   return { title: 'Centro de Control', subtitle: 'Operación institucional unificada para el portal FOCADES.' };
 };
 

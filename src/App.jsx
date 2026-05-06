@@ -28,7 +28,9 @@ import AdminImportPagosHistoricos from './pages/AdminImportPagosHistoricos';
 import AdminDocumentosHistoricos from './pages/AdminDocumentosHistoricos';
 import AdminHistoricosHub from './pages/AdminHistoricosHub';
 import AdminConvocatorias from './pages/AdminConvocatorias';
+import AdminFaq from './pages/AdminFaq';
 import BeneficiarioOnboarding from './pages/BeneficiarioOnboarding';
+import Landing from './pages/Landing';
 import { supabase } from './lib/supabase';
 import { resolvePortalAccess, setPortalAuthErrorMessage } from './lib/portalAuth';
 const AdminAnalytics = lazy(() => import('./pages/AdminAnalytics'));
@@ -277,6 +279,7 @@ function App() {
           <Route path="activacion" element={<Navigate to="/admin/historicos/activacion" replace />} />
           <Route path="aspirantes" element={<Aspirantes />} />
           <Route path="convocatorias" element={<AdminConvocatorias />} />
+          <Route path="faq" element={<AdminFaq />} />
           <Route path="tickets" element={<TicketsAdmin />} />
           <Route path="configuracion" element={<PortalConfig />} />
           <Route
@@ -295,8 +298,8 @@ function App() {
           />
         </Route>
 
-        <Route path="/" element={<Navigate to="/registro" replace />} />
-        <Route path="*" element={<Navigate to="/registro" replace />} />
+        <Route path="/" element={<Landing />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

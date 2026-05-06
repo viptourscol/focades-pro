@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { BookOpen, ClipboardList, ExternalLink, FileClock, LogIn, Megaphone, UserCircle2 } from 'lucide-react';
+import { BookOpen, ClipboardList, ExternalLink, FileClock, LogIn, Megaphone, UserCircle2, ShieldCheck, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { showErrorAlert } from '../lib/alerts';
 import { consumePortalAuthErrorMessage, resolvePortalAccess } from '../lib/portalAuth';
@@ -36,7 +36,6 @@ const BeneficiarioLogin = () => {
   const [newsLoading, setNewsLoading] = useState(true);
   const loginSectionRef = useRef(null);
 
-  // Verificar sesión activa y cargar noticias en paralelo
   useEffect(() => {
     let mounted = true;
 
@@ -120,8 +119,8 @@ const BeneficiarioLogin = () => {
 
   if (checkingAccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center admin-shell">
-        <div className="w-10 h-10 border-4 border-slate-200 border-t-secondary rounded-full animate-spin" />
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#F5F7FA' }}>
+        <div className="w-10 h-10 border-4 border-slate-200 rounded-full animate-spin" style={{ borderTopColor: '#1A5A96' }} />
       </div>
     );
   }
@@ -131,153 +130,214 @@ const BeneficiarioLogin = () => {
   }
 
   return (
-    <div className="min-h-screen admin-shell flex flex-col">
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#F5F7FA' }}>
 
-      <header className="bg-[var(--gov-ink)] text-white px-4 md:px-10 h-16 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[linear-gradient(135deg,#f1c57f,#bb7d26)] text-[#10233f] font-black flex items-center justify-center text-sm">F</div>
-          <div className="leading-tight hidden sm:block">
-            <p className="font-black text-sm">FOCADES</p>
-            <p className="text-[11px] text-slate-300 uppercase tracking-[0.16em]">Portal de Beneficiarios</p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={scrollToLogin}
-          className="inline-flex items-center gap-2 bg-[var(--gov-accent)] text-white text-sm font-bold px-4 py-2 rounded-xl hover:opacity-90 transition-opacity"
-        >
-          <LogIn size={15} />
-          Iniciar sesión
-        </button>
+      {/* ── HEADER ── igual que Registro */}
+      <header className="h-[72px] bg-white border-b border-border px-8 flex items-center gap-4">
+        <img src="https://raw.githubusercontent.com/focades-debug/mis-imagenes-apps-script/main/logofocades-solo.png" alt="FOCADES" className="h-10" />
+        <h1 className="text-primary font-bold text-lg">Portal de Beneficiarios</h1>
       </header>
 
-      <section className="bg-[var(--gov-ink)] text-white px-4 md:px-10 py-14 md:py-20 animate-fade-in admin-grid">
-        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center gap-10">
-          <div className="flex-1 text-center md:text-left animate-slide-up">
-            <span className="inline-block bg-[var(--gov-accent-soft)] text-[#f3d4a9] text-xs font-bold px-3 py-1 rounded-full mb-4 uppercase tracking-[0.16em]">
-              Bienvenido
-            </span>
-            <h1 className="text-3xl md:text-5xl font-bold leading-tight">
-              Portal de Beneficiarios<br />
-              <span className="text-[#f1c57f]">FOCADES</span>
-            </h1>
-            <p className="mt-4 text-slate-300 text-sm leading-relaxed max-w-md mx-auto md:mx-0">
-              Tu plataforma integral para el seguimiento y gestión de tu beneficio educativo. Consulta tu estado, actualiza tus datos semestrales y mantente informado.
-            </p>
-            <button
-              type="button"
-              onClick={scrollToLogin}
-              className="mt-7 inline-flex items-center gap-2 bg-[var(--gov-accent)] text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition-all duration-300"
-            >
-              <LogIn size={16} />
-              Consulta tu estado aquí
-            </button>
-          </div>
-          <div className="shrink-0 w-48 h-48 md:w-64 md:h-64 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center animate-scale-up">
-            <div className="text-7xl md:text-8xl font-black text-[#f1c57f]/70 select-none">F</div>
-          </div>
-        </div>
-      </section>
-
-      <section className="px-4 md:px-10 py-12 bg-white/85 border-b border-[var(--gov-line)] animate-fade-in" style={{ animationDelay: '100ms' }}>
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-2xl font-bold text-[var(--gov-ink)] text-center mb-8">¿Qué puedes hacer en la plataforma?</h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {FEATURES.map(({ icon: Icon, title, desc }, idx) => (
-              <div key={title} className="ui-card-plain space-y-2 animate-slide-up hover:shadow-md transition-all duration-300" style={{ animationDelay: `${idx * 50}ms` }}>
-                <div className="w-10 h-10 rounded-xl bg-[var(--gov-accent-soft)] text-[var(--gov-ink)] flex items-center justify-center">
-                  <Icon size={20} />
-                </div>
-                <h3 className="font-bold text-[var(--gov-ink)] text-sm">{title}</h3>
-                <p className="text-xs text-slate-600 leading-relaxed">{desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="px-4 md:px-10 py-12 flex-1 animate-fade-in" style={{ animationDelay: '150ms' }}>
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-2xl font-bold text-[var(--gov-ink)] mb-6">Novedades del programa</h2>
-
-          {newsLoading ? (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[1, 2, 3].map((n) => (
-                <div key={n} className="ui-card-plain h-48 animate-pulse" />
-              ))}
-            </div>
-          ) : news.length === 0 ? (
-            <div className="ui-empty animate-fade-in">
-              No hay publicaciones activas en este momento.
-            </div>
-          ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {news.map((item, idx) => (
-                <article key={item.id} className="ui-card-plain overflow-hidden flex flex-col animate-slide-up hover:shadow-lg transition-all duration-300" style={{ animationDelay: `${idx * 50}ms` }}>
-                  {item.image_url && (
-                    <img
-                      src={item.image_url}
-                      alt={item.title || 'Noticia'}
-                      className="w-full h-40 object-cover hover:brightness-90 transition-all duration-300"
-                    />
-                  )}
-                  <div className="p-4 space-y-2 flex-1 flex flex-col">
-                    <p className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-[var(--gov-info)] transition-colors duration-200">
-                      <Megaphone size={12} className="group-hover:scale-125 transition-transform" /> Programa FOCADES
-                    </p>
-                    <h3 className="font-bold text-[var(--gov-ink)] text-sm leading-tight">{item.title || 'Sin título'}</h3>
-                    <p className="text-xs text-slate-600 line-clamp-4 flex-1">
-                      {item.summary || item.content || 'Sin descripción.'}
-                    </p>
-                    {item.button_url && (
-                      <a
-                        href={item.button_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--gov-info)] mt-1 hover:translate-x-1 transition-all duration-200"
-                      >
-                        {item.button_label || 'Ver más'} <ExternalLink size={12} />
-                      </a>
-                    )}
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
+      {/* ── HERO SPLIT: texto izq + login card der, todo above-the-fold ── */}
       <section
-        ref={loginSectionRef}
-        className="px-4 md:px-10 py-12 bg-white/85 border-t border-[var(--gov-line)] animate-fade-in"
-        style={{ animationDelay: '200ms' }}
+        className="relative isolate overflow-hidden flex-1 flex items-stretch"
+        style={{ minHeight: 'calc(100vh - 56px)' }}
       >
-        <div className="max-w-md mx-auto admin-panel rounded-3xl overflow-hidden animate-modal-enter">
-          <div className="bg-[var(--gov-ink)] text-white px-6 py-5 admin-grid">
-            <h2 className="text-2xl font-bold">Iniciar sesión</h2>
-            <p className="text-sm text-slate-300 mt-1">
-              Accede con la cuenta de Google registrada en el programa.
-            </p>
-          </div>
-          <div className="px-6 py-6 space-y-4">
-            <p className="text-xs text-slate-500 leading-relaxed">
-              Solo cuentas autorizadas por el equipo FOCADES tienen acceso al portal. Si no puedes ingresar, comunícate con el administrador del programa.
-            </p>
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              disabled={loginLoading}
-              className="w-full ui-btn-primary disabled:opacity-50"
+        {/* Fondo primary azul oscuro */}
+        <div
+          className="absolute inset-0 -z-20"
+          style={{
+            background:
+              'radial-gradient(900px 500px at 95% 5%, rgba(249,160,63,0.20), transparent 50%), radial-gradient(600px 400px at -5% 95%, rgba(26,90,150,0.35), transparent 55%), linear-gradient(160deg, #0D2C54 0%, #081e3a 100%)',
+          }}
+        />
+        {/* Puntos decorativos */}
+        <div
+          className="absolute inset-0 -z-10 opacity-[0.12]"
+          style={{
+            backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.7) 1px, transparent 0)',
+            backgroundSize: '32px 32px',
+          }}
+        />
+
+        <div className="relative z-10 w-full max-w-6xl mx-auto px-4 md:px-10 py-10 md:py-16 grid md:grid-cols-2 gap-10 items-center">
+
+          {/* Columna izquierda: info */}
+          <div className="text-white">
+            <span
+              className="inline-flex items-center gap-2 text-[11px] font-bold px-3 py-1.5 rounded-full mb-6 uppercase tracking-[0.2em]"
+              style={{ background: 'rgba(249,160,63,0.15)', color: '#F9A03F', border: '1px solid rgba(249,160,63,0.35)' }}
             >
-              <LogIn size={18} />
-              {loginLoading ? 'Redirigiendo...' : 'Continuar con Google'}
-            </button>
+              <UserCircle2 size={12} /> Portal exclusivo beneficiarios
+            </span>
+
+            <h1
+              className="text-4xl md:text-6xl font-extrabold leading-[0.95] tracking-tight text-white"
+              style={{ fontFamily: "'Familjen Grotesk', sans-serif" }}
+            >
+              Accede a tu
+              <br />
+              <span style={{ color: '#F9A03F' }}>portal FOCADES</span>
+            </h1>
+
+            <p className="mt-5 text-sm md:text-base leading-relaxed max-w-sm" style={{ color: 'rgba(255,255,255,0.68)' }}>
+              Consulta el estado de tu beneficio, actualiza tu información semestral y mantente al día con las novedades del programa.
+            </p>
+
+            {/* Feature list compacta */}
+            <ul className="mt-8 space-y-3">
+              {FEATURES.map(({ icon: Icon, title }) => (
+                <li key={title} className="flex items-center gap-3 text-sm" style={{ color: 'rgba(255,255,255,0.78)' }}>
+                  <span
+                    className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                    style={{ background: 'rgba(249,160,63,0.18)' }}
+                  >
+                    <Icon size={14} style={{ color: '#F9A03F' }} />
+                  </span>
+                  {title}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Columna derecha: tarjeta de login */}
+          <div
+            ref={loginSectionRef}
+            className="rounded-3xl overflow-hidden shadow-2xl"
+            style={{ border: '1px solid rgba(255,255,255,0.10)' }}
+          >
+            {/* Card header */}
+            <div
+              className="px-6 py-6"
+              style={{
+                background: 'linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 100%)',
+                borderBottom: '1px solid rgba(255,255,255,0.08)',
+                backdropFilter: 'blur(16px)',
+              }}
+            >
+              <div
+                className="w-12 h-12 rounded-2xl font-black flex items-center justify-center text-lg mb-4"
+                style={{ background: '#F9A03F', color: '#0D2C54' }}
+              >
+                F
+              </div>
+              <h2 className="text-2xl font-extrabold text-white" style={{ fontFamily: "'Familjen Grotesk', sans-serif" }}>
+                Iniciar sesión
+              </h2>
+              <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.60)' }}>
+                Usa la cuenta de Google registrada en el programa.
+              </p>
+            </div>
+
+            {/* Card body */}
+            <div
+              className="px-6 py-6 space-y-4"
+              style={{
+                background: 'rgba(255,255,255,0.06)',
+                backdropFilter: 'blur(16px)',
+              }}
+            >
+              <div
+                className="rounded-xl px-4 py-3 text-xs leading-relaxed flex items-start gap-2"
+                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.65)' }}
+              >
+                <ShieldCheck size={14} className="text-emerald-400 mt-0.5 shrink-0" />
+                Solo cuentas autorizadas por el equipo FOCADES tienen acceso. Si no puedes ingresar, comunícate con el administrador.
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                disabled={loginLoading}
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3.5 rounded-2xl font-bold text-sm disabled:opacity-50 hover:brightness-110 transition-all"
+                style={{ background: '#F9A03F', color: '#0D2C54' }}
+              >
+                <LogIn size={18} />
+                {loginLoading ? 'Redirigiendo...' : 'Continuar con Google'}
+              </button>
+
+              <p className="text-center text-[11px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                ¿Eres aspirante?{' '}
+                <a href="/registro" className="font-bold hover:text-white transition-colors" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                  Ir a inscripción →
+                </a>
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
-      <footer className="bg-[var(--gov-ink)] text-white text-center text-xs px-4 py-5 tracking-[0.08em] uppercase">
-        © 2026 Alcaldía de Montelíbano – Secretaría de Educación. Todos los derechos reservados.
+      {/* ── NOTICIAS (sección secundaria, debajo del fold) ── */}
+      {(news.length > 0 || newsLoading) && (
+        <section className="px-4 md:px-10 py-12" style={{ background: '#F5F7FA', borderTop: '1px solid #dee2e6' }}>
+          <div className="max-w-6xl mx-auto">
+            <div className="flex items-center gap-3 mb-7">
+              <Megaphone size={18} style={{ color: '#F9A03F' }} />
+              <h2 className="text-xl font-bold" style={{ color: '#0D2C54', fontFamily: "'Familjen Grotesk', sans-serif" }}>
+                Novedades del programa
+              </h2>
+            </div>
+
+            {newsLoading ? (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[1, 2, 3].map((n) => (
+                  <div key={n} className="animate-pulse h-44 rounded-2xl" style={{ background: '#e2e8f0' }} />
+                ))}
+              </div>
+            ) : (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {news.map((item) => (
+                  <article
+                    key={item.id}
+                    className="overflow-hidden flex flex-col rounded-2xl border hover:-translate-y-1 transition-transform"
+                    style={{ background: '#ffffff', borderColor: '#dee2e6', boxShadow: '0 2px 8px rgba(13,44,84,0.06)' }}
+                  >
+                    {item.image_url ? (
+                      <img src={item.image_url} alt={item.title || 'Noticia'} className="w-full h-36 object-cover" />
+                    ) : (
+                      <div
+                        className="w-full h-36 flex items-center justify-center"
+                        style={{ background: 'linear-gradient(135deg,#0D2C54,#1A5A96)' }}
+                      >
+                        <Megaphone size={32} style={{ color: 'rgba(255,255,255,0.20)' }} />
+                      </div>
+                    )}
+                    <div className="p-4 flex-1 flex flex-col gap-1">
+                      {item.publish_at && (
+                        <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: '#F9A03F' }}>
+                          {new Date(item.publish_at).toLocaleDateString('es-CO', { year: 'numeric', month: 'short', day: 'numeric' })}
+                        </p>
+                      )}
+                      <h3 className="font-bold text-sm leading-tight" style={{ color: '#0D2C54' }}>
+                        {item.title || 'Sin título'}
+                      </h3>
+                      <p className="text-xs text-slate-600 line-clamp-3 flex-1">
+                        {item.summary || item.content || ''}
+                      </p>
+                      {item.button_url && (
+                        <a
+                          href={item.button_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-xs font-semibold mt-1 hover:underline"
+                          style={{ color: '#1A5A96' }}
+                        >
+                          {item.button_label || 'Ver más'} <ExternalLink size={11} />
+                        </a>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* ── FOOTER ── igual que Registro */}
+      <footer className="bg-primary text-white px-8 py-6 text-center text-sm">
+        <img src="https://raw.githubusercontent.com/focades-debug/mis-imagenes-apps-script/main/logoalcaldiasecretariablanco.png" alt="Alcaldía" className="h-14 mx-auto mb-3" />
+        <p>© {new Date().getFullYear()} Alcaldía de Montelíbano - Secretaría de Educación</p>
       </footer>
 
     </div>

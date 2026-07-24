@@ -598,6 +598,71 @@ const Registro = () => {
     loadConv();
   }, []);
 
+  // Detecta si el usuario llega a /registro desde el magic link de confirmación
+  // de cuenta (primera vez). En ese caso ya tiene sesión activa, recuperamos
+  // el email guardado y saltamos directamente al formulario sin pedir OTP.
+  useEffect(() => {
+    const checkMagicLinkReturn = async () => {
+      const pendingEmail = sessionStorage.getItem('focades_otp_email');
+      if (!pendingEmail) return;
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session) return;
+
+      // El usuario confirmó su cuenta vía magic link — limpiar y avanzar
+      try { sessionStorage.removeItem('focades_otp_email'); } catch { /* ignore */ }
+
+      const normalizedEmail = pendingEmail.trim().toLowerCase();
+
+      // Rellenar email en el formulario
+      setFormData((prev) => ({ ...prev, email: pendingEmail.trim() }));
+
+      // Verificar si ya tiene una inscripción enviada
+      try {
+        let existingQuery = supabase
+          .from('inscripciones')
+          .select('id,radicado,estado,convocatoria_id,created_at')
+          .ilike('email', normalizedEmail)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        // activeConv puede no estar cargado aún; se hace la consulta sin filtro de convocatoria
+        const { data: existingInscripcion } = await existingQuery.maybeSingle();
+
+        if (existingInscripcion?.id) {
+          const radicadoExistente = existingInscripcion.radicado || 'No disponible';
+          const estadoExistente = existingInscripcion.estado || 'Radicado';
+          try { localStorage.removeItem(`focades_draft_${normalizedEmail}`); } catch { /* ignore */ }
+          try { await supabase.from('inscripciones_drafts').delete().eq('email', normalizedEmail); } catch { /* ignore */ }
+
+          await showConfirmAlert({
+            title: 'Ya enviaste tu inscripción',
+            text: `Este correo ya tiene una inscripción registrada (Radicado: ${radicadoExistente}, Estado: ${estadoExistente}). No es posible enviar una nueva inscripción con el mismo correo.`,
+            confirmButtonText: 'Consultar mi radicado',
+            cancelButtonText: 'Cerrar',
+          });
+
+          await supabase.auth.signOut();
+          setOtpStep('enter-email');
+          setEmailVerified(false);
+          return;
+        }
+      } catch {
+        // Si falla la verificación, continuar de todas formas
+      }
+
+      // Cargar borrador si existe
+      await loadDraftAfterVerification(pendingEmail.trim());
+
+      setEmailVerified(true);
+      setOtpStep('enter-email'); // ya no necesario visualmente, emailVerified salta el OTP
+      setOtpSuccess('Correo verificado correctamente. Continúa con tu inscripción.');
+    };
+
+    checkMagicLinkReturn();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     const loadCatalogos = async () => {
       const { data: departamentosData, error: departamentosError } = await supabase
@@ -1110,6 +1175,7 @@ const Registro = () => {
   };
 
   const resetRegistrationFlow = () => {
+    try { sessionStorage.removeItem('focades_otp_email'); } catch { /* ignore */ }
     setFormData(EMPTY_FORM);
     setOtpStep('enter-email');
     setOtpCode('');
@@ -1600,9 +1666,16 @@ const Registro = () => {
     setOtpError('');
     setOtpSuccess('');
 
+    // Guardar el email en sessionStorage para recuperarlo si Supabase redirige
+    // al usuario a /registro después de confirmar su cuenta por primera vez.
+    try { sessionStorage.setItem('focades_otp_email', email); } catch { /* ignore */ }
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { shouldCreateUser: true },
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: `${window.location.origin}/registro`,
+      },
     });
 
     if (error) {
@@ -3149,6 +3222,12 @@ const Registro = () => {
                 <div className="space-y-4">
                   <div className="p-4 rounded-xl bg-slate-50 border border-border text-sm text-slate-700 flex items-center gap-2">
                     <Mail size={16} className="text-secondary" /> Código enviado a <strong>{formData.email}</strong>
+                  </div>
+                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-start gap-2">
+                    <HelpCircle size={14} className="mt-0.5 shrink-0 text-amber-600" />
+                    <span>
+                      <strong>¿Primera vez registrándote?</strong> Es posible que recibas primero un correo de confirmación de cuenta. Haz clic en el enlace de ese correo y serás redirigido automáticamente a esta página para continuar sin necesidad de ingresar el código.
+                    </span>
                   </div>
                   <Input label="Código OTP (6 dígitos)" id="otpCode" value={otpCode} onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="000000" maxLength={6} />
                   {otpError && <ErrorAlert message={otpError} />}

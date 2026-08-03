@@ -139,11 +139,22 @@ function AdminAuthGuard({ children }) {
       if (!mounted) return;
 
       if (!access.isAdmin && access.hasSession) {
-        setPortalAuthErrorMessage(
-          'Tu cuenta autenticada no tiene permisos de administrador. Solicita habilitación al equipo responsable.'
-        );
-        await supabase.auth.signOut();
+        // Si hay sesión pero no admin access, reintentar una vez más con delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const retryAccess = await resolvePortalAccess({ attemptClaim: false });
         if (!mounted) return;
+        
+        if (!retryAccess.isAdmin) {
+          setPortalAuthErrorMessage(
+            'Tu cuenta autenticada no tiene permisos de administrador. Solicita habilitación al equipo responsable.'
+          );
+          await supabase.auth.signOut();
+          if (!mounted) return;
+        } else {
+          setHasAccess(true);
+          setReady(true);
+          return;
+        }
       }
 
       setHasAccess(Boolean(access.isAdmin));

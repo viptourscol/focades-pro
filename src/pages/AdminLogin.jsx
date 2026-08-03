@@ -39,6 +39,9 @@ const AdminLogin = () => {
           setCheckingAccess(false);
           return;
         }
+
+        // Espera a que Supabase actualice la sesión internamente
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       const authMessage = consumePortalAuthErrorMessage();
@@ -49,7 +52,13 @@ const AdminLogin = () => {
         });
       }
 
-      const access = await resolvePortalAccess({ attemptClaim: false });
+      // Reintentos para obtener acceso (puede haber delay en Supabase)
+      let access = await resolvePortalAccess({ attemptClaim: false });
+      if (!access.isAdmin && authCode) {
+        // Si acabamos de autenticarnos pero no hay admin access, reintentar después de esperar más
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        access = await resolvePortalAccess({ attemptClaim: false });
+      }
       if (!mounted) return;
       setHasAdminAccess(Boolean(access.isAdmin));
       setCheckingAccess(false);

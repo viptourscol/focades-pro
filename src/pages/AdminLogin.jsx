@@ -74,6 +74,7 @@ const AdminLogin = () => {
   const handleGoogleLogin = async () => {
     setLoading(true);
 
+    // Inicia sesión con Google mediante OAuth
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {

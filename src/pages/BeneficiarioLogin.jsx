@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { BookOpen, ClipboardList, ExternalLink, FileClock, LogIn, Megaphone, UserCircle2, ShieldCheck, ArrowRight } from 'lucide-react';
+import { BookOpen, ClipboardList, ExternalLink, FileClock, Megaphone, UserCircle2, ShieldCheck, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { showErrorAlert } from '../lib/alerts';
 import { consumePortalAuthErrorMessage, resolvePortalAccess } from '../lib/portalAuth';
+import BeneficiarioLoginForm from '../components/BeneficiarioLoginForm';
 
 const FEATURES = [
   {
@@ -225,38 +226,38 @@ const BeneficiarioLogin = () => {
                 Iniciar sesión
               </h2>
               <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.60)' }}>
-                Usa la cuenta de Google registrada en el programa.
+                Elige tu método de autenticación
               </p>
             </div>
 
             {/* Card body */}
             <div
-              className="px-6 py-6 space-y-4"
+              className="px-6 py-6"
               style={{
                 background: 'rgba(255,255,255,0.06)',
                 backdropFilter: 'blur(16px)',
               }}
             >
               <div
-                className="rounded-xl px-4 py-3 text-xs leading-relaxed flex items-start gap-2"
+                className="rounded-xl px-4 py-3 text-xs leading-relaxed flex items-start gap-2 mb-4"
                 style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.65)' }}
               >
                 <ShieldCheck size={14} className="text-emerald-400 mt-0.5 shrink-0" />
-                Solo cuentas autorizadas por el equipo FOCADES tienen acceso. Si no puedes ingresar, comunícate con el administrador.
+                Solo cuentas autorizadas por el equipo FOCADES tienen acceso.
               </div>
 
-              <button
-                type="button"
-                onClick={handleGoogleLogin}
-                disabled={loginLoading}
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3.5 rounded-2xl font-bold text-sm disabled:opacity-50 hover:brightness-110 transition-all"
-                style={{ background: '#F9A03F', color: '#0D2C54' }}
-              >
-                <LogIn size={18} />
-                {loginLoading ? 'Redirigiendo...' : 'Continuar con Google'}
-              </button>
+              <div className="text-white">
+                <BeneficiarioLoginForm 
+                  isLoading={loginLoading} 
+                  setIsLoading={setLoginLoading}
+                  onSuccess={() => {
+                    // Recargar para verificar acceso nuevamente
+                    window.location.reload();
+                  }}
+                />
+              </div>
 
-              <p className="text-center text-[11px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              <p className="text-center text-[11px] mt-4" style={{ color: 'rgba(255,255,255,0.35)' }}>
                 ¿Eres aspirante?{' '}
                 <a href="/registro" className="font-bold hover:text-white transition-colors" style={{ color: 'rgba(255,255,255,0.55)' }}>
                   Ir a inscripción →

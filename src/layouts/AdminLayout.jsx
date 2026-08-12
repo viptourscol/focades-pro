@@ -8,7 +8,7 @@ const NAV_ITEMS = [
   { to: '/admin', label: 'Dashboard', icon: <LayoutDashboard size={20} />, match: (path) => path === '/admin' },
   { to: '/admin/analiticas', label: 'Analíticas', icon: <BarChart3 size={20} />, match: (path) => path.startsWith('/admin/analiticas') },
   { to: '/admin/proyecciones', label: 'Proyecciones', icon: <Calculator size={20} />, match: (path) => path.startsWith('/admin/proyecciones') },
-  { to: '/admin/beneficiarios', label: 'Beneficiarios', icon: <IdCard size={20} />, match: (path) => path.startsWith('/admin/beneficiarios') },
+  // Beneficiarios se manejará con BeneficiariesGroup (desplegable)
   { to: '/admin/actualizaciones', label: 'Actualizaciones', icon: <ClipboardList size={20} />, match: (path) => path.startsWith('/admin/actualizaciones') },
   { to: '/admin/condonaciones', label: 'Condonaciones', icon: <ShieldCheck size={20} />, match: (path) => path.startsWith('/admin/condonaciones') },
   { to: '/admin/resoluciones', label: 'Resoluciones', icon: <FileText size={20} />, match: (path) => path.startsWith('/admin/resoluciones') },
@@ -112,12 +112,13 @@ const AdminLayout = () => {
         </div>
 
         <nav className="relative flex-1 px-4 py-5 space-y-2 overflow-y-auto">
-          {NAV_ITEMS.slice(0, 5).map((item) => (
+          {NAV_ITEMS.slice(0, 4).map((item) => (
             <NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} active={item.match(location.pathname)} onClick={() => setMobileMenuOpen(false)} badge={item.to === '/admin/tickets' ? pendingTickets : 0} />
           ))}
+          <BeneficiariesGroup location={location} onClick={() => setMobileMenuOpen(false)} />
           <SubNavItem to="/admin/actualizaciones/ventanas" icon={<CalendarClock size={16} />} label="Ventanas de Actualización" active={location.pathname.startsWith('/admin/actualizaciones/ventanas')} onClick={() => setMobileMenuOpen(false)} />
           <HistoricosGroup location={location} onClick={() => setMobileMenuOpen(false)} />
-          {NAV_ITEMS.slice(5).map((item) => (
+          {NAV_ITEMS.slice(4).map((item) => (
             <NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} active={item.match(location.pathname)} onClick={() => setMobileMenuOpen(false)} badge={item.to === '/admin/tickets' ? pendingTickets : 0} />
           ))}
         </nav>
@@ -188,6 +189,41 @@ const AdminLayout = () => {
     </div>
   );
 };
+
+function BeneficiariesGroup({ location, onClick }) {
+  const isActive = location.pathname.startsWith('/admin/beneficiarios')
+  const [open, setOpen] = useState(isActive)
+
+  useEffect(() => {
+    if (isActive) setOpen(true)
+  }, [isActive])
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => { setOpen(o => !o); }}
+        className={`group flex items-center gap-4 w-full px-4 py-3.5 rounded-2xl transition-all duration-300 ${
+          isActive ? 'bg-white text-[#10233f] shadow-xl shadow-slate-950/10' : 'text-slate-300 hover:bg-white/5'
+        }`}
+      >
+        <span className={`${isActive ? 'text-[#c88c3a]' : 'text-slate-400 group-hover:text-amber-200'} transition-colors`}>
+          <IdCard size={20} />
+        </span>
+        <span className="font-bold text-sm flex-1 text-left">Beneficiarios</span>
+        <span className={`${isActive ? 'text-[#c88c3a]' : 'text-slate-400 group-hover:text-amber-200'} transition-colors`}>
+          {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        </span>
+      </button>
+      {open && (
+        <div className="mt-1 space-y-1">
+          <SubNavItem to="/admin/beneficiarios" icon={<IdCard size={16} />} label="Todos los beneficiarios" active={location.pathname === '/admin/beneficiarios'} onClick={onClick} />
+          <SubNavItem to="/admin/beneficiarios/importar" icon={<UploadCloud size={16} />} label="Importar CSV" active={location.pathname.startsWith('/admin/beneficiarios/importar')} onClick={onClick} />
+        </div>
+      )}
+    </div>
+  )
+}
 
 function HistoricosGroup({ location, onClick }) {
   const isActive = location.pathname.startsWith('/admin/historicos')

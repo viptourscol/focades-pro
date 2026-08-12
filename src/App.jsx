@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import { Suspense, lazy, useEffect, useState } from 'react';
 import Aspirantes from './pages/Aspirantes';
 import AdminBeneficiarios from './pages/AdminBeneficiarios';
+import AdminImportBeneficiarios from './pages/AdminImportBeneficiarios';
 import AdminBeneficiarioDetalle from './pages/AdminBeneficiarioDetalle';
 import AdminActualizaciones from './pages/AdminActualizaciones';
 import AdminVentanasActualizacion from './pages/AdminVentanasActualizacion';
@@ -13,6 +14,8 @@ import TicketsAdmin from './pages/TicketsAdmin';
 import PortalConfig from './pages/PortalConfig';
 import AdminCondonaciones from './pages/AdminCondonaciones';
 import BeneficiarioLogin from './pages/BeneficiarioLogin';
+import BeneficiarioAuthSetup from './pages/BeneficiarioAuthSetup';
+import BeneficiarioCompletarPerfil from './pages/BeneficiarioCompletarPerfil';
 import AdminLogin from './pages/AdminLogin';
 import BeneficiarioHome from './pages/BeneficiarioHome';
 import BeneficiarioResumen from './pages/BeneficiarioResumen';
@@ -216,6 +219,8 @@ function App() {
         <Route path="/registro" element={<Registro />} />
         <Route path="/verificar-certificado" element={<VerificarCertificado />} />
         <Route path="/beneficiario/login" element={<BeneficiarioLogin />} />
+        <Route path="/beneficiario/auth-setup" element={<BeneficiarioAuthSetup />} />
+        <Route path="/beneficiario/completar-perfil" element={<BeneficiarioCompletarPerfil />} />
         <Route path="/beneficiario/onboarding" element={<BeneficiarioOnboarding />} />
         <Route path="/admin/login" element={<AdminLogin />} />
 
@@ -274,6 +279,7 @@ function App() {
             }
           />
           <Route path="beneficiarios" element={<AdminBeneficiarios />} />
+          <Route path="beneficiarios/importar" element={<AdminImportBeneficiarios />} />
           <Route path="beneficiarios/:beneficiarioId" element={<AdminBeneficiarioDetalle />} />
           <Route path="actualizaciones" element={<AdminActualizaciones />} />
           <Route path="actualizaciones/ventanas" element={<AdminVentanasActualizacion />} />

@@ -20,12 +20,27 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
  * 4. Retorna reporte
  */
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Content-Type': 'application/json',
+};
+
 async function importBeneficiarios(req: Request) {
+  // Manejar solicitudes OPTIONS (CORS preflight)
+  if (req.method === 'OPTIONS') {
+    return new Response('OK', {
+      status: 200,
+      headers: corsHeaders,
+    });
+  }
+
   // Validar método
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Método no permitido' }), {
       status: 405,
-      headers: { 'Content-Type': 'application/json' },
+      headers: corsHeaders,
     });
   }
 
@@ -40,7 +55,7 @@ async function importBeneficiarios(req: Request) {
     if (!Array.isArray(records) || records.length === 0) {
       return new Response(
         JSON.stringify({ error: 'Records debe ser un array no vacío' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -158,13 +173,13 @@ async function importBeneficiarios(req: Request) {
 
     return new Response(JSON.stringify(report), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: corsHeaders,
     });
   } catch (error) {
     console.error('Error fatal:', error);
     return new Response(JSON.stringify({ error: error.message || 'Error interno' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: corsHeaders,
     });
   }
 }

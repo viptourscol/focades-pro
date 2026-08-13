@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, CreditCard, RefreshCcw, Search, Trash2, Undo2, UserCircle2, Users } from 'lucide-react';
+import { Eye, CreditCard, RefreshCcw, Search, Trash2, Undo2, UserCircle2, Users } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { showConfirmAlert, showErrorAlert, showSuccessAlert, showWarningAlert } from '../lib/alerts';
 
@@ -344,6 +344,11 @@ const AdminBeneficiarios = () => {
                   <div className="min-w-0">
                     <p className="font-bold text-slate-800 truncate">{item.nombre_completo || 'Sin nombre'}</p>
                     <p className="text-xs text-slate-500 mt-1 truncate">{item.email || 'Sin correo'}</p>
+                    {item.modalidad && (
+                      <span className="inline-block mt-2 px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 ring-1 ring-indigo-200">
+                        {normalizeModalidad(item.modalidad)}
+                      </span>
+                    )}
                   </div>
                   <span className={`px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest ${statusClassName(item.estado_beneficiario)}`}>
                     {item.estado_beneficiario || 'sin estado'}
@@ -372,9 +377,10 @@ const AdminBeneficiarios = () => {
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <Link
                     to={`/admin/beneficiarios/${item.id}`}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold transition-all duration-150 hover:bg-slate-800 active:scale-95"
+                    title="Ver ficha 360 completa"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-secondary text-white text-xs font-semibold transition-all duration-150 hover:bg-secondary/90 active:scale-95"
                   >
-                    Ficha 360 <ArrowUpRight size={13} />
+                    <Eye size={14} />
                   </Link>
 
                   {item.deleted_at ? (
@@ -410,6 +416,7 @@ const AdminBeneficiarios = () => {
                 <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Beneficiario</th>
                 <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Documento</th>
                 <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Estado</th>
+                <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Modalidad</th>
                 <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Semestre</th>
                 <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Vinculación</th>
                 <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Última actualización</th>
@@ -439,6 +446,7 @@ const AdminBeneficiarios = () => {
                         {item.estado_beneficiario || 'sin estado'}
                       </span>
                     </td>
+                    <td className="px-4 py-4 text-sm text-slate-600">{normalizeModalidad(item.modalidad)}</td>
                     <td className="px-4 py-4 text-sm text-slate-600">{item.semestre_actual || 'No definido'}</td>
                     <td className="px-4 py-4 text-sm text-slate-600">{item.auth_user_id ? 'Activa' : 'Pendiente'}</td>
                     <td className="px-4 py-4 text-sm text-slate-500">{formatDateTime(item.updated_at)}</td>
@@ -456,9 +464,10 @@ const AdminBeneficiarios = () => {
                       <div className="flex items-center justify-end gap-2">
                         <Link
                           to={`/admin/beneficiarios/${item.id}`}
-                          className="ui-btn-primary px-3 py-1.5 rounded-lg text-xs"
+                          title="Ver ficha 360 completa"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-secondary text-white text-xs font-semibold transition-all duration-150 hover:bg-secondary/90 active:scale-95"
                         >
-                          Ficha 360 <ArrowUpRight size={13} />
+                          <Eye size={14} />
                         </Link>
 
                         {item.deleted_at ? (

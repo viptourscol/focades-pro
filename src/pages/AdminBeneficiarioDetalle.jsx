@@ -800,7 +800,14 @@ const AdminBeneficiarioDetalle = () => {
       <section className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-widest text-slate-400">Ficha 360</p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-black uppercase tracking-widest text-slate-400">Ficha 360</p>
+              {beneficiario.modalidad && (
+                <span className="inline-flex px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 ring-1 ring-indigo-200">
+                  {beneficiario.modalidad}
+                </span>
+              )}
+            </div>
             <h1 className="text-3xl font-black text-slate-800 mt-1">{beneficiario.nombre_completo || 'Sin nombre'}</h1>
             <div className="flex flex-wrap gap-3 text-sm text-slate-500 mt-3">
               <span className="inline-flex items-center gap-2"><Mail size={15} /> {beneficiario.email || 'Sin correo'}</span>

@@ -802,9 +802,9 @@ const AdminBeneficiarioDetalle = () => {
           <div>
             <div className="flex items-center gap-2">
               <p className="text-xs font-black uppercase tracking-widest text-slate-400">Ficha 360</p>
-              {beneficiario.modalidad && (
+              {beneficiario.modalidad_beca && (
                 <span className="inline-flex px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 ring-1 ring-indigo-200">
-                  {beneficiario.modalidad}
+                  {beneficiario.modalidad_beca}
                 </span>
               )}
             </div>

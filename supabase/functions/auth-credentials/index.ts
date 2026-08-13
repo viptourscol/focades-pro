@@ -23,19 +23,49 @@ async function verifyPassword(password: string, hash: string): Promise<boolean> 
   return await bcrypt.compare(password, hash)
 }
 
-Deno.serve(async (req) => {
-  const { method, body: requestBody } = req
+// Headers CORS para permitir requests desde el frontend
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info, apikey, x-api-key',
+  'Access-Control-Max-Age': '86400',
+  'Content-Type': 'application/json',
+}
 
+Deno.serve(async (req) => {
+  // Manejo de preflight requests (OPTIONS)
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ ok: false, error: 'Solo POST permitido' }), {
+      status: 405,
+      headers: corsHeaders,
+    })
+  }
+
+  let body: any
   try {
-    // === POST /functions/v1/auth-credentials-setup ===
-    // Inicia el setup: documento -> genera token -> envía email
-    if (method === 'POST' && req.url.includes('auth-credentials-setup')) {
-      const { document_number, email } = await req.json()
+    body = await req.json()
+  } catch {
+    return new Response(JSON.stringify({ ok: false, error: 'Body JSON inválido' }), {
+      status: 400,
+      headers: corsHeaders,
+    })
+  }
+
+  const method = body.method
+  
+  try {
+    // === setup-init: Inicia el setup: documento -> genera token -> envía email ===
+    if (method === 'setup-init') {
+      const { document_number, email } = body
 
       if (!document_number || !email) {
         return new Response(
           JSON.stringify({ ok: false, error: 'Documento y correo requeridos' }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } }
+          { status: 400, headers: corsHeaders }
         )
       }
 
@@ -49,7 +79,7 @@ Deno.serve(async (req) => {
       if (benefErr || !beneficiario) {
         return new Response(
           JSON.stringify({ ok: false, error: 'Documento no encontrado en el sistema' }),
-          { status: 404, headers: { 'Content-Type': 'application/json' } }
+          { status: 404, headers: corsHeaders }
         )
       }
 
@@ -74,7 +104,7 @@ Deno.serve(async (req) => {
         console.error('Error upserting credentials:', credErr)
         return new Response(
           JSON.stringify({ ok: false, error: 'Error al procesar solicitud' }),
-          { status: 500, headers: { 'Content-Type': 'application/json' } }
+          { status: 500, headers: corsHeaders }
         )
       }
 
@@ -86,28 +116,32 @@ Deno.serve(async (req) => {
         JSON.stringify({
           ok: true,
           message: 'Token de setup generado. Revisa tu correo.',
-          setup_token: setupToken, // DEBUG: en producción NO retornar esto
+          setup_token: setupToken,
+          beneficiario: {
+            id: beneficiario.id,
+            nombre_completo: beneficiario.nombre_completo,
+            email: beneficiario.email,
+          },
         }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
+        { status: 200, headers: corsHeaders }
       )
     }
 
-    // === POST /functions/v1/auth-credentials-complete-setup ===
-    // Completa setup: setup_token + password -> crea usuario en auth
-    if (method === 'POST' && req.url.includes('auth-credentials-complete-setup')) {
-      const { setup_token, password, password_confirm, email } = await req.json()
+    // === setup-complete: Completa setup: setup_token + password -> crea usuario en auth ===
+    if (method === 'setup-complete') {
+      const { setup_token, password, password_confirm } = body
 
       if (!setup_token || !password || !password_confirm) {
         return new Response(
           JSON.stringify({ ok: false, error: 'Token, contraseña y confirmación requeridos' }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } }
+          { status: 400, headers: corsHeaders }
         )
       }
 
       if (password !== password_confirm) {
         return new Response(
           JSON.stringify({ ok: false, error: 'Las contraseñas no coinciden' }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } }
+          { status: 400, headers: corsHeaders }
         )
       }
 
@@ -122,7 +156,7 @@ Deno.serve(async (req) => {
       if (credErr || !cred) {
         return new Response(
           JSON.stringify({ ok: false, error: 'Token inválido o expirado' }),
-          { status: 401, headers: { 'Content-Type': 'application/json' } }
+          { status: 401, headers: corsHeaders }
         )
       }
 
@@ -133,7 +167,7 @@ Deno.serve(async (req) => {
       } catch (err) {
         return new Response(
           JSON.stringify({ ok: false, error: err.message }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } }
+          { status: 400, headers: corsHeaders }
         )
       }
 
@@ -153,7 +187,7 @@ Deno.serve(async (req) => {
         console.error('Error updating credentials:', updateErr)
         return new Response(
           JSON.stringify({ ok: false, error: 'Error al guardar contraseña' }),
-          { status: 500, headers: { 'Content-Type': 'application/json' } }
+          { status: 500, headers: corsHeaders }
         )
       }
 
@@ -162,19 +196,18 @@ Deno.serve(async (req) => {
           ok: true,
           message: 'Contraseña establecida exitosamente. Ya puedes iniciar sesión.',
         }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
+        { status: 200, headers: corsHeaders }
       )
     }
 
-    // === POST /functions/v1/auth-credentials-login ===
-    // Login por documento + contraseña
-    if (method === 'POST' && req.url.includes('auth-credentials-login')) {
-      const { document_number, password } = await req.json()
+    // === login: Login por documento + contraseña ===
+    if (method === 'login') {
+      const { document_number, password } = body
 
       if (!document_number || !password) {
         return new Response(
           JSON.stringify({ ok: false, error: 'Documento y contraseña requeridos' }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } }
+          { status: 400, headers: corsHeaders }
         )
       }
 
@@ -188,7 +221,7 @@ Deno.serve(async (req) => {
       if (credErr || !cred) {
         return new Response(
           JSON.stringify({ ok: false, error: 'Documento o contraseña incorrectos' }),
-          { status: 401, headers: { 'Content-Type': 'application/json' } }
+          { status: 401, headers: corsHeaders }
         )
       }
 
@@ -196,7 +229,7 @@ Deno.serve(async (req) => {
       if (cred.locked_until && new Date(cred.locked_until) > new Date()) {
         return new Response(
           JSON.stringify({ ok: false, error: 'Cuenta bloqueada temporalmente. Intenta más tarde.' }),
-          { status: 429, headers: { 'Content-Type': 'application/json' } }
+          { status: 429, headers: corsHeaders }
         )
       }
 
@@ -223,7 +256,7 @@ Deno.serve(async (req) => {
               ? 'Demasiados intentos fallidos. Intenta en 15 minutos.'
               : 'Documento o contraseña incorrectos',
           }),
-          { status: 401, headers: { 'Content-Type': 'application/json' } }
+          { status: 401, headers: corsHeaders }
         )
       }
 
@@ -243,18 +276,21 @@ Deno.serve(async (req) => {
           ok: true,
           message: 'Login exitoso',
           beneficiario_id: cred.beneficiario_id,
-          // En producción aquí autenticar con Supabase Auth
         }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
+        { status: 200, headers: corsHeaders }
       )
     }
 
-    return new Response('Method not allowed', { status: 405 })
+    // Método desconocido
+    return new Response(
+      JSON.stringify({ ok: false, error: `Método desconocido: ${method}` }),
+      { status: 400, headers: corsHeaders }
+    )
   } catch (error) {
     console.error('Function error:', error)
     return new Response(
       JSON.stringify({ ok: false, error: 'Error interno del servidor' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      { status: 500, headers: corsHeaders }
     )
   }
 })

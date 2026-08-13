@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-const sendgridApiKey = Deno.env.get('SENDGRID_API_KEY')
+const resendApiKey = Deno.env.get('RESEND_API_KEY')
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
@@ -17,7 +17,7 @@ const corsHeaders = {
  * Edge Function: send-setup-emails
  * 
  * Envía emails de activación de cuenta a beneficiarios
- * Integrado con SendGrid para envío masivo confiable
+ * Integrado con Resend para envío masivo confiable
  * 
  * Body esperado:
  * {
@@ -28,16 +28,16 @@ const corsHeaders = {
  * }
  */
 
-// Envía email individual de setup
+// Envía email individual de setup con Resend
 async function sendSetupEmail(beneficiarioId: string, beneficiarioData: any, setupToken: string) {
-  if (!sendgridApiKey) {
-    console.warn('⚠️ SENDGRID_API_KEY no configurada - no se enviará email')
-    return { ok: true, message: 'Email no enviado (SendGrid no configurado)' }
+  if (!resendApiKey) {
+    console.warn('⚠️ RESEND_API_KEY no configurada - no se enviará email')
+    return { ok: true, message: 'Email no enviado (Resend no configurado)' }
   }
 
   const setupLink = `https://focades-pro.vercel.app/beneficiario/auth-setup?token=${setupToken}`
   
-  const emailContent = `
+  const emailHtml = `
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -126,50 +126,43 @@ async function sendSetupEmail(beneficiarioId: string, beneficiarioData: any, set
 </html>
   `.trim()
 
-  const emailPayload = {
-    personalizations: [
-      {
-        to: [{ email: beneficiarioData.email, name: beneficiarioData.nombre_completo }],
-        subject: '🔐 Activa tu Acceso - Portal FOCADES',
-        custom_args: {
-          beneficiario_id: beneficiarioId,
-          setup_token_generated: new Date().toISOString(),
-        },
-      },
-    ],
-    from: {
-      email: 'activacion@focades.com',
-      name: 'FOCADES - Activación de Cuenta',
-    },
-    content: [
-      {
-        type: 'text/html',
-        value: emailContent,
-      },
-    ],
-    reply_to: {
-      email: 'soporte@focades.com',
-      name: 'Soporte FOCADES',
-    },
-  }
-
   try {
-    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+    const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${sendgridApiKey}`,
+        'Authorization': `Bearer ${resendApiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(emailPayload),
+      body: JSON.stringify({
+        from: 'Activación <activacion@focades.com>',
+        to: beneficiarioData.email,
+        subject: '🔐 Activa tu Acceso - Portal FOCADES',
+        html: emailHtml,
+        reply_to: 'soporte@focades.com',
+      }),
     })
 
     if (!response.ok) {
-      const error = await response.text()
-      console.error('SendGrid error:', error)
-      return { ok: false, error: `SendGrid error: ${response.status}` }
+      const error = await response.json()
+      console.error('Resend error:', error)
+      
+      // Registrar error en tabla
+      await supabase
+        .from('portal_beneficiarios_email_log')
+        .insert({
+          beneficiario_id: beneficiarioId,
+          email_type: 'setup-activation',
+          recipient_email: beneficiarioData.email,
+          status: 'failed',
+          error_message: `Resend API error: ${error.message}`,
+        })
+      
+      return { ok: false, error: `Resend error: ${response.status}` }
     }
 
-    // Registrar envío en tabla
+    const result = await response.json()
+
+    // Registrar envío exitoso en tabla
     await supabase
       .from('portal_beneficiarios_email_log')
       .insert({
@@ -177,12 +170,26 @@ async function sendSetupEmail(beneficiarioId: string, beneficiarioData: any, set
         email_type: 'setup-activation',
         recipient_email: beneficiarioData.email,
         status: 'sent',
+        sendgrid_message_id: result.id, // Resend retorna 'id'
         sent_at: new Date().toISOString(),
       })
 
-    return { ok: true, message: 'Email enviado exitosamente' }
+    console.log(`✅ Email enviado a ${beneficiarioData.email} (ID: ${result.id})`)
+    return { ok: true, message: 'Email enviado exitosamente', email_id: result.id }
   } catch (error) {
     console.error('Error sending email:', error)
+    
+    // Registrar error en tabla
+    await supabase
+      .from('portal_beneficiarios_email_log')
+      .insert({
+        beneficiario_id: beneficiarioId,
+        email_type: 'setup-activation',
+        recipient_email: beneficiarioData.email,
+        status: 'failed',
+        error_message: error.message,
+      })
+    
     return { ok: false, error: error.message }
   }
 }

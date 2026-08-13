@@ -217,7 +217,27 @@ export default function AdminImportBeneficiarios() {
       'ESTADO',
     ];
 
-    const csv = [headers.join(','), ''].join('\n');
+    // Fila de ejemplo
+    const exampleRow = [
+      'Juan Pérez García',
+      'CC',
+      '1234567890',
+      'MASCULINO',
+      'juan@example.com',
+      '3001234567',
+      'MÉRITO',
+      '2026-1',
+      'Colegio Municipal',
+      'Universidad Nacional',
+      'Ingeniería de Sistemas',
+      'PROFESIONAL',
+      'Bancolombia',
+      '4111111111',
+      'Ahorros',
+      'ACTIVO',
+    ];
+
+    const csv = [headers.join(','), exampleRow.join(','), ''].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -329,6 +349,29 @@ export default function AdminImportBeneficiarios() {
                       <li>• GENERO, TEL, COLEGIO</li>
                       <li>• UNIVERSIDAD, PROGRAMA</li>
                       <li>• BANCO, CUENTA_BANCO</li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Valores válidos para ESTADO y MODALIDAD */}
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                    <h4 className="font-semibold text-emerald-900 mb-2">✅ ESTADO válidos</h4>
+                    <ul className="text-sm text-emerald-800 space-y-1 font-mono">
+                      <li>• ACTIVO</li>
+                      <li>• SUSPENDIDO</li>
+                      <li>• RETIRADO</li>
+                      <li>• CONDONADO</li>
+                      <li>• EGRESADO</li>
+                    </ul>
+                  </div>
+
+                  <div className="bg-violet-50 border border-violet-200 rounded-xl p-4">
+                    <h4 className="font-semibold text-violet-900 mb-2">🎓 MODALIDAD válidas</h4>
+                    <ul className="text-sm text-violet-800 space-y-1 font-mono">
+                      <li>• MÉRITO</li>
+                      <li>• SUEÑOS</li>
+                      <li>(deja vacío si no aplica)</li>
                     </ul>
                   </div>
                 </div>

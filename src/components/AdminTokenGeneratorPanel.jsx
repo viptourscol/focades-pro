@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Mail, Zap, CheckCircle, AlertCircle, Loader, RefreshCw, ChevronDown } from 'lucide-react'
+import { Zap, AlertCircle, Loader, RefreshCw, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import Swal from 'sweetalert2'
 

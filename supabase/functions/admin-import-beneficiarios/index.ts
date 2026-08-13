@@ -71,7 +71,6 @@ async function importBeneficiarios(req: Request) {
         nombre_completo: record.NOMBRE.trim(),
         email: record.EMAIL.trim().toLowerCase(),
         telefono: record.TEL && record.TEL !== '#N/D' && record.TEL !== '' ? record.TEL.trim() : null,
-        estado_beneficiario: record.ESTADO === 'ACTIVO' ? 'ACTIVO' : 'INACTIVO',
         genero: record.GENERO && record.GENERO !== '#N/D' && record.GENERO !== '' ? record.GENERO.trim() : null,
         nombre_colegio: record.COLEGIO && record.COLEGIO !== '#N/D' && record.COLEGIO !== '' ? record.COLEGIO.trim() : null,
         nombre_universidad: record.UNIVERSIDAD && record.UNIVERSIDAD !== '#N/D' && record.UNIVERSIDAD !== '' ? record.UNIVERSIDAD.trim() : null,

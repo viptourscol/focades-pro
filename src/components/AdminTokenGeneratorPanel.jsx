@@ -109,7 +109,7 @@ export default function AdminTokenGeneratorPanel() {
 
     try {
       // Obtener beneficiarios sin tokens (o todos si includeExisting)
-      const query = supabase.from('portal_beneficiarios').select('id, nombre_completo, email').limit(batchSize)
+      const query = supabase.from('portal_beneficiarios').select('id, nombre_completo, email, n_documento').limit(batchSize)
 
       const { data: beneficiarios, error: queryError } = await query
 
@@ -159,6 +159,7 @@ export default function AdminTokenGeneratorPanel() {
             .from('portal_auth_credentials')
             .upsert({
               beneficiario_id: benef.id,
+              document_number: benef.n_documento,
               setup_token: setupToken,
               setup_token_expires_at: expiresAt,
             })

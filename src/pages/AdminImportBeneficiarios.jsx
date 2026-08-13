@@ -428,6 +428,20 @@ export default function AdminImportBeneficiarios() {
             {/* TAB: Results */}
             {activeTab === 'results' && report && (
               <div className="space-y-6">
+                {/* DEBUG INFO */}
+                {report.debug && (
+                  <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+                    <h4 className="font-semibold text-purple-900 mb-2">🔍 INFO DE DEBUG</h4>
+                    <div className="text-xs text-purple-800 space-y-2">
+                      <p><strong>Headers detectados:</strong> {report.debug.headers_detectados.join(', ')}</p>
+                      <p><strong>Primer registro:</strong></p>
+                      <pre className="bg-white p-2 rounded text-xs overflow-x-auto">
+                        {JSON.stringify(report.debug.primer_registro_recibido, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+
                 {/* Stats */}
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="bg-green-50 border border-green-200 rounded-xl p-6">

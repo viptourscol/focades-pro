@@ -159,6 +159,10 @@ async function importBeneficiarios(req: Request) {
     // 4. Generar reporte
     const report = {
       timestamp: new Date().toISOString(),
+      debug: {
+        primer_registro_recibido: records[0],
+        headers_detectados: records.length > 0 ? Object.keys(records[0]) : [],
+      },
       stats: {
         total_leidos: records.length,
         validos: validRecords.length,

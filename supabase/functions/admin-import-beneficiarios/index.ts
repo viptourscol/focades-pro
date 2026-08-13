@@ -140,18 +140,29 @@ async function importBeneficiarios(req: Request) {
     let imported = 0;
     let failed = 0;
     const BATCH_SIZE = 100;
+    const insertErrors = [];
 
     for (let i = 0; i < nuevos.length; i += BATCH_SIZE) {
       const batch = nuevos.slice(i, i + BATCH_SIZE);
+      console.log(`📦 Insertando lote ${Math.floor(i / BATCH_SIZE) + 1} con ${batch.length} registros...`);
+      console.log(`🔍 Primer registro del lote:`, JSON.stringify(batch[0]));
+
       const { error, data } = await supabase
         .from('portal_beneficiarios')
         .insert(batch)
         .select('id');
 
       if (error) {
-        console.error(`Error en lote ${Math.floor(i / BATCH_SIZE) + 1}:`, error.message);
+        console.error(`❌ Error en lote ${Math.floor(i / BATCH_SIZE) + 1}:`, error.message);
+        console.error(`📋 Detalles del error:`, JSON.stringify(error));
+        insertErrors.push({
+          lote: Math.floor(i / BATCH_SIZE) + 1,
+          error_message: error.message,
+          error_code: error.code,
+        });
         failed += batch.length;
       } else {
+        console.log(`✅ Lote ${Math.floor(i / BATCH_SIZE) + 1} insertado: ${data?.length || batch.length} registros`);
         imported += data?.length || batch.length;
       }
     }
@@ -162,6 +173,8 @@ async function importBeneficiarios(req: Request) {
       debug: {
         primer_registro_recibido: records[0],
         headers_detectados: records.length > 0 ? Object.keys(records[0]) : [],
+        primer_registro_validado: validRecords.length > 0 ? validRecords[0] : null,
+        insert_errors: insertErrors,
       },
       stats: {
         total_leidos: records.length,

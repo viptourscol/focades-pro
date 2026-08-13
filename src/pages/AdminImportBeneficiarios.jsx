@@ -434,10 +434,22 @@ export default function AdminImportBeneficiarios() {
                     <h4 className="font-semibold text-purple-900 mb-2">🔍 INFO DE DEBUG</h4>
                     <div className="text-xs text-purple-800 space-y-2">
                       <p><strong>Headers detectados:</strong> {report.debug.headers_detectados.join(', ')}</p>
-                      <p><strong>Primer registro:</strong></p>
+                      <p><strong>Primer registro recibido:</strong></p>
                       <pre className="bg-white p-2 rounded text-xs overflow-x-auto">
                         {JSON.stringify(report.debug.primer_registro_recibido, null, 2)}
                       </pre>
+                      <p><strong>Primer registro después de validación:</strong></p>
+                      <pre className="bg-white p-2 rounded text-xs overflow-x-auto">
+                        {JSON.stringify(report.debug.primer_registro_validado, null, 2)}
+                      </pre>
+                      {report.debug.insert_errors && report.debug.insert_errors.length > 0 && (
+                        <>
+                          <p><strong>❌ Errores de INSERT:</strong></p>
+                          <pre className="bg-red-100 p-2 rounded text-xs overflow-x-auto border border-red-300">
+                            {JSON.stringify(report.debug.insert_errors, null, 2)}
+                          </pre>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}

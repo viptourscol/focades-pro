@@ -24,17 +24,23 @@ export default function AdminImportBeneficiarios() {
   const [report, setReport] = useState(null);
   const [activeTab, setActiveTab] = useState('upload'); // 'upload' | 'preview' | 'results'
 
-  // Parse CSV manualmente (sin librerías externas)
+  // Parse CSV manualmente con soporte para comillas
   const parseCSV = (text) => {
     const lines = text.split('\n').filter(line => line.trim());
     if (lines.length === 0) return [];
 
-    const headers = lines[0].split(',').map(h => h.trim());
+    // Parsear header
+    const headerLine = lines[0];
+    const headers = parseCSVLine(headerLine);
+    
+    console.log('📋 Headers encontrados:', headers);
     const rows = [];
 
+    // Parsear datos
     for (let i = 1; i < lines.length; i++) {
-      // Simple CSV parsing (no maneja comillas complejas, pero sirve para la mayoría)
-      const values = lines[i].split(',').map(v => v.trim());
+      const values = parseCSVLine(lines[i]);
+      if (values.length === 0) continue; // Skip empty lines
+      
       const row = {};
       headers.forEach((header, idx) => {
         row[header] = values[idx] || '';
@@ -42,7 +48,40 @@ export default function AdminImportBeneficiarios() {
       rows.push(row);
     }
 
+    console.log(`✅ Parseadas ${rows.length} filas`);
     return rows;
+  };
+
+  // Helper para parsear línea CSV respetando comillas
+  const parseCSVLine = (line) => {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      const nextChar = line[i + 1];
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          current += '"';
+          i++; // Skip next quote
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+
+    if (current.trim()) {
+      result.push(current.trim());
+    }
+
+    return result;
   };
 
   const handleDragOver = e => {

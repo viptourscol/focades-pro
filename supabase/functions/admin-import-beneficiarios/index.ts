@@ -8,6 +8,21 @@ const corsHeaders = {
   'Content-Type': 'application/json',
 };
 
+// Normalizar estado_beneficiario desde CSV (puede venir en mayúsculas o variantes)
+function normalizeEstado(value: string): string {
+  if (!value) return 'activo'; // default
+  const normalized = String(value).trim().toLowerCase();
+  const validStates = ['activo', 'suspendido', 'retirado', 'condonado', 'egresado'];
+  if (validStates.includes(normalized)) return normalized;
+  // Si no es válido, intenta mapear similares
+  if (normalized.includes('activ')) return 'activo';
+  if (normalized.includes('suspend')) return 'suspendido';
+  if (normalized.includes('retir')) return 'retirado';
+  if (normalized.includes('condon')) return 'condonado';
+  if (normalized.includes('egres')) return 'egresado';
+  return 'activo'; // fallback
+}
+
 async function importBeneficiarios(req: Request) {
   // Manejar OPTIONS
   if (req.method === 'OPTIONS') {
@@ -71,6 +86,7 @@ async function importBeneficiarios(req: Request) {
         nombre_completo: record.NOMBRE.trim(),
         email: record.EMAIL.trim().toLowerCase(),
         telefono: record.TEL && record.TEL !== '#N/D' && record.TEL !== '' ? record.TEL.trim() : null,
+        estado_beneficiario: normalizeEstado(record.ESTADO),
         genero: record.GENERO && record.GENERO !== '#N/D' && record.GENERO !== '' ? record.GENERO.trim() : null,
         nombre_colegio: record.COLEGIO && record.COLEGIO !== '#N/D' && record.COLEGIO !== '' ? record.COLEGIO.trim() : null,
         nombre_universidad: record.UNIVERSIDAD && record.UNIVERSIDAD !== '#N/D' && record.UNIVERSIDAD !== '' ? record.UNIVERSIDAD.trim() : null,

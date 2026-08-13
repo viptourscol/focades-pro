@@ -109,38 +109,44 @@ export default function AdminTokenGeneratorPanel() {
 
     try {
       // Obtener beneficiarios sin tokens (o todos si includeExisting)
-      let query = supabase.from('portal_beneficiarios').select('id, nombre_completo, email')
+      const query = supabase.from('portal_beneficiarios').select('id, nombre_completo, email').limit(batchSize)
 
-      if (!includeExisting) {
-        // Usar NOT IN para excluir los que ya tienen credenciales
-        const { data: existingIds } = await supabase
+      const { data: beneficiarios, error: queryError } = await query
+
+      if (queryError) throw queryError
+
+      let filteredBeneficiarios = beneficiarios || []
+
+      if (!includeExisting && filteredBeneficiarios.length > 0) {
+        // Obtener IDs que ya tienen tokens
+        const { data: existingCreds } = await supabase
           .from('portal_auth_credentials')
           .select('beneficiario_id')
 
-        const existingIdList = existingIds?.map(r => r.beneficiario_id) || []
-        if (existingIdList.length > 0) {
-          query = query.not('id', 'in', `(${existingIdList.map(id => `'${id}'`).join(',')})`)
-        }
+        const existingIdSet = new Set(existingCreds?.map(r => r.beneficiario_id) || [])
+        
+        // Filtrar beneficiarios que no tengan tokens
+        filteredBeneficiarios = filteredBeneficiarios.filter(b => !existingIdSet.has(b.id))
       }
-
-      const { data: beneficiarios, error } = await query.limit(batchSize)
-
-      if (error) throw error
-      if (!beneficiarios || beneficiarios.length === 0) {
+        addLog('⚠️ No hay beneficiarios para procesar', 'warning')
+        setGenerating(false)
+        return
+      }
+      if (!filteredBeneficiarios || filteredBeneficiarios.length === 0) {
         addLog('⚠️ No hay beneficiarios para procesar', 'warning')
         setGenerating(false)
         return
       }
 
-      addLog(`📋 ${beneficiarios.length} beneficiarios encontrados`)
-      setProgress({ current: 0, total: beneficiarios.length, percentage: 0 })
+      addLog(`📋 ${filteredBeneficiarios.length} beneficiarios encontrados`)
+      setProgress({ current: 0, total: filteredBeneficiarios.length, percentage: 0 })
 
       let successCount = 0
       let errorCount = 0
 
       // Procesar cada beneficiario
-      for (let i = 0; i < beneficiarios.length; i++) {
-        const benef = beneficiarios[i]
+      for (let i = 0; i < filteredBeneficiarios.length; i++) {
+        const benef = filteredBeneficiarios[i]
         const index = i + 1
 
         try {
@@ -162,7 +168,7 @@ export default function AdminTokenGeneratorPanel() {
 
           if (insertError) throw insertError
 
-          addLog(`✅ [${index}/${beneficiarios.length}] Token generado: ${benef.nombre_completo}`)
+          addLog(`✅ [${index}/${filteredBeneficiarios.length}] Token generado: ${benef.nombre_completo}`)
           setGeneratedIds(prev => [...prev, benef.id])
           successCount++
 
@@ -190,10 +196,10 @@ export default function AdminTokenGeneratorPanel() {
           }
 
           // Actualizar progreso
-          const newProgress = Math.round((index / beneficiarios.length) * 100)
+          const newProgress = Math.round((index / filteredBeneficiarios.length) * 100)
           setProgress({ 
             current: index, 
-            total: beneficiarios.length, 
+            total: filteredBeneficiarios.length, 
             percentage: newProgress 
           })
 

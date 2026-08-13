@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Settings, LogOut, Bell, LifeBuoy, IdCard, ClipboardList, Menu, X, BarChart3, Calculator, FileText, CalendarClock, ShieldCheck, Search, ArrowUpRight, UploadCloud, UserPlus, HandCoins, FolderOpen, Database, ChevronDown, ChevronRight, Megaphone, HelpCircle } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, LogOut, Bell, LifeBuoy, IdCard, ClipboardList, Menu, X, BarChart3, Calculator, FileText, CalendarClock, ShieldCheck, Search, ArrowUpRight, UploadCloud, UserPlus, HandCoins, FolderOpen, Database, ChevronDown, ChevronRight, Megaphone, HelpCircle, Zap, Mail } from 'lucide-react';
 import { invokeAdminTickets } from '../lib/adminTickets';
 import { supabase } from '../lib/supabase';
 
@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { to: '/admin/actualizaciones', label: 'Actualizaciones', icon: <ClipboardList size={20} />, match: (path) => path.startsWith('/admin/actualizaciones') },
   { to: '/admin/condonaciones', label: 'Condonaciones', icon: <ShieldCheck size={20} />, match: (path) => path.startsWith('/admin/condonaciones') },
   { to: '/admin/resoluciones', label: 'Resoluciones', icon: <FileText size={20} />, match: (path) => path.startsWith('/admin/resoluciones') },
+  { to: '/admin/generador-tokens', label: 'Generar Tokens', icon: <Zap size={20} />, match: (path) => path.startsWith('/admin/generador-tokens') },
   { to: '/admin/aspirantes', label: 'Aspirantes', icon: <Users size={20} />, match: (path) => path === '/admin/aspirantes' },
   { to: '/admin/convocatorias', label: 'Convocatorias', icon: <Megaphone size={20} />, match: (path) => path.startsWith('/admin/convocatorias') },
   { to: '/admin/tickets', label: 'Tickets', icon: <LifeBuoy size={20} />, match: (path) => path === '/admin/tickets' },
@@ -22,6 +23,7 @@ const NAV_ITEMS = [
 const getPageMeta = (pathname) => {
   if (pathname.startsWith('/admin/beneficiarios/')) return { title: 'Ficha 360', subtitle: 'Perfil, pagos, trazabilidad y expediente del beneficiario.' };
   if (pathname.startsWith('/admin/beneficiarios')) return { title: 'Beneficiarios', subtitle: 'Vista maestra de estado, vinculación y seguimiento institucional.' };
+  if (pathname.startsWith('/admin/generador-tokens')) return { title: 'Generador de Tokens', subtitle: 'Genera tokens de setup y envía emails de activación a beneficiarios.' };
   if (pathname.startsWith('/admin/actualizaciones/ventanas')) return { title: 'Ventanas', subtitle: 'Calendario de actualización y control de periodos.' };
   if (pathname.startsWith('/admin/actualizaciones')) return { title: 'Actualizaciones', subtitle: 'Revisión documental y aprobación del ciclo académico.' };
   if (pathname.startsWith('/admin/historicos/importar')) return { title: 'Importar Beneficiarios', subtitle: 'Carga masiva de beneficiarios históricos por lote.' };

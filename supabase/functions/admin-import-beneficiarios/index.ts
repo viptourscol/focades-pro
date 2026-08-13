@@ -1,25 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0';
 
-/**
- * Supabase Edge Function: Importador de Beneficiarios
- * 
- * POST /functions/v1/admin-import-beneficiarios
- * 
- * Body:
- * {
- *   records: [
- *     { NOMBRE: "Juan", N_DOC: "1001409006", EMAIL: "juan@gmail.com", ... },
- *     ...
- *   ]
- * }
- * 
- * Realiza:
- * 1. Valida campos requeridos
- * 2. Detecta duplicados
- * 3. Inserta en lotes
- * 4. Retorna reporte
- */
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
@@ -29,15 +9,11 @@ const corsHeaders = {
 };
 
 async function importBeneficiarios(req: Request) {
-  // Manejar solicitudes OPTIONS (CORS preflight)
+  // Manejar OPTIONS
   if (req.method === 'OPTIONS') {
-    return new Response('OK', {
-      status: 200,
-      headers: corsHeaders,
-    });
+    return new Response('OK', { status: 200, headers: corsHeaders });
   }
 
-  // Validar método
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Método no permitido' }), {
       status: 405,
@@ -47,7 +23,6 @@ async function importBeneficiarios(req: Request) {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
   const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
@@ -61,9 +36,8 @@ async function importBeneficiarios(req: Request) {
     }
 
     console.log(`📂 Procesando ${records.length} registros...`);
-    console.log(`🔍 Primer registro:`, JSON.stringify(records[0]));
 
-    // 1. Validar registros
+    // Validar registros
     const validRecords = [];
     const errors = [];
 
@@ -86,7 +60,6 @@ async function importBeneficiarios(req: Request) {
         continue;
       }
 
-      // Limpiar científica notation
       let numeroCuenta = record.CUENTA_BANCO || '';
       if (numeroCuenta.includes('E+') || numeroCuenta.includes('e+')) {
         numeroCuenta = Math.floor(Number(numeroCuenta)).toString();
@@ -101,28 +74,20 @@ async function importBeneficiarios(req: Request) {
         estado_beneficiario: record.ESTADO === 'ACTIVO' ? 'ACTIVO' : 'INACTIVO',
         genero: record.GENERO && record.GENERO !== '#N/D' && record.GENERO !== '' ? record.GENERO.trim() : null,
         nombre_colegio: record.COLEGIO && record.COLEGIO !== '#N/D' && record.COLEGIO !== '' ? record.COLEGIO.trim() : null,
-        nombre_universidad:
-          record.UNIVERSIDAD && record.UNIVERSIDAD !== '#N/D' && record.UNIVERSIDAD !== '' ? record.UNIVERSIDAD.trim() : null,
-        programa_academico:
-          record.PROGRAMA && record.PROGRAMA !== '#N/D' && record.PROGRAMA !== '' ? record.PROGRAMA.trim() : null,
+        nombre_universidad: record.UNIVERSIDAD && record.UNIVERSIDAD !== '#N/D' && record.UNIVERSIDAD !== '' ? record.UNIVERSIDAD.trim() : null,
+        programa_academico: record.PROGRAMA && record.PROGRAMA !== '#N/D' && record.PROGRAMA !== '' ? record.PROGRAMA.trim() : null,
         tipo_educacion: record.TIPO_EDUCACION && record.TIPO_EDUCACION !== '' ? record.TIPO_EDUCACION.trim() : null,
         modalidad_beca: record.MODALIDAD && record.MODALIDAD !== '' ? record.MODALIDAD.trim() : null,
-        año_convocatoria:
-          record.CONVOCATORIA && record.CONVOCATORIA !== '#N/D' && record.CONVOCATORIA !== ''
-            ? parseInt(record.CONVOCATORIA)
-            : null,
+        año_convocatoria: record.CONVOCATORIA && record.CONVOCATORIA !== '#N/D' && record.CONVOCATORIA !== '' ? parseInt(record.CONVOCATORIA) : null,
         nombre_banco: record.BANCO && record.BANCO !== '#N/D' && record.BANCO !== '' ? record.BANCO.trim() : null,
         numero_cuenta: numeroCuenta || null,
-        tipo_cuenta_bancaria:
-          record.TIPO_CUENTA && record.TIPO_CUENTA !== '#N/D' && record.TIPO_CUENTA !== '' ? record.TIPO_CUENTA.trim() : null,
+        tipo_cuenta_bancaria: record.TIPO_CUENTA && record.TIPO_CUENTA !== '#N/D' && record.TIPO_CUENTA !== '' ? record.TIPO_CUENTA.trim() : null,
       });
     }
 
-    console.log(`✅ ${validRecords.length} registros válidos`);
-    console.log(`⚠️  ${errors.length} registros con errores`);
-    if (errors.length > 0) console.log(`🔍 Primeros errores:`, errors.slice(0, 3));
+    console.log(`✅ ${validRecords.length} válidos, ⚠️ ${errors.length} errores`);
 
-    // 2. Buscar duplicados
+    // Buscar duplicados
     const docNumbers = validRecords.map((r) => r.n_documento);
     const { data: existentes } = await supabase
       .from('portal_beneficiarios')
@@ -133,10 +98,9 @@ async function importBeneficiarios(req: Request) {
     const nuevos = validRecords.filter((r) => !existentesSet.has(r.n_documento));
     const duplicados = validRecords.filter((r) => existentesSet.has(r.n_documento));
 
-    console.log(`✅ ${nuevos.length} nuevos beneficiarios`);
-    console.log(`⏭️  ${duplicados.length} ya existen`);
+    console.log(`✅ ${nuevos.length} nuevos, ⏭️ ${duplicados.length} duplicados`);
 
-    // 3. Insertar en lotes
+    // Insertar en lotes
     let imported = 0;
     let failed = 0;
     const BATCH_SIZE = 100;
@@ -144,8 +108,8 @@ async function importBeneficiarios(req: Request) {
 
     for (let i = 0; i < nuevos.length; i += BATCH_SIZE) {
       const batch = nuevos.slice(i, i + BATCH_SIZE);
-      console.log(`📦 Insertando lote ${Math.floor(i / BATCH_SIZE) + 1} con ${batch.length} registros...`);
-      console.log(`🔍 Primer registro del lote:`, JSON.stringify(batch[0]));
+      const loteNum = Math.floor(i / BATCH_SIZE) + 1;
+      console.log(`📦 Lote ${loteNum}: insertando ${batch.length} registros...`);
 
       const { error, data } = await supabase
         .from('portal_beneficiarios')
@@ -153,21 +117,19 @@ async function importBeneficiarios(req: Request) {
         .select('id');
 
       if (error) {
-        console.error(`❌ Error en lote ${Math.floor(i / BATCH_SIZE) + 1}:`, error.message);
-        console.error(`📋 Detalles del error:`, JSON.stringify(error));
+        console.error(`❌ Lote ${loteNum} - Error:`, error.message);
         insertErrors.push({
-          lote: Math.floor(i / BATCH_SIZE) + 1,
+          lote: loteNum,
           error_message: error.message,
-          error_code: error.code,
+          error_code: error.code || 'UNKNOWN',
         });
         failed += batch.length;
       } else {
-        console.log(`✅ Lote ${Math.floor(i / BATCH_SIZE) + 1} insertado: ${data?.length || batch.length} registros`);
         imported += data?.length || batch.length;
+        console.log(`✅ Lote ${loteNum}: ${data?.length || batch.length} registros importados`);
       }
     }
 
-    // 4. Generar reporte
     const report = {
       timestamp: new Date().toISOString(),
       debug: {
@@ -196,11 +158,11 @@ async function importBeneficiarios(req: Request) {
       headers: corsHeaders,
     });
   } catch (error) {
-    console.error('Error fatal:', error);
-    return new Response(JSON.stringify({ error: error.message || 'Error interno' }), {
-      status: 500,
-      headers: corsHeaders,
-    });
+    console.error('❌ Error fatal:', error);
+    return new Response(
+      JSON.stringify({ error: error.message || 'Error interno del servidor' }),
+      { status: 500, headers: corsHeaders }
+    );
   }
 }
 

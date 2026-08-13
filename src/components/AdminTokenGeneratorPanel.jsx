@@ -128,10 +128,7 @@ export default function AdminTokenGeneratorPanel() {
         // Filtrar beneficiarios que no tengan tokens
         filteredBeneficiarios = filteredBeneficiarios.filter(b => !existingIdSet.has(b.id))
       }
-        addLog('⚠️ No hay beneficiarios para procesar', 'warning')
-        setGenerating(false)
-        return
-      }
+
       if (!filteredBeneficiarios || filteredBeneficiarios.length === 0) {
         addLog('⚠️ No hay beneficiarios para procesar', 'warning')
         setGenerating(false)

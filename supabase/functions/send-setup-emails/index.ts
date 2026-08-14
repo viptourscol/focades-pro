@@ -72,7 +72,7 @@ async function sendSetupEmail(beneficiarioId: string, beneficiarioData: any, set
     </div>
     
     <div class="body">
-      <p>¡Hola <strong>${beneficiarioData.nombre_completo}</strong>!</p>
+      <p>¡Hola <strong>${beneficiarioData.nombre_completo || 'Beneficiario'}</strong>!</p>
       
       <p>Bienvenido al Portal de Beneficiarios FOCADES. Tu cuenta ha sido creada y está lista para activarse.</p>
       
@@ -133,6 +133,8 @@ async function sendSetupEmail(beneficiarioId: string, beneficiarioData: any, set
   `.trim()
 
   try {
+    console.log(`📧 Enviando email a: ${beneficiarioData.email}`)
+    
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -148,11 +150,55 @@ async function sendSetupEmail(beneficiarioId: string, beneficiarioData: any, set
       }),
     })
 
+    console.log(`Resend response status: ${response.status}`)
+
     if (!response.ok) {
-      const error = await response.json()
-      console.error('Resend error:', error)
+      const errorData = await response.json()
+      console.error('❌ Resend error:', errorData)
       
-      // Registrar error en tabla
+      // Intentar registrar error (pero no fallar si falla)
+      try {
+        await supabase
+          .from('portal_beneficiarios_email_log')
+          .insert({
+            beneficiario_id: beneficiarioId,
+            email_type: 'setup-activation',
+            recipient_email: beneficiarioData.email,
+            status: 'failed',
+            error_message: `Resend API error: ${errorData.message || JSON.stringify(errorData)}`,
+          })
+      } catch (logError) {
+        console.warn('⚠️ No se pudo registrar error en BD:', logError)
+      }
+      
+      return { ok: false, error: `Email no enviado: ${response.status}` }
+    }
+
+    const result = await response.json()
+    console.log(`✅ Email enviado exitosamente. ID: ${result.id}`)
+
+    // Intentar registrar envío exitoso (pero no fallar si falla)
+    try {
+      await supabase
+        .from('portal_beneficiarios_email_log')
+        .insert({
+          beneficiario_id: beneficiarioId,
+          email_type: 'setup-activation',
+          recipient_email: beneficiarioData.email,
+          status: 'sent',
+          sendgrid_message_id: result.id,
+          sent_at: new Date().toISOString(),
+        })
+    } catch (logError) {
+      console.warn('⚠️ No se pudo registrar envío en BD:', logError)
+    }
+
+    return { ok: true, message: 'Email enviado exitosamente', email_id: result.id }
+  } catch (error) {
+    console.error('❌ Error enviando email:', error)
+    
+    // Intentar registrar error (pero no fallar si falla)
+    try {
       await supabase
         .from('portal_beneficiarios_email_log')
         .insert({
@@ -160,43 +206,13 @@ async function sendSetupEmail(beneficiarioId: string, beneficiarioData: any, set
           email_type: 'setup-activation',
           recipient_email: beneficiarioData.email,
           status: 'failed',
-          error_message: `Resend API error: ${error.message}`,
+          error_message: error instanceof Error ? error.message : String(error),
         })
-      
-      return { ok: false, error: `Resend error: ${response.status}` }
+    } catch (logError) {
+      console.warn('⚠️ No se pudo registrar error en BD:', logError)
     }
-
-    const result = await response.json()
-
-    // Registrar envío exitoso en tabla
-    await supabase
-      .from('portal_beneficiarios_email_log')
-      .insert({
-        beneficiario_id: beneficiarioId,
-        email_type: 'setup-activation',
-        recipient_email: beneficiarioData.email,
-        status: 'sent',
-        sendgrid_message_id: result.id, // Resend retorna 'id'
-        sent_at: new Date().toISOString(),
-      })
-
-    console.log(`✅ Email enviado a ${beneficiarioData.email} (ID: ${result.id})`)
-    return { ok: true, message: 'Email enviado exitosamente', email_id: result.id }
-  } catch (error) {
-    console.error('Error sending email:', error)
     
-    // Registrar error en tabla
-    await supabase
-      .from('portal_beneficiarios_email_log')
-      .insert({
-        beneficiario_id: beneficiarioId,
-        email_type: 'setup-activation',
-        recipient_email: beneficiarioData.email,
-        status: 'failed',
-        error_message: error.message,
-      })
-    
-    return { ok: false, error: error.message }
+    return { ok: false, error: error instanceof Error ? error.message : 'Error desconocido' }
   }
 }
 
@@ -307,51 +323,84 @@ Deno.serve(async (req) => {
         )
       }
 
+      console.log(`📨 Procesando email para beneficiario ${beneficiario_id}`)
+
       let benef = { id: beneficiario_id, email, nombre_completo }
       
       // Si no se pasó email/nombre, intenta obtenerlo de la BD
       if (!email || !nombre_completo) {
         console.log('📖 Buscando datos del beneficiario en BD...')
-        const { data: dbBenef, error: benefError } = await supabase
-          .from('portal_beneficiarios')
-          .select('id, nombre_completo, email')
-          .eq('id', beneficiario_id)
-          .single()
+        try {
+          const { data: dbBenef, error: benefError } = await supabase
+            .from('portal_beneficiarios')
+            .select('id, nombre_completo, email')
+            .eq('id', beneficiario_id)
+            .single()
 
-        if (benefError) {
-          console.error('Error buscando beneficiario:', benefError)
-          return new Response(
-            JSON.stringify({ ok: false, error: `Beneficiario no encontrado: ${benefError.message}` }),
-            { status: 404, headers: corsHeaders }
-          )
+          if (benefError) {
+            console.error('Error buscando beneficiario:', benefError)
+            return new Response(
+              JSON.stringify({ ok: false, error: `Beneficiario no encontrado: ${benefError.message}` }),
+              { status: 404, headers: corsHeaders }
+            )
+          }
+          
+          if (!dbBenef) {
+            return new Response(
+              JSON.stringify({ ok: false, error: 'Beneficiario no encontrado en BD' }),
+              { status: 404, headers: corsHeaders }
+            )
+          }
+          
+          benef = dbBenef
+        } catch (queryError) {
+          console.error('❌ Error en query beneficiario:', queryError)
+          // Si la query falla pero tenemos al menos el ID, continuamos
+          if (!email) {
+            return new Response(
+              JSON.stringify({ ok: false, error: 'No se puede obtener datos del beneficiario' }),
+              { status: 400, headers: corsHeaders }
+            )
+          }
         }
-        
-        if (!dbBenef) {
-          return new Response(
-            JSON.stringify({ ok: false, error: 'Beneficiario no encontrado en BD' }),
-            { status: 404, headers: corsHeaders }
-          )
-        }
-        
-        benef = dbBenef
       }
 
-      // Obtener setup token
-      const { data: cred, error: credError } = await supabase
-        .from('portal_auth_credentials')
-        .select('setup_token')
-        .eq('beneficiario_id', beneficiario_id)
-        .single()
+      console.log(`📧 Enviando email a: ${benef.email}`)
 
-      if (credError || !cred?.setup_token) {
-        console.error('Error obteniendo token:', credError)
+      // Obtener setup token
+      let setupToken = null
+      try {
+        const { data: cred, error: credError } = await supabase
+          .from('portal_auth_credentials')
+          .select('setup_token')
+          .eq('beneficiario_id', beneficiario_id)
+          .single()
+
+        if (credError) {
+          console.error('Error obteniendo token:', credError)
+          return new Response(
+            JSON.stringify({ ok: false, error: `Setup token no encontrado: ${credError.message}` }),
+            { status: 404, headers: corsHeaders }
+          )
+        }
+
+        setupToken = cred?.setup_token
+      } catch (queryError) {
+        console.error('❌ Error en query token:', queryError)
         return new Response(
-          JSON.stringify({ ok: false, error: `Setup token no encontrado: ${credError?.message || 'desconocido'}` }),
+          JSON.stringify({ ok: false, error: 'No se puede obtener el token' }),
+          { status: 400, headers: corsHeaders }
+        )
+      }
+
+      if (!setupToken) {
+        return new Response(
+          JSON.stringify({ ok: false, error: 'Setup token vacío' }),
           { status: 404, headers: corsHeaders }
         )
       }
 
-      const result = await sendSetupEmail(beneficiario_id, benef, cred.setup_token)
+      const result = await sendSetupEmail(beneficiario_id, benef, setupToken)
       return new Response(JSON.stringify(result), {
         status: result.ok ? 200 : 500,
         headers: corsHeaders,

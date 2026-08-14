@@ -88,6 +88,16 @@ const BeneficiarioLogin = () => {
       ]);
 
       if (!mounted) return;
+      
+      // Si no tiene acceso y acabamos de procesar un login con Google, mostrar error
+      if (!access.ok && authCode && access.reason === 'NOT_LINKED') {
+        const { data: { user } } = await supabase.auth.getUser();
+        await showErrorAlert({
+          title: 'Email no registrado',
+          text: `Tu email (${user?.email || 'desconocido'}) no está registrado como beneficiario. Solo beneficiarios autorizados por FOCADES pueden acceder.`,
+        });
+      }
+      
       setHasPortalAccess(access.ok);
       setCheckingAccess(false);
       setNews(Array.isArray(newsData) ? newsData : []);

@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import * as bcrypt from 'https://deno.land/x/bcrypt@v0.4.1/mod.ts'
+import bcrypt from 'https://esm.sh/bcryptjs@2.4.3'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -15,7 +15,8 @@ async function hashPassword(password: string): Promise<string> {
   if (password.length < 8) {
     throw new Error('Contraseña debe tener al menos 8 caracteres')
   }
-  return await bcrypt.hash(password)
+  const saltRounds = 10
+  return await bcrypt.hash(password, saltRounds)
 }
 
 // Verifica contraseña

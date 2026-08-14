@@ -47,20 +47,42 @@ const BeneficiarioLayout = () => {
 
     const loadUnreadNotifications = async () => {
       try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const userId = sessionData?.session?.user?.id;
-        if (!userId) {
-          if (mounted) setUnreadNotifications(0);
-          return;
+        // Primero intentar obtener beneficiario_id desde localStorage (login con documento)
+        let beneficiarioId = null;
+        try {
+          const sessionStr = localStorage.getItem('focades:beneficiario-session');
+          if (sessionStr) {
+            const documentSession = JSON.parse(sessionStr);
+            const sessionTime = new Date(documentSession.timestamp).getTime();
+            const maxAge = 24 * 60 * 60 * 1000;
+            
+            if (Date.now() - sessionTime <= maxAge && documentSession.beneficiario_id) {
+              beneficiarioId = documentSession.beneficiario_id;
+            }
+          }
+        } catch (error) {
+          console.error('Error leyendo sesión de localStorage:', error);
         }
 
-        const { data: profileData } = await supabase
-          .from('portal_beneficiarios')
-          .select('id')
-          .eq('auth_user_id', userId)
-          .maybeSingle();
+        // Si no hay beneficiario_id en localStorage, buscar con Supabase Auth
+        if (!beneficiarioId) {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const userId = sessionData?.session?.user?.id;
+          if (!userId) {
+            if (mounted) setUnreadNotifications(0);
+            return;
+          }
 
-        if (!profileData?.id) {
+          const { data: profileData } = await supabase
+            .from('portal_beneficiarios')
+            .select('id')
+            .eq('auth_user_id', userId)
+            .maybeSingle();
+
+          beneficiarioId = profileData?.id;
+        }
+
+        if (!beneficiarioId) {
           if (mounted) setUnreadNotifications(0);
           return;
         }
@@ -68,7 +90,7 @@ const BeneficiarioLayout = () => {
         const { count } = await supabase
           .from('portal_notificaciones_beneficiarios')
           .select('id', { count: 'exact', head: true })
-          .eq('beneficiario_id', profileData.id)
+          .eq('beneficiario_id', beneficiarioId)
           .eq('leida', false);
 
         if (mounted) {

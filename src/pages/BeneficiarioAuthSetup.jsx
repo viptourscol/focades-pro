@@ -32,6 +32,8 @@ const BeneficiarioAuthSetup = () => {
   const [setupCompleted, setSetupCompleted] = useState(false);
   const [redirectToDashboard, setRedirectToDashboard] = useState(false);
   const [errors, setErrors] = useState({});
+  const [establecimientos, setEstablecimientos] = useState([]);
+  const [bancos, setBancos] = useState([]);
 
   useEffect(() => {
     // Verificar si viene de un link de setup
@@ -41,7 +43,36 @@ const BeneficiarioAuthSetup = () => {
       setFormData(prev => ({ ...prev, setupToken: token }));
       setStep(3);
     }
+
+    // Cargar catálogos
+    loadCatalogos();
   }, []);
+
+  const loadCatalogos = async () => {
+    try {
+      // Cargar establecimientos
+      const { data: estabs, error: estabError } = await supabase
+        .from('vw_catalog_establecimientos')
+        .select('nombre')
+        .order('nombre');
+      
+      if (!estabError && estabs) {
+        setEstablecimientos(estabs.map(e => e.nombre));
+      }
+
+      // Cargar bancos
+      const { data: banksData, error: banksError } = await supabase
+        .from('catalog_bancos')
+        .select('nombre')
+        .order('nombre');
+      
+      if (!banksError && banksData) {
+        setBancos(banksData.map(b => b.nombre));
+      }
+    } catch (error) {
+      console.error('Error cargando catálogos:', error);
+    }
+  };
 
   // Validar perfil (pasos 4-6)
   const validatePerfil = (stepNum) => {
@@ -182,6 +213,11 @@ const BeneficiarioAuthSetup = () => {
           text: result.data?.error || 'No se pudo establecer la contraseña.',
         });
         return;
+      }
+
+      // Guardar beneficiario_id desde la respuesta
+      if (result.data?.beneficiario_id) {
+        setBeneficiarioId(result.data.beneficiario_id);
       }
 
       // Pre-llenar datos del perfil que ya existen
@@ -610,13 +646,16 @@ const BeneficiarioAuthSetup = () => {
                       <BookOpen size={16} className="inline mr-2" />
                       Colegio/Instituto
                     </label>
-                    <input
-                      type="text"
-                      placeholder="Nombre de tu institución anterior"
+                    <select
                       value={formData.nombre_colegio}
                       onChange={e => setFormData({ ...formData, nombre_colegio: e.target.value })}
                       className="w-full px-4 py-2 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-secondary"
-                    />
+                    >
+                      <option value="">Selecciona tu institución...</option>
+                      {establecimientos.map(est => (
+                        <option key={est} value={est}>{est}</option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>
@@ -712,17 +751,9 @@ const BeneficiarioAuthSetup = () => {
                       }`}
                     >
                       <option value="">Selecciona tu banco...</option>
-                      <option value="BANCOLOMBIA">Bancolombia</option>
-                      <option value="BANCO BOGOTA">Banco de Bogotá</option>
-                      <option value="DAVIVIENDA">Davivienda</option>
-                      <option value="BANCO OCCIDENTE">Banco de Occidente</option>
-                      <option value="BANCARISARALDA">Bancarisaralda</option>
-                      <option value="BANCO CAJA SOCIAL">Banco Caja Social</option>
-                      <option value="BANCAFAMILIA">Bancafamilia</option>
-                      <option value="BANCO PATRIMONIAL">Banco Patrimonial</option>
-                      <option value="BANCO PICHINCHA">Banco Pichincha</option>
-                      <option value="CITIBANK">Citibank</option>
-                      <option value="OTROS">Otros</option>
+                      {bancos.map(banco => (
+                        <option key={banco} value={banco}>{banco}</option>
+                      ))}
                     </select>
                     {errors.nombre_banco && <p className="text-xs text-red-500 mt-1">{errors.nombre_banco}</p>}
                   </div>

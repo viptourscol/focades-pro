@@ -212,6 +212,7 @@ Deno.serve(async (req) => {
         JSON.stringify({
           ok: true,
           message: 'Contraseña establecida exitosamente. Ya puedes iniciar sesión.',
+          beneficiario_id: cred.beneficiario_id,
         }),
         { status: 200, headers: corsHeaders }
       )

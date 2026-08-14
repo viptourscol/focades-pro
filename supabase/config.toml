@@ -27,3 +27,6 @@ verify_jwt = false
 
 [functions.beneficiary-support-tickets]
 verify_jwt = false
+
+[functions.auth-credentials]
+verify_jwt = false

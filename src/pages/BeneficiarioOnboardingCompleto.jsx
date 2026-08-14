@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { showErrorAlert, showSuccessAlert } from '../lib/alerts';
+import SignatureCanvas from 'react-signature-canvas';
 import { 
   ChevronRight, ChevronLeft, Lock, User, Home, BookOpen, 
   DollarSign, FileText, Check, X, Eye, EyeOff, AlertCircle,
-  Users, GraduationCap, Briefcase, Upload, PenTool, Shield
+  Users, GraduationCap, Briefcase, Upload, PenTool, Shield, CheckCircle, Trash2
 } from 'lucide-react';
 
 // Componente auxiliar para validaciones de contraseña
@@ -29,6 +30,11 @@ const BeneficiarioOnboardingCompleto = () => {
   const [redirectToDashboard, setRedirectToDashboard] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
+  
+  // Estados para documentos y firma
+  const [uploadedDocs, setUploadedDocs] = useState({});
+  const [uploadingDoc, setUploadingDoc] = useState(null);
+  const signatureRef = useRef(null);
   
   const [formData, setFormData] = useState({
     // Paso 1-3: Autenticación (ya manejado en BeneficiarioAuthSetup)
@@ -85,17 +91,17 @@ const BeneficiarioOnboardingCompleto = () => {
     modalidad: '',
     promedio_anterior: '',
     
-    // Paso 8: Información de beca
+    // Datos de beca (pre-cargados por admin, no editables en este flujo)
     modalidad_beca: '',
     año_convocatoria: new Date().getFullYear(),
-    
-    // Paso 9: Información bancaria
+
+    // Paso 8: Información bancaria (antes era paso 9)
     nombre_banco: '',
     tipo_cuenta_bancaria: 'AHORROS',
     numero_cuenta: '',
     numero_cuenta_confirm: '',
-    
-    // Paso 10: Documentos (archivos)
+
+    // Paso 9: Documentos (antes era paso 10)(archivos)
     documentos: {
       documento_identidad: null,
       acta_grado: null,
@@ -108,7 +114,7 @@ const BeneficiarioOnboardingCompleto = () => {
       certificado_bancario: null,
     },
     
-    // Paso 11: Términos y firma
+    // Paso 10: Términos y firma (antes era paso 11)
     acepta_terminos: false,
     acepta_datos: false,
     firma_digital: null,
@@ -133,7 +139,7 @@ const BeneficiarioOnboardingCompleto = () => {
     passwordsMatch: formData.password && formData.password === formData.passwordConfirm,
   };
 
-  const TOTAL_STEPS = 12;
+  const TOTAL_STEPS = 11; // Eliminamos paso 8 (info beca) ya que admin ya tiene esos datos
 
   useEffect(() => {
     // Cargar catálogos
@@ -254,12 +260,7 @@ const BeneficiarioOnboardingCompleto = () => {
         if (!formData.modalidad) newErrors.modalidad = 'Campo requerido';
         break;
 
-      case 8: // Información de beca
-        if (!formData.modalidad_beca) newErrors.modalidad_beca = 'Campo requerido';
-        if (!formData.año_convocatoria) newErrors.año_convocatoria = 'Campo requerido';
-        break;
-
-      case 9: // Información bancaria
+      case 8: // Información bancaria (antes era paso 9)
         if (!formData.nombre_banco) newErrors.nombre_banco = 'Campo requerido';
         if (!formData.numero_cuenta) newErrors.numero_cuenta = 'Campo requerido';
         if (!formData.numero_cuenta_confirm) newErrors.numero_cuenta_confirm = 'Campo requerido';
@@ -268,29 +269,29 @@ const BeneficiarioOnboardingCompleto = () => {
         }
         break;
 
-      case 10: // Documentos
+      case 9: // Documentos (antes era paso 10)
         const requiredDocs = ['documento_identidad', 'acta_grado', 'diploma', 
                               'pruebas_saber', 'cert_matricula', 'cert_notas', 
                               'certificado_bancario'];
         requiredDocs.forEach(doc => {
-          if (!formData.documentos[doc]) {
+          if (!uploadedDocs[doc]) {
             newErrors[doc] = 'Documento requerido';
           }
         });
         
         // Documentos condicionales
-        if (formData.sisben_grupo && formData.sisben_grupo !== 'NO_APLICA' && !formData.documentos.ficha_sisben) {
+        if (formData.sisben_grupo && formData.sisben_grupo !== 'NO_APLICA' && !uploadedDocs.ficha_sisben) {
           newErrors.ficha_sisben = 'Ficha SISBEN requerida';
         }
-        if (formData.enfoque_diferencial && formData.enfoque_diferencial !== 'NINGUNO' && !formData.documentos.cert_enfoque) {
+        if (formData.enfoque_diferencial && formData.enfoque_diferencial !== 'NINGUNO' && !uploadedDocs.cert_enfoque) {
           newErrors.cert_enfoque = 'Certificado de enfoque diferencial requerido';
         }
         break;
 
-      case 11: // Términos y firma
+      case 10: // Términos y firma (antes era paso 11)
         if (!formData.acepta_terminos) newErrors.acepta_terminos = 'Debes aceptar los términos';
         if (!formData.acepta_datos) newErrors.acepta_datos = 'Debes aceptar el tratamiento de datos';
-        // firma_digital es opcional por ahora hasta implementar canvas
+        if (!formData.firma_digital) newErrors.firma_digital = 'Debes firmar digitalmente';
         break;
     }
 
@@ -328,9 +329,52 @@ const BeneficiarioOnboardingCompleto = () => {
           setFormData(prev => ({ ...prev, setupToken: result.data.setup_token }));
         }
 
+        // Pre-cargar datos existentes del beneficiario
+        if (result.data.beneficiario) {
+          const benef = result.data.beneficiario;
+          setFormData(prev => ({
+            ...prev,
+            // Datos ya cargados por el admin
+            genero: benef.genero || '',
+            telefono: benef.telefono || '',
+            direccion_residencia: benef.direccion_residencia || '',
+            fecha_nacimiento: benef.fecha_nacimiento || '',
+            barrio_corregimiento: benef.barrio_corregimiento || '',
+            dpto_residencia: benef.dpto_residencia || '',
+            municipio_residencia: benef.municipio_residencia || '',
+            zona_residencia: benef.zona_residencia || '',
+            pais_nacimiento: benef.pais_nacimiento || 'COLOMBIA',
+            dpto_nacimiento: benef.dpto_nacimiento || '',
+            municipio_nacimiento: benef.municipio_nacimiento || '',
+            sisben_grupo: benef.sisben_grupo || '',
+            recibe_subsidio: benef.recibe_subsidio || '',
+            cual_subsidio: benef.cual_subsidio || '',
+            enfoque_diferencial: benef.enfoque_diferencial || 'NINGUNO',
+            labora_actualmente: benef.labora_actualmente || '',
+            titulo_obtenido: benef.titulo_obtenido || '',
+            ano_graduacion: benef.ano_graduacion || '',
+            establecimiento_educativo: benef.establecimiento_educativo || '',
+            puntaje_icfes: benef.puntaje_icfes || '',
+            municipio_establecimiento: benef.municipio_establecimiento || '',
+            institucion_superior: benef.institucion_superior || '',
+            programa_academico: benef.programa_academico || '',
+            tipo_educacion: benef.tipo_educacion || 'PROFESIONAL',
+            semestre_ingreso: benef.semestre_ingreso || '',
+            semestre_actual: benef.semestre_actual || '',
+            ciudad_institucion: benef.ciudad_institucion || '',
+            modalidad: benef.modalidad || '',
+            promedio_anterior: benef.promedio_anterior || '',
+            modalidad_beca: benef.modalidad_beca || '',
+            año_convocatoria: benef.año_convocatoria || new Date().getFullYear(),
+            nombre_banco: benef.nombre_banco || '',
+            tipo_cuenta_bancaria: benef.tipo_cuenta_bancaria || 'AHORROS',
+            numero_cuenta: benef.numero_cuenta || '',
+          }));
+        }
+
         await showSuccessAlert({
           title: '¡Documento verificado!',
-          text: 'Continúa con el siguiente paso',
+          text: 'Hemos cargado tu información. Verifica y completa los datos faltantes.',
         });
       }
 
@@ -360,8 +404,8 @@ const BeneficiarioOnboardingCompleto = () => {
         });
       }
 
-      // Pasos 4-9: Guardar progreso en el backend
-      if (beneficiarioId && currentStep >= 4 && currentStep <= 9) {
+      // Pasos 4-8: Guardar progreso en el backend (antes era 4-9)
+      if (beneficiarioId && currentStep >= 4 && currentStep <= 8) {
         await updateProfile();
       }
 
@@ -449,21 +493,58 @@ const BeneficiarioOnboardingCompleto = () => {
   };
 
   const handleComplete = async () => {
-    if (!validateStep(11)) {
+    if (!validateStep(10)) { // Ahora es paso 10 (antes era 11)
       return;
     }
 
-    // Marcar firma digital como completada (placeholder hasta implementar canvas)
-    if (!formData.firma_digital) {
-      setFormData(prev => ({ ...prev, firma_digital: 'firma_placeholder' }));
+    // Validar y guardar firma antes de completar
+    if (!handleSaveSignature()) {
+      return;
     }
 
     setLoading(true);
     try {
-      // Actualizar perfil final
+      // 1. Subir firma digital a Storage
+      if (formData.firma_digital) {
+        const blob = await fetch(formData.firma_digital).then(res => res.blob());
+        const timestamp = Date.now();
+        const bucketPath = `beneficiarios_historicos/${beneficiarioId}/firma-digital-${timestamp}.png`;
+        const dbPath = `soportes/${bucketPath}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('soportes')
+          .upload(bucketPath, blob, {
+            contentType: 'image/png',
+            upsert: false,
+          });
+
+        if (uploadError) {
+          throw new Error(`Error al subir firma: ${uploadError.message}`);
+        }
+
+        // 2. Registrar firma en tabla de documentos
+        const { error: dbError } = await supabase
+          .from('portal_beneficiario_documentos_historicos')
+          .insert({
+            beneficiario_id: beneficiarioId,
+            titulo: 'Firma digital del beneficiario',
+            tipo_documento: 'firma_digital',
+            estado: 'cargado',
+            storage_bucket: 'soportes',
+            storage_path: dbPath,
+            archivo_mime_type: 'image/png',
+            archivo_size_bytes: blob.size,
+          });
+
+        if (dbError) {
+          throw new Error(`Error al registrar firma: ${dbError.message}`);
+        }
+      }
+
+      // 3. Actualizar perfil final
       await updateProfile();
 
-      // Marcar onboarding como completado
+      // 4. Marcar onboarding como completado
       const result = await supabase.functions.invoke('auth-credentials', {
         body: {
           method: 'complete-onboarding',
@@ -477,7 +558,7 @@ const BeneficiarioOnboardingCompleto = () => {
         throw new Error(result.data?.error || 'Error completando onboarding');
       }
 
-      // Limpiar progreso guardado
+      // 5. Limpiar progreso guardado
       localStorage.removeItem('focades:onboarding-progress');
 
       await showSuccessAlert({
@@ -486,7 +567,7 @@ const BeneficiarioOnboardingCompleto = () => {
       });
 
       // Avanzar al paso final (resumen)
-      setCurrentStep(12);
+      setCurrentStep(11); // Ahora es paso 11 (antes era 12)
     } catch (error) {
       console.error('Error completando onboarding:', error);
       await showErrorAlert({
@@ -496,6 +577,137 @@ const BeneficiarioOnboardingCompleto = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ========== FUNCIONES DE MANEJO DE DOCUMENTOS ==========
+  const handleUploadDocument = async (tipoDoc, file) => {
+    if (!file || !beneficiarioId) return;
+
+    // Validar tipo de archivo
+    if (file.type !== 'application/pdf') {
+      await showErrorAlert({
+        title: 'Formato inválido',
+        text: 'Solo se permiten archivos PDF',
+      });
+      return;
+    }
+
+    // Validar tamaño (máximo 10MB)
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      await showErrorAlert({
+        title: 'Archivo muy grande',
+        text: 'El archivo no debe superar los 10MB',
+      });
+      return;
+    }
+
+    setUploadingDoc(tipoDoc);
+    try {
+      // Subir a Storage
+      const timestamp = Date.now();
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const bucketPath = `beneficiarios_historicos/${beneficiarioId}/documentos/${tipoDoc}-${timestamp}.pdf`;
+      const dbPath = `soportes/${bucketPath}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('soportes')
+        .upload(bucketPath, file, {
+          contentType: 'application/pdf',
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw new Error(`Error al subir archivo: ${uploadError.message}`);
+      }
+
+      // Registrar en tabla de documentos
+      const { error: dbError } = await supabase
+        .from('portal_beneficiario_documentos_historicos')
+        .insert({
+          beneficiario_id: beneficiarioId,
+          titulo: getDocumentTitle(tipoDoc),
+          tipo_documento: tipoDoc,
+          estado: 'cargado',
+          storage_bucket: 'soportes',
+          storage_path: dbPath,
+          archivo_mime_type: 'application/pdf',
+          archivo_size_bytes: file.size,
+        });
+
+      if (dbError) {
+        throw new Error(`Error al registrar documento: ${dbError.message}`);
+      }
+
+      // Actualizar estado local
+      setUploadedDocs(prev => ({
+        ...prev,
+        [tipoDoc]: {
+          nombre: file.name,
+          size: file.size,
+          path: dbPath,
+        },
+      }));
+
+      await showSuccessAlert({
+        title: 'Documento subido',
+        text: `${getDocumentTitle(tipoDoc)} cargado exitosamente`,
+        timer: 1500,
+      });
+    } catch (error) {
+      console.error('Error subiendo documento:', error);
+      await showErrorAlert({
+        title: 'Error',
+        text: error.message || 'No se pudo subir el documento',
+      });
+    } finally {
+      setUploadingDoc(null);
+    }
+  };
+
+  const getDocumentTitle = (tipo) => {
+    const titles = {
+      documento_identidad: 'Documento de Identidad',
+      acta_grado: 'Acta de Grado',
+      diploma: 'Diploma de Bachiller',
+      pruebas_saber: 'Resultados Pruebas Saber 11',
+      cert_matricula: 'Certificado de Matrícula',
+      cert_notas: 'Certificado de Notas',
+      certificado_bancario: 'Certificado Bancario',
+      ficha_sisben: 'Ficha SISBEN',
+      cert_enfoque: 'Certificado de Enfoque Diferencial',
+    };
+    return titles[tipo] || tipo;
+  };
+
+  const handleRemoveDocument = (tipoDoc) => {
+    setUploadedDocs(prev => {
+      const updated = { ...prev };
+      delete updated[tipoDoc];
+      return updated;
+    });
+  };
+
+  const handleSaveSignature = () => {
+    if (!signatureRef.current || signatureRef.current.isEmpty()) {
+      showErrorAlert({
+        title: 'Firma requerida',
+        text: 'Por favor firma en el recuadro',
+      });
+      return false;
+    }
+
+    // Guardar firma como imagen base64
+    const signatureData = signatureRef.current.toDataURL('image/png');
+    setFormData(prev => ({ ...prev, firma_digital: signatureData }));
+    return true;
+  };
+
+  const handleClearSignature = () => {
+    if (signatureRef.current) {
+      signatureRef.current.clear();
+    }
+    setFormData(prev => ({ ...prev, firma_digital: null }));
   };
 
   if (redirectToDashboard) {
@@ -519,14 +731,12 @@ const BeneficiarioOnboardingCompleto = () => {
       case 7:
         return renderStepFormacionSuperior();
       case 8:
-        return renderStepInfoBeca();
-      case 9:
         return renderStepInfoBancaria();
-      case 10:
+      case 9:
         return renderStepDocumentos();
-      case 11:
+      case 10:
         return renderStepTerminosYFirma();
-      case 12:
+      case 11:
         return renderStepResumen();
       default:
         return null;
@@ -941,6 +1151,14 @@ const BeneficiarioOnboardingCompleto = () => {
         <p className="text-slate-600 mt-2">Información sobre tu carrera universitaria</p>
       </div>
 
+      {(formData.modalidad_beca || formData.año_convocatoria) && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <p className="text-sm text-blue-800">
+            <strong>Información de tu beca:</strong> {formData.modalidad_beca || 'Beca'} - Convocatoria {formData.año_convocatoria || '2024'}
+          </p>
+        </div>
+      )}
+
       <div>
         <label className="block text-sm font-semibold text-slate-700 mb-2">Institución de Educación Superior *</label>
         <input
@@ -1029,49 +1247,7 @@ const BeneficiarioOnboardingCompleto = () => {
     </div>
   );
 
-  // ========== PASO 8: Información de Beca ==========
-  const renderStepInfoBeca = () => (
-    <div className="space-y-6">
-      <div className="text-center mb-6">
-        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Briefcase size={32} className="text-primary" />
-        </div>
-        <h2 className="text-2xl font-bold text-primary">Información de Beca</h2>
-        <p className="text-slate-600 mt-2">Detalles sobre tu beca FOCADES</p>
-      </div>
-
-      <div>
-        <label className="block text-sm font-semibold text-slate-700 mb-2">Modalidad de Beca *</label>
-        <select
-          value={formData.modalidad_beca}
-          onChange={(e) => setFormData({ ...formData, modalidad_beca: e.target.value })}
-          className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
-        >
-          <option value="">Selecciona...</option>
-          <option value="COMPLETA">Beca Completa</option>
-          <option value="PARCIAL">Beca Parcial</option>
-          <option value="SOSTENIMIENTO">Sostenimiento</option>
-        </select>
-        {errors.modalidad_beca && <p className="text-red-500 text-sm mt-1">{errors.modalidad_beca}</p>}
-      </div>
-
-      <div>
-        <label className="block text-sm font-semibold text-slate-700 mb-2">Año de Convocatoria *</label>
-        <input
-          type="number"
-          value={formData.año_convocatoria}
-          onChange={(e) => setFormData({ ...formData, año_convocatoria: e.target.value })}
-          className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
-          min="2000"
-          max="2050"
-          placeholder="2024"
-        />
-        {errors.año_convocatoria && <p className="text-red-500 text-sm mt-1">{errors.año_convocatoria}</p>}
-      </div>
-    </div>
-  );
-
-  // ========== PASO 9: Información Bancaria ==========
+  // ========== PASO 8: Información Bancaria (antes era paso 9) ==========
   const renderStepInfoBancaria = () => (
     <div className="space-y-6">
       <div className="text-center mb-6">
@@ -1135,27 +1311,113 @@ const BeneficiarioOnboardingCompleto = () => {
     </div>
   );
 
-  // ========== PASO 10: Documentos (simplificado por ahora) ==========
-  const renderStepDocumentos = () => (
-    <div className="space-y-6">
-      <div className="text-center mb-6">
-        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Upload size={32} className="text-primary" />
+  // ========== PASO 9: Documentos (simplificado por ahora, antes era paso 10) ==========
+  const renderStepDocumentos = () => {
+    const documentos = [
+      { key: 'documento_identidad', label: 'Documento de Identidad', required: true },
+      { key: 'acta_grado', label: 'Acta de Grado Bachillerato', required: true },
+      { key: 'diploma', label: 'Diploma de Bachiller', required: true },
+      { key: 'pruebas_saber', label: 'Resultados Pruebas Saber 11', required: true },
+      { key: 'cert_matricula', label: 'Certificado de Matrícula', required: true },
+      { key: 'cert_notas', label: 'Certificado de Notas Actual', required: true },
+      { key: 'certificado_bancario', label: 'Certificado Bancario', required: true },
+      { 
+        key: 'ficha_sisben', 
+        label: 'Ficha SISBEN', 
+        required: formData.sisben_grupo && formData.sisben_grupo !== 'NO_APLICA' 
+      },
+      { 
+        key: 'cert_enfoque', 
+        label: 'Certificado Enfoque Diferencial', 
+        required: formData.enfoque_diferencial && formData.enfoque_diferencial !== 'NINGUNO' 
+      },
+    ];
+
+    return (
+      <div className="space-y-6">
+        <div className="text-center mb-6">
+          <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Upload size={32} className="text-primary" />
+          </div>
+          <h2 className="text-2xl font-bold text-primary">Documentos de Soporte</h2>
+          <p className="text-slate-600 mt-2">Sube los documentos requeridos en formato PDF</p>
         </div>
-        <h2 className="text-2xl font-bold text-primary">Documentos de Soporte</h2>
-        <p className="text-slate-600 mt-2">Sube los documentos requeridos (PDF)</p>
-      </div>
 
-      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-        <p className="text-sm text-yellow-800">
-          <strong>Nota:</strong> La carga de documentos se implementará en la siguiente fase.
-          Por ahora puedes continuar sin subir archivos.
-        </p>
-      </div>
-    </div>
-  );
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <p className="text-sm text-blue-800">
+            <strong>Importante:</strong> Solo se aceptan archivos PDF. Tamaño máximo por archivo: 10MB
+          </p>
+        </div>
 
-  // ========== PASO 11: Términos y Firma ==========
+        <div className="space-y-4">
+          {documentos.map(doc => (
+            <div key={doc.key} className="bg-white border border-slate-200 rounded-xl p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    {doc.label} {doc.required && <span className="text-red-500">*</span>}
+                  </label>
+                  
+                  {!uploadedDocs[doc.key] ? (
+                    <div className="relative">
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadDocument(doc.key, file);
+                        }}
+                        disabled={uploadingDoc === doc.key}
+                        className="block w-full text-sm text-slate-500
+                          file:mr-4 file:py-2 file:px-4
+                          file:rounded-lg file:border-0
+                          file:text-sm file:font-semibold
+                          file:bg-primary/10 file:text-primary
+                          hover:file:bg-primary/20
+                          disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                      {uploadingDoc === doc.key && (
+                        <div className="absolute right-2 top-2">
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3 bg-green-50 border border-green-200 rounded-lg p-3">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <CheckCircle size={20} className="text-green-600 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-green-800 truncate">
+                            {uploadedDocs[doc.key].nombre}
+                          </p>
+                          <p className="text-xs text-green-600">
+                            {(uploadedDocs[doc.key].size / 1024).toFixed(1)} KB
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveDocument(doc.key)}
+                        className="p-2 hover:bg-green-100 rounded-lg transition-colors"
+                        title="Eliminar y subir otro"
+                      >
+                        <Trash2 size={18} className="text-green-700" />
+                      </button>
+                    </div>
+                  )}
+                  {errors[doc.key] && (
+                    <p className="text-red-500 text-sm mt-1">{errors[doc.key]}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // ========== PASO 10: Términos y Firma (antes era paso 11) ==========
   const renderStepTerminosYFirma = () => (
     <div className="space-y-6">
       <div className="text-center mb-6">
@@ -1163,7 +1425,7 @@ const BeneficiarioOnboardingCompleto = () => {
           <Shield size={32} className="text-primary" />
         </div>
         <h2 className="text-2xl font-bold text-primary">Términos y Condiciones</h2>
-        <p className="text-slate-600 mt-2">Lee y acepta los términos</p>
+        <p className="text-slate-600 mt-2">Lee, acepta y firma digitalmente</p>
       </div>
 
       <div className="space-y-4">
@@ -1194,44 +1456,106 @@ const BeneficiarioOnboardingCompleto = () => {
         {errors.acepta_datos && <p className="text-red-500 text-sm">{errors.acepta_datos}</p>}
       </div>
 
+      <div className="border-t border-slate-200 pt-6">
+        <div className="mb-4">
+          <label className="block text-sm font-semibold text-slate-700 mb-2">
+            Firma Digital <span className="text-red-500">*</span>
+          </label>
+          <p className="text-xs text-slate-500 mb-3">
+            Firma en el recuadro usando tu mouse, touchpad o pantalla táctil
+          </p>
+        </div>
+
+        <div className="bg-slate-50 border-2 border-slate-300 rounded-xl overflow-hidden">
+          <SignatureCanvas
+            ref={signatureRef}
+            canvasProps={{
+              className: 'w-full h-48 bg-white cursor-crosshair',
+            }}
+            backgroundColor="white"
+            penColor="rgb(0, 0, 0)"
+            minWidth={0.5}
+            maxWidth={2.5}
+          />
+        </div>
+
+        <div className="flex gap-3 mt-3">
+          <button
+            type="button"
+            onClick={handleClearSignature}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors"
+          >
+            <Trash2 size={16} />
+            Limpiar
+          </button>
+          
+          {formData.firma_digital && (
+            <div className="flex items-center gap-2 text-green-600 text-sm font-semibold">
+              <CheckCircle size={18} />
+              Firma guardada
+            </div>
+          )}
+        </div>
+
+        {errors.firma_digital && (
+          <p className="text-red-500 text-sm mt-2">{errors.firma_digital}</p>
+        )}
+      </div>
+
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
         <p className="text-sm text-blue-800">
-          <strong>Firma digital:</strong> Se implementará en la siguiente fase. 
-          Por ahora la aceptación de términos sirve como confirmación.
+          <strong>Importante:</strong> Tu firma digital será almacenada de forma segura y tendrá validez legal.
         </p>
       </div>
     </div>
   );
 
-  // ========== PASO 12: Resumen ==========
+  // ========== PASO 11: Resumen (antes era paso 12) ==========
   const renderStepResumen = () => (
     <div className="space-y-6">
       <div className="text-center mb-6">
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <Check size={32} className="text-green-600" />
         </div>
-        <h2 className="text-2xl font-bold text-primary">¡Todo Listo!</h2>
-        <p className="text-slate-600 mt-2">Revisa tu información antes de finalizar</p>
+        <h2 className="text-2xl font-bold text-primary">¡Registro Completado!</h2>
+        <p className="text-slate-600 mt-2">Tu perfil ha sido creado exitosamente</p>
       </div>
 
       <div className="bg-slate-50 rounded-xl p-6 space-y-4">
         <div>
-          <p className="text-sm text-slate-600">Nombre</p>
+          <p className="text-sm text-slate-600">Correo Electrónico</p>
           <p className="font-semibold text-slate-900">{formData.email}</p>
+        </div>
+        <div>
+          <p className="text-sm text-slate-600">Documento</p>
+          <p className="font-semibold text-slate-900">{formData.document}</p>
         </div>
         <div>
           <p className="text-sm text-slate-600">Universidad</p>
           <p className="font-semibold text-slate-900">{formData.institucion_superior || 'No especificado'}</p>
         </div>
         <div>
-          <p className="text-sm text-slate-600">Programa</p>
+          <p className="text-sm text-slate-600">Programa Académico</p>
           <p className="font-semibold text-slate-900">{formData.programa_academico || 'No especificado'}</p>
+        </div>
+        <div>
+          <p className="text-sm text-slate-600">Banco</p>
+          <p className="font-semibold text-slate-900">
+            {formData.nombre_banco || 'No especificado'} - {formData.tipo_cuenta_bancaria}
+          </p>
+        </div>
+        <div>
+          <p className="text-sm text-slate-600">Documentos Subidos</p>
+          <p className="font-semibold text-slate-900">{Object.keys(uploadedDocs).length} documentos</p>
         </div>
       </div>
 
       <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-        <p className="text-sm text-green-800">
-          Al finalizar, podrás acceder al portal de beneficiarios y gestionar tu beca.
+        <p className="text-sm text-green-800 font-semibold mb-2">
+          ✓ Perfil completado al 100%
+        </p>
+        <p className="text-sm text-green-700">
+          Ya puedes acceder al portal de beneficiarios para gestionar tu beca, consultar pagos y actualizar tu información.
         </p>
       </div>
     </div>
@@ -1303,7 +1627,7 @@ const BeneficiarioOnboardingCompleto = () => {
                 Guardar y salir
               </button>
 
-              {currentStep < 11 ? (
+              {currentStep < 10 ? (
                 <button
                   type="button"
                   onClick={handleNext}
@@ -1314,7 +1638,7 @@ const BeneficiarioOnboardingCompleto = () => {
                   {loading ? 'Guardando...' : 'Siguiente'}
                   <ChevronRight size={18} />
                 </button>
-              ) : currentStep === 11 ? (
+              ) : currentStep === 10 ? (
                 <button
                   type="button"
                   onClick={handleComplete}

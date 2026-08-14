@@ -113,12 +113,19 @@ Deno.serve(async (req) => {
       // Por ahora solo retornamos el token (en producción sería por email)
       console.log(`Setup token for ${beneficiario.nombre_completo}: ${setupToken}`)
 
+      // Obtener datos completos del beneficiario para pre-cargar formulario
+      const { data: beneficiarioCompleto } = await supabase
+        .from('portal_beneficiarios')
+        .select('*')
+        .eq('id', beneficiario.id)
+        .single()
+
       return new Response(
         JSON.stringify({
           ok: true,
           message: 'Token de setup generado. Revisa tu correo.',
           setup_token: setupToken,
-          beneficiario: {
+          beneficiario: beneficiarioCompleto || {
             id: beneficiario.id,
             nombre_completo: beneficiario.nombre_completo,
             email: beneficiario.email,

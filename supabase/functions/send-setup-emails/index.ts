@@ -110,7 +110,7 @@ async function sendSetupEmail(beneficiarioId: string, beneficiarioData: any, set
       
       <h3>¿Necesitas ayuda?</h3>
       <p>
-        📧 Email: <strong>soporte@focades.com</strong><br>
+        📧 Email: <strong>notificaciones@focades.info</strong><br>
         📞 Teléfono: <strong>+57 300 000 0000</strong><br>
         🕐 Horario: Lunes a Viernes, 8:00 AM - 5:00 PM
       </p>
@@ -142,11 +142,11 @@ async function sendSetupEmail(beneficiarioId: string, beneficiarioData: any, set
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Activación <activacion@focades.com>',
+        from: 'Notificaciones FOCADES <notificaciones@focades.info>',
         to: beneficiarioData.email,
         subject: '🔐 Activa tu Acceso - Portal FOCADES',
         html: emailHtml,
-        reply_to: 'soporte@focades.com',
+        reply_to: 'notificaciones@focades.info',
       }),
     })
 

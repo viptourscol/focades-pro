@@ -48,24 +48,17 @@ export const resolvePortalAccess = async ({ attemptClaim = true } = {}) => {
   }
 
   // Si hay sesión de documento, obtener perfil del beneficiario
-  if (documentSession?.beneficiario_id) {
-    const { data: profile, error: profileError } = await supabase
-      .from('portal_beneficiarios')
-      .select('*')
-      .eq('id', documentSession.beneficiario_id)
-      .maybeSingle();
-    
-    if (!profileError && profile) {
-      return {
-        ok: true,
-        hasSession: true,
-        isAdmin: false,
-        adminRole: null,
-        profile: profile,
-        session: { user: { id: documentSession.beneficiario_id } }, // Sesión simulada
-        reason: 'DOCUMENT_SESSION',
-      };
-    }
+  if (documentSession?.beneficiario_id && documentSession?.profile) {
+    // Perfil ya está en localStorage, no necesita query
+    return {
+      ok: true,
+      hasSession: true,
+      isAdmin: false,
+      adminRole: null,
+      profile: documentSession.profile,
+      session: { user: { id: documentSession.beneficiario_id } }, // Sesión simulada
+      reason: 'DOCUMENT_SESSION',
+    };
   }
 
   const { session, error: sessionError } = await getSafeSession();

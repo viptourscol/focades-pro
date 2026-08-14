@@ -58,11 +58,14 @@ export const BeneficiarioLoginForm = ({ onSuccess, isLoading, setIsLoading }) =>
 
       // Guardar sesión del beneficiario en localStorage
       const beneficiarioId = result.data.beneficiario_id;
+      const profile = result.data.profile;
+      
       const sessionData = {
         beneficiario_id: beneficiarioId,
         document_number: formData.document,
         login_method: 'document',
         timestamp: new Date().toISOString(),
+        profile: profile, // Guardar perfil completo
       };
       
       try {

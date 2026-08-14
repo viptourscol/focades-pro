@@ -288,12 +288,26 @@ Deno.serve(async (req) => {
         })
         .eq('id', cred.id)
 
-      // 5. TODO: Crear sesión en auth o retornar token
+      // 5. Obtener perfil del beneficiario
+      const { data: beneficiario, error: benefError } = await supabase
+        .from('portal_beneficiarios')
+        .select('*')
+        .eq('id', cred.beneficiario_id)
+        .single()
+
+      if (benefError || !beneficiario) {
+        return new Response(
+          JSON.stringify({ ok: false, error: 'No se pudo obtener el perfil del beneficiario' }),
+          { status: 500, headers: corsHeaders }
+        )
+      }
+
       return new Response(
         JSON.stringify({
           ok: true,
           message: 'Login exitoso',
           beneficiario_id: cred.beneficiario_id,
+          profile: beneficiario,
         }),
         { status: 200, headers: corsHeaders }
       )

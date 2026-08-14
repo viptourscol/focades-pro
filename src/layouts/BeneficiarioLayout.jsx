@@ -100,7 +100,13 @@ const BeneficiarioLayout = () => {
   }, []);
 
   const handleLogout = async () => {
+    // Limpiar sesión de Auth y de documento
     await supabase.auth.signOut();
+    try {
+      localStorage.removeItem('focades:beneficiario-session');
+    } catch (error) {
+      console.error('Error limpiando sesión:', error);
+    }
     navigate('/beneficiario/login', { replace: true });
   };
 

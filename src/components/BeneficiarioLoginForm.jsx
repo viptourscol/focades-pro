@@ -56,7 +56,22 @@ export const BeneficiarioLoginForm = ({ onSuccess, isLoading, setIsLoading }) =>
         return;
       }
 
-      // TODO: Autenticar con Supabase Auth usando el token retornado
+      // Guardar sesión del beneficiario en localStorage
+      const beneficiarioId = result.data.beneficiario_id;
+      const sessionData = {
+        beneficiario_id: beneficiarioId,
+        document_number: formData.document,
+        login_method: 'document',
+        timestamp: new Date().toISOString(),
+      };
+      
+      try {
+        localStorage.setItem('focades:beneficiario-session', JSON.stringify(sessionData));
+      } catch (error) {
+        console.error('Error guardando sesión:', error);
+      }
+
+      // Llamar onSuccess para redirigir
       if (onSuccess) onSuccess();
     } catch (error) {
       console.error('Login error:', error);

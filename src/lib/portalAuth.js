@@ -26,6 +26,48 @@ export const consumePortalAuthErrorMessage = () => {
 };
 
 export const resolvePortalAccess = async ({ attemptClaim = true } = {}) => {
+  // Primero revisar si hay sesión basada en documento (localStorage)
+  let documentSession = null;
+  try {
+    const sessionStr = localStorage.getItem('focades:beneficiario-session');
+    if (sessionStr) {
+      documentSession = JSON.parse(sessionStr);
+      
+      // Validar que la sesión no sea muy antigua (24h)
+      const sessionTime = new Date(documentSession.timestamp).getTime();
+      const now = Date.now();
+      const maxAge = 24 * 60 * 60 * 1000; // 24 horas
+      
+      if (now - sessionTime > maxAge) {
+        localStorage.removeItem('focades:beneficiario-session');
+        documentSession = null;
+      }
+    }
+  } catch (error) {
+    console.error('Error leyendo sesión de documento:', error);
+  }
+
+  // Si hay sesión de documento, obtener perfil del beneficiario
+  if (documentSession?.beneficiario_id) {
+    const { data: profile, error: profileError } = await supabase
+      .from('portal_beneficiarios')
+      .select('*')
+      .eq('id', documentSession.beneficiario_id)
+      .maybeSingle();
+    
+    if (!profileError && profile) {
+      return {
+        ok: true,
+        hasSession: true,
+        isAdmin: false,
+        adminRole: null,
+        profile: profile,
+        session: { user: { id: documentSession.beneficiario_id } }, // Sesión simulada
+        reason: 'DOCUMENT_SESSION',
+      };
+    }
+  }
+
   const { session, error: sessionError } = await getSafeSession();
   const user = session?.user || null;
 

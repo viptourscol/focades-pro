@@ -180,6 +180,8 @@ export default function AdminTokenGeneratorPanel() {
                 body: {
                   method: 'send-setup-email',
                   beneficiario_id: benef.id,
+                  email: benef.email,
+                  nombre_completo: benef.nombre_completo,
                 }
               })
 

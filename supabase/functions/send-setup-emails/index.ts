@@ -35,6 +35,11 @@ async function sendSetupEmail(beneficiarioId: string, beneficiarioData: any, set
     return { ok: true, message: 'Email no enviado (Resend no configurado)' }
   }
 
+  if (!beneficiarioData?.email) {
+    console.error('❌ Email vacío para beneficiario:', beneficiarioId)
+    return { ok: false, error: 'Email del beneficiario vacío' }
+  }
+
   const setupLink = `https://focades-pro.vercel.app/beneficiario/auth-setup?token=${setupToken}`
   
   const emailHtml = `
@@ -292,7 +297,7 @@ Deno.serve(async (req) => {
   try {
     // === send-setup-email: Envía email individual ===
     if (method === 'send-setup-email') {
-      const { beneficiario_id } = body
+      const { beneficiario_id, email, nombre_completo } = body
 
       if (!beneficiario_id) {
         return new Response(
@@ -301,18 +306,33 @@ Deno.serve(async (req) => {
         )
       }
 
-      // Obtener datos del beneficiario
-      const { data: benef, error: benefError } = await supabase
-        .from('portal_beneficiarios')
-        .select('id, nombre_completo, email')
-        .eq('id', beneficiario_id)
-        .single()
+      let benef = { id: beneficiario_id, email, nombre_completo }
+      
+      // Si no se pasó email/nombre, intenta obtenerlo de la BD
+      if (!email || !nombre_completo) {
+        console.log('📖 Buscando datos del beneficiario en BD...')
+        const { data: dbBenef, error: benefError } = await supabase
+          .from('portal_beneficiarios')
+          .select('id, nombre_completo, email')
+          .eq('id', beneficiario_id)
+          .single()
 
-      if (benefError || !benef) {
-        return new Response(
-          JSON.stringify({ ok: false, error: 'Beneficiario no encontrado' }),
-          { status: 404, headers: corsHeaders }
-        )
+        if (benefError) {
+          console.error('Error buscando beneficiario:', benefError)
+          return new Response(
+            JSON.stringify({ ok: false, error: `Beneficiario no encontrado: ${benefError.message}` }),
+            { status: 404, headers: corsHeaders }
+          )
+        }
+        
+        if (!dbBenef) {
+          return new Response(
+            JSON.stringify({ ok: false, error: 'Beneficiario no encontrado en BD' }),
+            { status: 404, headers: corsHeaders }
+          )
+        }
+        
+        benef = dbBenef
       }
 
       // Obtener setup token
@@ -323,8 +343,9 @@ Deno.serve(async (req) => {
         .single()
 
       if (credError || !cred?.setup_token) {
+        console.error('Error obteniendo token:', credError)
         return new Response(
-          JSON.stringify({ ok: false, error: 'Setup token no encontrado' }),
+          JSON.stringify({ ok: false, error: `Setup token no encontrado: ${credError?.message || 'desconocido'}` }),
           { status: 404, headers: corsHeaders }
         )
       }

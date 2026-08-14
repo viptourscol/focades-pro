@@ -313,6 +313,116 @@ Deno.serve(async (req) => {
       )
     }
 
+    // === update-profile: Actualizar perfil durante onboarding ===
+    if (method === 'update-profile') {
+      const { beneficiario_id, profile_data } = body
+
+      if (!beneficiario_id || !profile_data) {
+        return new Response(
+          JSON.stringify({ ok: false, error: 'ID de beneficiario y datos de perfil requeridos' }),
+          { status: 400, headers: corsHeaders }
+        )
+      }
+
+      // Campos permitidos para actualizar
+      const allowedFields = [
+        'genero', 'fecha_nacimiento', 'telefono', 'direccion_residencia', 'barrio_corregimiento',
+        'pais_nacimiento', 'dpto_nacimiento', 'municipio_nacimiento', 'dpto_residencia', 
+        'municipio_residencia', 'zona_residencia', 'sisben_grupo', 'recibe_subsidio', 
+        'cual_subsidio', 'enfoque_diferencial', 'labora_actualmente', 'nombre_padre', 
+        'documento_padre', 'ocupacion_padre', 'ingresos_padre', 'nombre_madre', 
+        'documento_madre', 'ocupacion_madre', 'ingresos_madre', 'titulo_obtenido', 
+        'ano_graduacion', 'establecimiento_educativo', 'puntaje_icfes', 
+        'municipio_establecimiento', 'institucion_superior', 'programa_academico', 
+        'tipo_educacion', 'semestre_ingreso', 'semestre_actual', 'ciudad_institucion', 
+        'modalidad', 'promedio_anterior', 'modalidad_beca', 'año_convocatoria', 
+        'nombre_banco', 'numero_cuenta', 'tipo_cuenta_bancaria', 'nombre_colegio', 
+        'nombre_universidad', 'direccion'
+      ]
+
+      // Filtrar solo campos permitidos
+      const updateData: any = {}
+      for (const [key, value] of Object.entries(profile_data)) {
+        if (allowedFields.includes(key)) {
+          updateData[key] = value
+        }
+      }
+
+      updateData.updated_at = new Date().toISOString()
+
+      // Actualizar beneficiario
+      const { error: updateErr } = await supabase
+        .from('portal_beneficiarios')
+        .update(updateData)
+        .eq('id', beneficiario_id)
+
+      if (updateErr) {
+        console.error('Error updating profile:', updateErr)
+        return new Response(
+          JSON.stringify({ ok: false, error: 'Error al actualizar perfil' }),
+          { status: 500, headers: corsHeaders }
+        )
+      }
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          message: 'Perfil actualizado exitosamente',
+        }),
+        { status: 200, headers: corsHeaders }
+      )
+    }
+
+    // === complete-onboarding: Marcar onboarding como completado ===
+    if (method === 'complete-onboarding') {
+      const { beneficiario_id, acepta_terminos, acepta_datos } = body
+
+      if (!beneficiario_id) {
+        return new Response(
+          JSON.stringify({ ok: false, error: 'ID de beneficiario requerido' }),
+          { status: 400, headers: corsHeaders }
+        )
+      }
+
+      if (!acepta_terminos || !acepta_datos) {
+        return new Response(
+          JSON.stringify({ ok: false, error: 'Debes aceptar los términos y el tratamiento de datos' }),
+          { status: 400, headers: corsHeaders }
+        )
+      }
+
+      const now = new Date().toISOString()
+
+      // Marcar onboarding como completado
+      const { error: updateErr } = await supabase
+        .from('portal_beneficiarios')
+        .update({
+          onboarding_completado: true,
+          acepta_terminos_at: now,
+          acepta_datos_at: now,
+          perfil_completado_en: now,
+          perfil_incompleto_fields: null,
+          updated_at: now,
+        })
+        .eq('id', beneficiario_id)
+
+      if (updateErr) {
+        console.error('Error completing onboarding:', updateErr)
+        return new Response(
+          JSON.stringify({ ok: false, error: 'Error al completar onboarding' }),
+          { status: 500, headers: corsHeaders }
+        )
+      }
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          message: 'Onboarding completado exitosamente',
+        }),
+        { status: 200, headers: corsHeaders }
+      )
+    }
+
     // Método desconocido
     return new Response(
       JSON.stringify({ ok: false, error: `Método desconocido: ${method}` }),

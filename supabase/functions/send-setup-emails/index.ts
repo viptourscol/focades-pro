@@ -8,8 +8,9 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info, x-auth-token',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info, x-auth-token, apikey, x-api-key',
+  'Access-Control-Max-Age': '86400',
   'Content-Type': 'application/json',
 }
 

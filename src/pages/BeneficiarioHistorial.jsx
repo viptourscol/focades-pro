@@ -89,20 +89,42 @@ const BeneficiarioHistorial = () => {
     let mounted = true;
 
     const loadRows = async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData?.session?.user?.id;
-      if (!userId) {
-        if (mounted) setLoading(false);
-        return;
+      // Primero intentar obtener perfil desde localStorage (login con documento)
+      let profileData = null;
+      try {
+        const sessionStr = localStorage.getItem('focades:beneficiario-session');
+        if (sessionStr) {
+          const documentSession = JSON.parse(sessionStr);
+          const sessionTime = new Date(documentSession.timestamp).getTime();
+          const maxAge = 24 * 60 * 60 * 1000;
+          
+          if (Date.now() - sessionTime <= maxAge && documentSession.profile) {
+            profileData = documentSession.profile;
+          }
+        }
+      } catch (error) {
+        console.error('Error leyendo sesión de localStorage:', error);
       }
 
-      const { data: profile } = await supabase
-        .from('portal_beneficiarios')
-        .select('id')
-        .eq('auth_user_id', userId)
-        .maybeSingle();
+      // Si no hay perfil en localStorage, intentar con Supabase Auth
+      if (!profileData) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const userId = sessionData?.session?.user?.id;
+        if (!userId) {
+          if (mounted) setLoading(false);
+          return;
+        }
 
-      if (!profile?.id) {
+        const { data: profile } = await supabase
+          .from('portal_beneficiarios')
+          .select('*')
+          .eq('auth_user_id', userId)
+          .maybeSingle();
+        
+        profileData = profile;
+      }
+
+      if (!profileData?.id) {
         if (mounted) setLoading(false);
         return;
       }
@@ -110,7 +132,7 @@ const BeneficiarioHistorial = () => {
       const { data } = await supabase
         .from('portal_actualizaciones')
         .select('id,ventana_id,estado,semestre_actual,promedio_semestre_anterior,email,telefono,direccion,observacion_admin,revisado_at,created_at,updated_at')
-        .eq('beneficiario_id', profile.id)
+        .eq('beneficiario_id', profileData.id)
         .order('created_at', { ascending: false })
         .limit(50);
 

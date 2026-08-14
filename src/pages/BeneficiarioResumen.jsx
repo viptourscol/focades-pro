@@ -125,27 +125,51 @@ const BeneficiarioResumen = () => {
     let mounted = true;
 
     const loadProfile = async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData?.session?.user?.id;
-      if (!userId) {
-        if (mounted) setLoading(false);
-        return;
+      // Primero intentar obtener perfil desde localStorage (login con documento)
+      let profileData = null;
+      try {
+        const sessionStr = localStorage.getItem('focades:beneficiario-session');
+        if (sessionStr) {
+          const documentSession = JSON.parse(sessionStr);
+          
+          // Validar que la sesión no sea muy antigua (24h)
+          const sessionTime = new Date(documentSession.timestamp).getTime();
+          const maxAge = 24 * 60 * 60 * 1000;
+          
+          if (Date.now() - sessionTime <= maxAge && documentSession.profile) {
+            profileData = documentSession.profile;
+          }
+        }
+      } catch (error) {
+        console.error('Error leyendo sesión de localStorage:', error);
       }
 
-      const { data } = await supabase
-        .from('portal_beneficiarios')
-        .select('*')
-        .eq('auth_user_id', userId)
-        .maybeSingle();
+      // Si no hay perfil en localStorage, intentar con Supabase Auth (Google OAuth)
+      if (!profileData) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const userId = sessionData?.session?.user?.id;
+        if (!userId) {
+          if (mounted) setLoading(false);
+          return;
+        }
+
+        const { data } = await supabase
+          .from('portal_beneficiarios')
+          .select('*')
+          .eq('auth_user_id', userId)
+          .maybeSingle();
+
+        profileData = data;
+      }
 
       if (!mounted) return;
-      setProfile(data || null);
+      setProfile(profileData || null);
 
-      if (data?.id) {
+      if (profileData?.id) {
         const { data: paymentRows, error: paymentsError } = await supabase
           .from('portal_beneficiario_pagos')
           .select('*')
-          .eq('beneficiario_id', data.id)
+          .eq('beneficiario_id', profileData.id)
           .order('created_at', { ascending: false });
 
         if (!mounted) return;
@@ -169,11 +193,11 @@ const BeneficiarioResumen = () => {
         } catch (error) {
           let enrollmentData = null;
 
-          if (data?.inscripcion_pk || data?.inscripcion_id) {
+          if (profileData?.inscripcion_pk || profileData?.inscripcion_id) {
             const { data: inscripcionData } = await supabase
               .from('inscripciones')
               .select('id,datos_formulario')
-              .eq('id', data.inscripcion_pk || data.inscripcion_id)
+              .eq('id', profileData.inscripcion_pk || profileData.inscripcion_id)
               .maybeSingle();
             enrollmentData = inscripcionData || null;
           }
@@ -181,7 +205,7 @@ const BeneficiarioResumen = () => {
           if (!mounted) return;
           setPaymentRights(
             buildLocalPaymentRights({
-              profile: data,
+              profile: profileData,
               paymentRows: Array.isArray(paymentRows) ? paymentRows : [],
               enrollmentData,
             })

@@ -178,17 +178,49 @@ const BeneficiarioActualizacion = () => {
     let mounted = true;
 
     const loadData = async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData?.session?.user?.id;
-      if (!userId) {
+      // Primero intentar obtener perfil desde localStorage (login con documento)
+      let profileData = null;
+      try {
+        const sessionStr = localStorage.getItem('focades:beneficiario-session');
+        if (sessionStr) {
+          const documentSession = JSON.parse(sessionStr);
+          const sessionTime = new Date(documentSession.timestamp).getTime();
+          const maxAge = 24 * 60 * 60 * 1000;
+          
+          if (Date.now() - sessionTime <= maxAge && documentSession.profile) {
+            profileData = documentSession.profile;
+          }
+        }
+      } catch (error) {
+        console.error('Error leyendo sesión de localStorage:', error);
+      }
+
+      // Si no hay perfil en localStorage, intentar con Supabase Auth
+      if (!profileData) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const userId = sessionData?.session?.user?.id;
+        if (!userId) {
+          if (mounted) setLoading(false);
+          return;
+        }
+
+        const { data } = await supabase
+          .from('portal_beneficiarios')
+          .select('*')
+          .eq('auth_user_id', userId)
+          .maybeSingle();
+        
+        profileData = data;
+      }
+
+      if (!profileData) {
         if (mounted) setLoading(false);
         return;
       }
 
       const nowIso = new Date().toISOString();
 
-      const [profileResp, configResp, windowResp] = await Promise.all([
-        supabase.from('portal_beneficiarios').select('*').eq('auth_user_id', userId).maybeSingle(),
+      const [configResp, windowResp] = await Promise.all([
         supabase.from('portal_configuracion').select('*').eq('is_active', true).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
         supabase
           .from('portal_ventanas_actualizacion')
@@ -203,7 +235,6 @@ const BeneficiarioActualizacion = () => {
 
       if (!mounted) return;
 
-      const profileData = profileResp.data || null;
       setProfile(profileData);
       setConfig(configResp.data || null);
       setWindowInfo(windowResp.data || null);

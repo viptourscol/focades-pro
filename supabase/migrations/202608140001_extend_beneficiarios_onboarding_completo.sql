@@ -55,6 +55,7 @@ ALTER TABLE public.portal_beneficiarios ADD COLUMN IF NOT EXISTS municipio_estab
 -- ===== 5. Formación académica superior (complementar existentes) =====
 ALTER TABLE public.portal_beneficiarios ADD COLUMN IF NOT EXISTS institucion_superior text;
 ALTER TABLE public.portal_beneficiarios ADD COLUMN IF NOT EXISTS ciudad_institucion text;
+ALTER TABLE public.portal_beneficiarios ADD COLUMN IF NOT EXISTS semestre_ingreso text;
 ALTER TABLE public.portal_beneficiarios ADD COLUMN IF NOT EXISTS modalidad text
   CHECK (modalidad IS NULL OR modalidad IN ('PRESENCIAL', 'VIRTUAL', 'DISTANCIA', 'SEMIPRESENCIAL'));
 ALTER TABLE public.portal_beneficiarios ADD COLUMN IF NOT EXISTS promedio_anterior numeric(4,2)
@@ -64,7 +65,12 @@ ALTER TABLE public.portal_beneficiarios ADD COLUMN IF NOT EXISTS promedio_anteri
 -- nombre_banco, numero_cuenta, tipo_cuenta_bancaria, genero, telefono, 
 -- nombre_colegio, nombre_universidad, semestre_actual, perfil_completado_en
 
--- ===== 6. Índices para búsquedas y filtros =====
+-- ===== 6. Columnas de control de onboarding =====
+ALTER TABLE public.portal_beneficiarios ADD COLUMN IF NOT EXISTS onboarding_completado boolean DEFAULT false;
+ALTER TABLE public.portal_beneficiarios ADD COLUMN IF NOT EXISTS acepta_terminos_at timestamptz;
+ALTER TABLE public.portal_beneficiarios ADD COLUMN IF NOT EXISTS acepta_datos_at timestamptz;
+
+-- ===== 7. Índices para búsquedas y filtros =====
 CREATE INDEX IF NOT EXISTS idx_beneficiarios_fecha_nacimiento 
   ON public.portal_beneficiarios(fecha_nacimiento) 
   WHERE fecha_nacimiento IS NOT NULL;
@@ -89,7 +95,7 @@ CREATE INDEX IF NOT EXISTS idx_beneficiarios_municipio_residencia
   ON public.portal_beneficiarios(municipio_residencia) 
   WHERE municipio_residencia IS NOT NULL;
 
--- ===== 7. Comentarios para documentación =====
+-- ===== 8. Comentarios para documentación =====
 COMMENT ON COLUMN public.portal_beneficiarios.fecha_nacimiento IS 'Fecha de nacimiento del beneficiario';
 COMMENT ON COLUMN public.portal_beneficiarios.sisben_grupo IS 'Grupo SISBEN (A, B, C, D, NO_APLICA)';
 COMMENT ON COLUMN public.portal_beneficiarios.recibe_subsidio IS 'Indica si recibe subsidios del estado';
@@ -105,7 +111,7 @@ COMMENT ON COLUMN public.portal_beneficiarios.ciudad_institucion IS 'Ciudad dond
 COMMENT ON COLUMN public.portal_beneficiarios.modalidad IS 'Modalidad de estudio (PRESENCIAL, VIRTUAL, DISTANCIA)';
 COMMENT ON COLUMN public.portal_beneficiarios.promedio_anterior IS 'Promedio académico del último semestre cursado';
 
--- ===== 8. Política RLS para subida de documentos durante onboarding =====
+-- ===== 9. Política RLS para subida de documentos durante onboarding =====
 -- Permitir que beneficiarios suban sus propios documentos
 DO $$
 BEGIN
@@ -147,7 +153,7 @@ BEGIN
     );
 END $$;
 
--- ===== 9. Función helper para validar completitud de perfil =====
+-- ===== 10. Función helper para validar completitud de perfil =====
 CREATE OR REPLACE FUNCTION public.check_perfil_completitud(benef_id bigint)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -202,7 +208,7 @@ $$;
 
 COMMENT ON FUNCTION public.check_perfil_completitud IS 'Verifica qué campos obligatorios faltan completar en el perfil de un beneficiario';
 
--- ===== 10. Actualizar perfil_incompleto_fields para beneficiarios existentes =====
+-- ===== 11. Actualizar perfil_incompleto_fields para beneficiarios existentes =====
 -- Esto marcará qué campos faltan en los beneficiarios ya registrados
 UPDATE public.portal_beneficiarios
 SET perfil_incompleto_fields = (

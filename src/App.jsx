@@ -14,7 +14,7 @@ import TicketsAdmin from './pages/TicketsAdmin';
 import PortalConfig from './pages/PortalConfig';
 import AdminCondonaciones from './pages/AdminCondonaciones';
 import BeneficiarioLogin from './pages/BeneficiarioLogin';
-import BeneficiarioAuthSetup from './pages/BeneficiarioAuthSetup';
+import BeneficiarioOnboardingCompleto from './pages/BeneficiarioOnboardingCompleto';
 import BeneficiarioCompletarPerfil from './pages/BeneficiarioCompletarPerfil';
 import AdminLogin from './pages/AdminLogin';
 import BeneficiarioHome from './pages/BeneficiarioHome';
@@ -237,7 +237,7 @@ function App() {
         <Route path="/registro" element={<Registro />} />
         <Route path="/verificar-certificado" element={<VerificarCertificado />} />
         <Route path="/beneficiario/login" element={<BeneficiarioLogin />} />
-        <Route path="/beneficiario/auth-setup" element={<BeneficiarioAuthSetup />} />
+        <Route path="/beneficiario/auth-setup" element={<BeneficiarioOnboardingCompleto />} />
         <Route path="/beneficiario/completar-perfil" element={<BeneficiarioCompletarPerfil />} />
         <Route path="/beneficiario/onboarding" element={<BeneficiarioOnboarding />} />
         <Route path="/admin/login" element={<AdminLogin />} />

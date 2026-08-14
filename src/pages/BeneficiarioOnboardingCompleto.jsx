@@ -8,6 +8,20 @@ import {
   Users, GraduationCap, Briefcase, Upload, PenTool, Shield
 } from 'lucide-react';
 
+// Componente auxiliar para validaciones de contraseña
+const ValidationItem = ({ valid, text }) => (
+  <div className="flex items-center gap-2">
+    {valid ? (
+      <Check size={16} className="text-green-600" />
+    ) : (
+      <X size={16} className="text-slate-400" />
+    )}
+    <span className={`text-sm ${valid ? 'text-green-600' : 'text-slate-600'}`}>
+      {text}
+    </span>
+  </div>
+);
+
 const BeneficiarioOnboardingCompleto = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -276,7 +290,7 @@ const BeneficiarioOnboardingCompleto = () => {
       case 11: // Términos y firma
         if (!formData.acepta_terminos) newErrors.acepta_terminos = 'Debes aceptar los términos';
         if (!formData.acepta_datos) newErrors.acepta_datos = 'Debes aceptar el tratamiento de datos';
-        if (!formData.firma_digital) newErrors.firma_digital = 'Firma requerida';
+        // firma_digital es opcional por ahora hasta implementar canvas
         break;
     }
 
@@ -293,14 +307,77 @@ const BeneficiarioOnboardingCompleto = () => {
       return;
     }
 
-    // Guardar progreso en el backend
-    if (beneficiarioId && currentStep >= 4) {
-      await updateProfile();
-    }
+    setLoading(true);
+    try {
+      // Paso 1: Verificar documento (setup-init)
+      if (currentStep === 1) {
+        const result = await supabase.functions.invoke('auth-credentials', {
+          body: {
+            method: 'setup-init',
+            document_number: formData.document,
+            email: formData.email,
+          },
+        });
 
-    if (currentStep < TOTAL_STEPS) {
-      setCurrentStep(currentStep + 1);
-      saveProgress();
+        if (!result.data?.ok) {
+          throw new Error(result.data?.error || 'Error al verificar documento');
+        }
+
+        // En producción el token se envía por email, aquí lo obtenemos directamente
+        if (result.data.setup_token) {
+          setFormData(prev => ({ ...prev, setupToken: result.data.setup_token }));
+        }
+
+        await showSuccessAlert({
+          title: '¡Documento verificado!',
+          text: 'Continúa con el siguiente paso',
+        });
+      }
+
+      // Paso 3: Establecer contraseña (setup-complete)
+      if (currentStep === 3) {
+        const result = await supabase.functions.invoke('auth-credentials', {
+          body: {
+            method: 'setup-complete',
+            setup_token: formData.setupToken,
+            password: formData.password,
+            password_confirm: formData.passwordConfirm,
+          },
+        });
+
+        if (!result.data?.ok) {
+          throw new Error(result.data?.error || 'Error al establecer contraseña');
+        }
+
+        // Guardar ID del beneficiario
+        if (result.data.beneficiario_id) {
+          setBeneficiarioId(result.data.beneficiario_id);
+        }
+
+        await showSuccessAlert({
+          title: '¡Contraseña creada!',
+          text: 'Ahora completa tu perfil',
+        });
+      }
+
+      // Pasos 4-9: Guardar progreso en el backend
+      if (beneficiarioId && currentStep >= 4 && currentStep <= 9) {
+        await updateProfile();
+      }
+
+      // Avanzar al siguiente paso
+      if (currentStep < TOTAL_STEPS) {
+        setCurrentStep(currentStep + 1);
+        saveProgress();
+      }
+    } catch (error) {
+      console.error('Error en handleNext:', error);
+      await showErrorAlert({
+        title: 'Error',
+        text: error.message || 'No se pudo continuar',
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -376,6 +453,11 @@ const BeneficiarioOnboardingCompleto = () => {
       return;
     }
 
+    // Marcar firma digital como completada (placeholder hasta implementar canvas)
+    if (!formData.firma_digital) {
+      setFormData(prev => ({ ...prev, firma_digital: 'firma_placeholder' }));
+    }
+
     setLoading(true);
     try {
       // Actualizar perfil final
@@ -399,11 +481,12 @@ const BeneficiarioOnboardingCompleto = () => {
       localStorage.removeItem('focades:onboarding-progress');
 
       await showSuccessAlert({
-        title: '¡Bienvenido a FOCADES!',
-        text: 'Tu perfil está completo. Ahora puedes acceder al portal.',
+        title: '¡Registro Completado!',
+        text: 'Tu perfil ha sido creado exitosamente',
       });
 
-      setRedirectToDashboard(true);
+      // Avanzar al paso final (resumen)
+      setCurrentStep(12);
     } catch (error) {
       console.error('Error completando onboarding:', error);
       await showErrorAlert({
@@ -420,14 +503,739 @@ const BeneficiarioOnboardingCompleto = () => {
   }
 
   const renderStep = () => {
-    // TODO: Implementar renderizado de cada paso
-    return (
-      <div className="text-center py-8">
-        <p className="text-lg font-semibold text-primary">Paso {currentStep} de {TOTAL_STEPS}</p>
-        <p className="text-sm text-slate-600 mt-2">Componente en desarrollo...</p>
-      </div>
-    );
+    switch (currentStep) {
+      case 1:
+        return renderStepVerificarDocumento();
+      case 2:
+        return renderStepRevisarEmail();
+      case 3:
+        return renderStepEstablecerPassword();
+      case 4:
+        return renderStepDatosPersonales();
+      case 5:
+        return renderStepInfoSocioeconomica();
+      case 6:
+        return renderStepFormacionSecundaria();
+      case 7:
+        return renderStepFormacionSuperior();
+      case 8:
+        return renderStepInfoBeca();
+      case 9:
+        return renderStepInfoBancaria();
+      case 10:
+        return renderStepDocumentos();
+      case 11:
+        return renderStepTerminosYFirma();
+      case 12:
+        return renderStepResumen();
+      default:
+        return null;
+    }
   };
+
+  // ========== PASO 1: Verificar Documento ==========
+  const renderStepVerificarDocumento = () => (
+    <div className="space-y-6">
+      <div className="text-center">
+        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+          <User size={32} className="text-primary" />
+        </div>
+        <h2 className="text-2xl font-bold text-primary">Verificar Identidad</h2>
+        <p className="text-slate-600 mt-2">Ingresa tu documento para iniciar el proceso</p>
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">
+            Número de Documento
+          </label>
+          <input
+            type="text"
+            value={formData.document}
+            onChange={(e) => setFormData({ ...formData, document: e.target.value })}
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all"
+            placeholder="Ej: 1234567890"
+          />
+          {errors.document && <p className="text-red-500 text-sm mt-1">{errors.document}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">
+            Correo Electrónico
+          </label>
+          <input
+            type="email"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all"
+            placeholder="tucorreo@ejemplo.com"
+          />
+          {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ========== PASO 2: Revisar Email ==========
+  const renderStepRevisarEmail = () => (
+    <div className="space-y-6">
+      <div className="text-center">
+        <div className="w-16 h-16 bg-secondary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+          <AlertCircle size={32} className="text-secondary" />
+        </div>
+        <h2 className="text-2xl font-bold text-primary">Revisa tu Correo</h2>
+        <p className="text-slate-600 mt-2">
+          Hemos enviado un enlace de activación a <strong>{formData.email}</strong>
+        </p>
+      </div>
+
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+        <p className="text-sm text-blue-800">
+          <strong>Nota:</strong> Si llegaste desde el enlace del correo, continúa al siguiente paso.
+        </p>
+      </div>
+    </div>
+  );
+
+  // ========== PASO 3: Establecer Contraseña ==========
+  const renderStepEstablecerPassword = () => (
+    <div className="space-y-6">
+      <div className="text-center">
+        <div className="w-16 h-16 bg-secondary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Lock size={32} className="text-secondary" />
+        </div>
+        <h2 className="text-2xl font-bold text-primary">Crear Contraseña</h2>
+        <p className="text-slate-600 mt-2">Protege tu cuenta con una contraseña segura</p>
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">
+            Nueva Contraseña
+          </label>
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all pr-12"
+              placeholder="••••••••"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">
+            Confirmar Contraseña
+          </label>
+          <div className="relative">
+            <input
+              type={showPasswordConfirm ? 'text' : 'password'}
+              value={formData.passwordConfirm}
+              onChange={(e) => setFormData({ ...formData, passwordConfirm: e.target.value })}
+              className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all pr-12"
+              placeholder="••••••••"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              {showPasswordConfirm ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
+          {errors.passwordConfirm && <p className="text-red-500 text-sm mt-1">{errors.passwordConfirm}</p>}
+        </div>
+
+        {/* Validadores */}
+        <div className="bg-slate-50 rounded-xl p-4 space-y-2">
+          <p className="text-sm font-semibold text-slate-700 mb-2">La contraseña debe contener:</p>
+          <ValidationItem valid={passwordValidations.minLength} text="Mínimo 8 caracteres" />
+          <ValidationItem valid={passwordValidations.hasUpperCase} text="Una letra mayúscula" />
+          <ValidationItem valid={passwordValidations.hasLowerCase} text="Una letra minúscula" />
+          <ValidationItem valid={passwordValidations.hasNumber} text="Un número" />
+          <ValidationItem valid={passwordValidations.hasSpecial} text="Un carácter especial (!@#$%^&*)" />
+          <ValidationItem valid={passwordValidations.passwordsMatch} text="Las contraseñas coinciden" />
+        </div>
+      </div>
+    </div>
+  );
+
+  // ========== PASO 4: Datos Personales ==========
+  const renderStepDatosPersonales = () => (
+    <div className="space-y-6">
+      <div className="text-center mb-6">
+        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+          <User size={32} className="text-primary" />
+        </div>
+        <h2 className="text-2xl font-bold text-primary">Datos Personales</h2>
+        <p className="text-slate-600 mt-2">Completa tu información básica</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Género *</label>
+          <select
+            value={formData.genero}
+            onChange={(e) => setFormData({ ...formData, genero: e.target.value })}
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+          >
+            <option value="">Selecciona...</option>
+            <option value="MASCULINO">Masculino</option>
+            <option value="FEMENINO">Femenino</option>
+            <option value="OTRO">Otro</option>
+          </select>
+          {errors.genero && <p className="text-red-500 text-sm mt-1">{errors.genero}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Fecha de Nacimiento *</label>
+          <input
+            type="date"
+            value={formData.fecha_nacimiento}
+            onChange={(e) => setFormData({ ...formData, fecha_nacimiento: e.target.value })}
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+          />
+          {errors.fecha_nacimiento && <p className="text-red-500 text-sm mt-1">{errors.fecha_nacimiento}</p>}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-slate-700 mb-2">Teléfono *</label>
+        <input
+          type="tel"
+          value={formData.telefono}
+          onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+          className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+          placeholder="3001234567"
+        />
+        {errors.telefono && <p className="text-red-500 text-sm mt-1">{errors.telefono}</p>}
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-slate-700 mb-2">Dirección de Residencia *</label>
+        <input
+          type="text"
+          value={formData.direccion_residencia}
+          onChange={(e) => setFormData({ ...formData, direccion_residencia: e.target.value })}
+          className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+          placeholder="Calle 123 #45-67"
+        />
+        {errors.direccion_residencia && <p className="text-red-500 text-sm mt-1">{errors.direccion_residencia}</p>}
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Barrio/Corregimiento</label>
+          <input
+            type="text"
+            value={formData.barrio_corregimiento}
+            onChange={(e) => setFormData({ ...formData, barrio_corregimiento: e.target.value })}
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Zona</label>
+          <select
+            value={formData.zona_residencia}
+            onChange={(e) => setFormData({ ...formData, zona_residencia: e.target.value })}
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+          >
+            <option value="">Selecciona...</option>
+            <option value="URBANA">Urbana</option>
+            <option value="RURAL">Rural</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ========== PASO 5: Información Socioeconómica ==========
+  const renderStepInfoSocioeconomica = () => (
+    <div className="space-y-6">
+      <div className="text-center mb-6">
+        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Home size={32} className="text-primary" />
+        </div>
+        <h2 className="text-2xl font-bold text-primary">Información Socioeconómica</h2>
+        <p className="text-slate-600 mt-2">Ayúdanos a conocer tu contexto social</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Grupo SISBEN *</label>
+          <select
+            value={formData.sisben_grupo}
+            onChange={(e) => setFormData({ ...formData, sisben_grupo: e.target.value })}
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+          >
+            <option value="">Selecciona...</option>
+            <option value="A">A</option>
+            <option value="B">B</option>
+            <option value="C">C</option>
+            <option value="D">D</option>
+            <option value="NO_APLICA">No Aplica</option>
+          </select>
+          {errors.sisben_grupo && <p className="text-red-500 text-sm mt-1">{errors.sisben_grupo}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">¿Recibes Subsidio? *</label>
+          <select
+            value={formData.recibe_subsidio}
+            onChange={(e) => setFormData({ ...formData, recibe_subsidio: e.target.value })}
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+          >
+            <option value="">Selecciona...</option>
+            <option value="SI">Sí</option>
+            <option value="NO">No</option>
+          </select>
+          {errors.recibe_subsidio && <p className="text-red-500 text-sm mt-1">{errors.recibe_subsidio}</p>}
+        </div>
+      </div>
+
+      {formData.recibe_subsidio === 'SI' && (
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">¿Cuál Subsidio? *</label>
+          <input
+            type="text"
+            value={formData.cual_subsidio}
+            onChange={(e) => setFormData({ ...formData, cual_subsidio: e.target.value })}
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+            placeholder="Ej: Familias en Acción"
+          />
+          {errors.cual_subsidio && <p className="text-red-500 text-sm mt-1">{errors.cual_subsidio}</p>}
+        </div>
+      )}
+
+      <div>
+        <label className="block text-sm font-semibold text-slate-700 mb-2">Enfoque Diferencial</label>
+        <select
+          value={formData.enfoque_diferencial}
+          onChange={(e) => setFormData({ ...formData, enfoque_diferencial: e.target.value })}
+          className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+        >
+          <option value="NINGUNO">Ninguno</option>
+          <option value="INDIGENA">Indígena</option>
+          <option value="AFROCOLOMBIANO">Afrocolombiano</option>
+          <option value="ROM">Rom (Gitano)</option>
+          <option value="RAIZAL">Raizal</option>
+          <option value="PALENQUERO">Palenquero</option>
+          <option value="DISCAPACIDAD">Persona con Discapacidad</option>
+          <option value="VICTIMA_CONFLICTO">Víctima del Conflicto</option>
+          <option value="LGBTIQ">LGBTIQ+</option>
+          <option value="OTRO">Otro</option>
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-slate-700 mb-2">¿Laboras Actualmente?</label>
+        <select
+          value={formData.labora_actualmente}
+          onChange={(e) => setFormData({ ...formData, labora_actualmente: e.target.value })}
+          className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+        >
+          <option value="">Selecciona...</option>
+          <option value="SI">Sí</option>
+          <option value="NO">No</option>
+        </select>
+      </div>
+    </div>
+  );
+
+  // ========== PASO 6: Formación Secundaria ==========
+  const renderStepFormacionSecundaria = () => (
+    <div className="space-y-6">
+      <div className="text-center mb-6">
+        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+          <BookOpen size={32} className="text-primary" />
+        </div>
+        <h2 className="text-2xl font-bold text-primary">Formación Secundaria</h2>
+        <p className="text-slate-600 mt-2">Información sobre tu bachillerato</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Título Obtenido *</label>
+          <select
+            value={formData.titulo_obtenido}
+            onChange={(e) => setFormData({ ...formData, titulo_obtenido: e.target.value })}
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+          >
+            <option value="">Selecciona...</option>
+            <option value="BACHILLER_ACADEMICO">Bachiller Académico</option>
+            <option value="BACHILLER_TECNICO">Bachiller Técnico</option>
+            <option value="BACHILLER_COMERCIAL">Bachiller Comercial</option>
+            <option value="BACHILLER_PEDAGOGICO">Bachiller Pedagógico</option>
+            <option value="NORMALISTA">Normalista</option>
+            <option value="OTRO">Otro</option>
+          </select>
+          {errors.titulo_obtenido && <p className="text-red-500 text-sm mt-1">{errors.titulo_obtenido}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Año de Graduación *</label>
+          <input
+            type="number"
+            value={formData.ano_graduacion}
+            onChange={(e) => setFormData({ ...formData, ano_graduacion: e.target.value })}
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+            min="1980"
+            max="2050"
+            placeholder="2020"
+          />
+          {errors.ano_graduacion && <p className="text-red-500 text-sm mt-1">{errors.ano_graduacion}</p>}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-slate-700 mb-2">Establecimiento Educativo *</label>
+        <input
+          type="text"
+          value={formData.establecimiento_educativo}
+          onChange={(e) => setFormData({ ...formData, establecimiento_educativo: e.target.value })}
+          className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+          placeholder="Nombre del colegio"
+          list="establecimientos-list"
+        />
+        <datalist id="establecimientos-list">
+          {catalogos.establecimientos.map((est, idx) => (
+            <option key={idx} value={est} />
+          ))}
+        </datalist>
+        {errors.establecimiento_educativo && <p className="text-red-500 text-sm mt-1">{errors.establecimiento_educativo}</p>}
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-slate-700 mb-2">Puntaje ICFES *</label>
+        <input
+          type="number"
+          value={formData.puntaje_icfes}
+          onChange={(e) => setFormData({ ...formData, puntaje_icfes: e.target.value })}
+          className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+          min="0"
+          max="500"
+          placeholder="Ej: 350"
+        />
+        {errors.puntaje_icfes && <p className="text-red-500 text-sm mt-1">{errors.puntaje_icfes}</p>}
+      </div>
+    </div>
+  );
+
+  // ========== PASO 7: Formación Superior ==========
+  const renderStepFormacionSuperior = () => (
+    <div className="space-y-6">
+      <div className="text-center mb-6">
+        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+          <GraduationCap size={32} className="text-primary" />
+        </div>
+        <h2 className="text-2xl font-bold text-primary">Formación Superior</h2>
+        <p className="text-slate-600 mt-2">Información sobre tu carrera universitaria</p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-slate-700 mb-2">Institución de Educación Superior *</label>
+        <input
+          type="text"
+          value={formData.institucion_superior}
+          onChange={(e) => setFormData({ ...formData, institucion_superior: e.target.value })}
+          className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+          placeholder="Nombre de la universidad"
+        />
+        {errors.institucion_superior && <p className="text-red-500 text-sm mt-1">{errors.institucion_superior}</p>}
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-slate-700 mb-2">Programa Académico *</label>
+        <input
+          type="text"
+          value={formData.programa_academico}
+          onChange={(e) => setFormData({ ...formData, programa_academico: e.target.value })}
+          className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+          placeholder="Ej: Ingeniería de Sistemas"
+        />
+        {errors.programa_academico && <p className="text-red-500 text-sm mt-1">{errors.programa_academico}</p>}
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Nivel de Formación *</label>
+          <select
+            value={formData.tipo_educacion}
+            onChange={(e) => setFormData({ ...formData, tipo_educacion: e.target.value })}
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+          >
+            <option value="PROFESIONAL">Profesional</option>
+            <option value="TECNICO">Técnico</option>
+            <option value="TECNOLOGO">Tecnólogo</option>
+            <option value="ESPECIALIZACION">Especialización</option>
+            <option value="MAESTRIA">Maestría</option>
+          </select>
+          {errors.tipo_educacion && <p className="text-red-500 text-sm mt-1">{errors.tipo_educacion}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Modalidad *</label>
+          <select
+            value={formData.modalidad}
+            onChange={(e) => setFormData({ ...formData, modalidad: e.target.value })}
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+          >
+            <option value="">Selecciona...</option>
+            <option value="PRESENCIAL">Presencial</option>
+            <option value="VIRTUAL">Virtual</option>
+            <option value="DISTANCIA">A Distancia</option>
+            <option value="SEMIPRESENCIAL">Semipresencial</option>
+          </select>
+          {errors.modalidad && <p className="text-red-500 text-sm mt-1">{errors.modalidad}</p>}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Semestre de Ingreso *</label>
+          <input
+            type="text"
+            value={formData.semestre_ingreso}
+            onChange={(e) => setFormData({ ...formData, semestre_ingreso: e.target.value })}
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+            placeholder="2020-1"
+          />
+          {errors.semestre_ingreso && <p className="text-red-500 text-sm mt-1">{errors.semestre_ingreso}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Semestre Actual *</label>
+          <input
+            type="number"
+            value={formData.semestre_actual}
+            onChange={(e) => setFormData({ ...formData, semestre_actual: e.target.value })}
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+            min="1"
+            max="20"
+            placeholder="5"
+          />
+          {errors.semestre_actual && <p className="text-red-500 text-sm mt-1">{errors.semestre_actual}</p>}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ========== PASO 8: Información de Beca ==========
+  const renderStepInfoBeca = () => (
+    <div className="space-y-6">
+      <div className="text-center mb-6">
+        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Briefcase size={32} className="text-primary" />
+        </div>
+        <h2 className="text-2xl font-bold text-primary">Información de Beca</h2>
+        <p className="text-slate-600 mt-2">Detalles sobre tu beca FOCADES</p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-slate-700 mb-2">Modalidad de Beca *</label>
+        <select
+          value={formData.modalidad_beca}
+          onChange={(e) => setFormData({ ...formData, modalidad_beca: e.target.value })}
+          className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+        >
+          <option value="">Selecciona...</option>
+          <option value="COMPLETA">Beca Completa</option>
+          <option value="PARCIAL">Beca Parcial</option>
+          <option value="SOSTENIMIENTO">Sostenimiento</option>
+        </select>
+        {errors.modalidad_beca && <p className="text-red-500 text-sm mt-1">{errors.modalidad_beca}</p>}
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-slate-700 mb-2">Año de Convocatoria *</label>
+        <input
+          type="number"
+          value={formData.año_convocatoria}
+          onChange={(e) => setFormData({ ...formData, año_convocatoria: e.target.value })}
+          className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+          min="2000"
+          max="2050"
+          placeholder="2024"
+        />
+        {errors.año_convocatoria && <p className="text-red-500 text-sm mt-1">{errors.año_convocatoria}</p>}
+      </div>
+    </div>
+  );
+
+  // ========== PASO 9: Información Bancaria ==========
+  const renderStepInfoBancaria = () => (
+    <div className="space-y-6">
+      <div className="text-center mb-6">
+        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+          <DollarSign size={32} className="text-primary" />
+        </div>
+        <h2 className="text-2xl font-bold text-primary">Información Bancaria</h2>
+        <p className="text-slate-600 mt-2">Datos para desembolsos y pagos</p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-slate-700 mb-2">Banco *</label>
+        <select
+          value={formData.nombre_banco}
+          onChange={(e) => setFormData({ ...formData, nombre_banco: e.target.value })}
+          className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+        >
+          <option value="">Selecciona un banco...</option>
+          {catalogos.bancos.map((banco, idx) => (
+            <option key={idx} value={banco}>{banco}</option>
+          ))}
+        </select>
+        {errors.nombre_banco && <p className="text-red-500 text-sm mt-1">{errors.nombre_banco}</p>}
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-slate-700 mb-2">Tipo de Cuenta *</label>
+        <select
+          value={formData.tipo_cuenta_bancaria}
+          onChange={(e) => setFormData({ ...formData, tipo_cuenta_bancaria: e.target.value })}
+          className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+        >
+          <option value="AHORROS">Ahorros</option>
+          <option value="CORRIENTE">Corriente</option>
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-slate-700 mb-2">Número de Cuenta *</label>
+        <input
+          type="text"
+          value={formData.numero_cuenta}
+          onChange={(e) => setFormData({ ...formData, numero_cuenta: e.target.value })}
+          className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+          placeholder="1234567890"
+        />
+        {errors.numero_cuenta && <p className="text-red-500 text-sm mt-1">{errors.numero_cuenta}</p>}
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-slate-700 mb-2">Confirmar Número de Cuenta *</label>
+        <input
+          type="text"
+          value={formData.numero_cuenta_confirm}
+          onChange={(e) => setFormData({ ...formData, numero_cuenta_confirm: e.target.value })}
+          className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+          placeholder="1234567890"
+        />
+        {errors.numero_cuenta_confirm && <p className="text-red-500 text-sm mt-1">{errors.numero_cuenta_confirm}</p>}
+      </div>
+    </div>
+  );
+
+  // ========== PASO 10: Documentos (simplificado por ahora) ==========
+  const renderStepDocumentos = () => (
+    <div className="space-y-6">
+      <div className="text-center mb-6">
+        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Upload size={32} className="text-primary" />
+        </div>
+        <h2 className="text-2xl font-bold text-primary">Documentos de Soporte</h2>
+        <p className="text-slate-600 mt-2">Sube los documentos requeridos (PDF)</p>
+      </div>
+
+      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+        <p className="text-sm text-yellow-800">
+          <strong>Nota:</strong> La carga de documentos se implementará en la siguiente fase.
+          Por ahora puedes continuar sin subir archivos.
+        </p>
+      </div>
+    </div>
+  );
+
+  // ========== PASO 11: Términos y Firma ==========
+  const renderStepTerminosYFirma = () => (
+    <div className="space-y-6">
+      <div className="text-center mb-6">
+        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Shield size={32} className="text-primary" />
+        </div>
+        <h2 className="text-2xl font-bold text-primary">Términos y Condiciones</h2>
+        <p className="text-slate-600 mt-2">Lee y acepta los términos</p>
+      </div>
+
+      <div className="space-y-4">
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={formData.acepta_terminos}
+            onChange={(e) => setFormData({ ...formData, acepta_terminos: e.target.checked })}
+            className="mt-1 w-5 h-5 text-secondary border-slate-300 rounded focus:ring-secondary"
+          />
+          <span className="text-sm text-slate-700">
+            Acepto los <strong>términos y condiciones</strong> del programa FOCADES
+          </span>
+        </label>
+        {errors.acepta_terminos && <p className="text-red-500 text-sm">{errors.acepta_terminos}</p>}
+
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={formData.acepta_datos}
+            onChange={(e) => setFormData({ ...formData, acepta_datos: e.target.checked })}
+            className="mt-1 w-5 h-5 text-secondary border-slate-300 rounded focus:ring-secondary"
+          />
+          <span className="text-sm text-slate-700">
+            Autorizo el <strong>tratamiento de mis datos personales</strong> según la Ley 1581 de 2012
+          </span>
+        </label>
+        {errors.acepta_datos && <p className="text-red-500 text-sm">{errors.acepta_datos}</p>}
+      </div>
+
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+        <p className="text-sm text-blue-800">
+          <strong>Firma digital:</strong> Se implementará en la siguiente fase. 
+          Por ahora la aceptación de términos sirve como confirmación.
+        </p>
+      </div>
+    </div>
+  );
+
+  // ========== PASO 12: Resumen ==========
+  const renderStepResumen = () => (
+    <div className="space-y-6">
+      <div className="text-center mb-6">
+        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Check size={32} className="text-green-600" />
+        </div>
+        <h2 className="text-2xl font-bold text-primary">¡Todo Listo!</h2>
+        <p className="text-slate-600 mt-2">Revisa tu información antes de finalizar</p>
+      </div>
+
+      <div className="bg-slate-50 rounded-xl p-6 space-y-4">
+        <div>
+          <p className="text-sm text-slate-600">Nombre</p>
+          <p className="font-semibold text-slate-900">{formData.email}</p>
+        </div>
+        <div>
+          <p className="text-sm text-slate-600">Universidad</p>
+          <p className="font-semibold text-slate-900">{formData.institucion_superior || 'No especificado'}</p>
+        </div>
+        <div>
+          <p className="text-sm text-slate-600">Programa</p>
+          <p className="font-semibold text-slate-900">{formData.programa_academico || 'No especificado'}</p>
+        </div>
+      </div>
+
+      <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+        <p className="text-sm text-green-800">
+          Al finalizar, podrás acceder al portal de beneficiarios y gestionar tu beca.
+        </p>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#F5F7FA' }}>
@@ -495,7 +1303,7 @@ const BeneficiarioOnboardingCompleto = () => {
                 Guardar y salir
               </button>
 
-              {currentStep < TOTAL_STEPS ? (
+              {currentStep < 11 ? (
                 <button
                   type="button"
                   onClick={handleNext}
@@ -503,10 +1311,10 @@ const BeneficiarioOnboardingCompleto = () => {
                   className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm disabled:opacity-50 transition-all text-white"
                   style={{ background: '#1A5A96' }}
                 >
-                  Siguiente
+                  {loading ? 'Guardando...' : 'Siguiente'}
                   <ChevronRight size={18} />
                 </button>
-              ) : (
+              ) : currentStep === 11 ? (
                 <button
                   type="button"
                   onClick={handleComplete}
@@ -514,8 +1322,18 @@ const BeneficiarioOnboardingCompleto = () => {
                   className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm disabled:opacity-50 transition-all text-white"
                   style={{ background: '#22C55E' }}
                 >
-                  {loading ? 'Finalizando...' : 'Finalizar'}
+                  {loading ? 'Finalizando...' : 'Finalizar Registro'}
                   <Check size={18} />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setRedirectToDashboard(true)}
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm transition-all text-white"
+                  style={{ background: '#1A5A96' }}
+                >
+                  Ir al Portal
+                  <ChevronRight size={18} />
                 </button>
               )}
             </div>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { showErrorAlert, showSuccessAlert } from '../lib/alerts';
-import { ChevronRight, Lock, FileText, Mail, AlertCircle, CheckCircle2, User, BookOpen, DollarSign } from 'lucide-react';
+import { ChevronRight, Lock, FileText, Mail, AlertCircle, CheckCircle2, User, BookOpen, DollarSign, Eye, EyeOff, Check, X } from 'lucide-react';
 
 const BeneficiarioAuthSetup = () => {
   const [step, setStep] = useState(1); // 1-3: Auth, 4-6: Perfil
@@ -34,6 +34,18 @@ const BeneficiarioAuthSetup = () => {
   const [errors, setErrors] = useState({});
   const [establecimientos, setEstablecimientos] = useState([]);
   const [bancos, setBancos] = useState([]);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
+
+  // Validadores de contraseña
+  const passwordValidations = {
+    minLength: formData.password.length >= 8,
+    hasUpperCase: /[A-Z]/.test(formData.password),
+    hasLowerCase: /[a-z]/.test(formData.password),
+    hasNumber: /[0-9]/.test(formData.password),
+    hasSpecial: /[!@#$%^&*(),.?":{}|<>]/.test(formData.password),
+    passwordsMatch: formData.password && formData.password === formData.passwordConfirm,
+  };
 
   useEffect(() => {
     // Verificar si viene de un link de setup
@@ -188,10 +200,35 @@ const BeneficiarioAuthSetup = () => {
       return;
     }
 
-    if (formData.password.length < 8) {
+    // Validar todos los requisitos de seguridad
+    if (!passwordValidations.minLength) {
+      await showErrorAlert({
+        title: 'Contraseña muy corta',
+        text: 'La contraseña debe tener al menos 8 caracteres.',
+      });
+      return;
+    }
+
+    if (!passwordValidations.hasUpperCase || !passwordValidations.hasLowerCase) {
       await showErrorAlert({
         title: 'Contraseña débil',
-        text: 'La contraseña debe tener al menos 8 caracteres.',
+        text: 'La contraseña debe contener mayúsculas y minúsculas.',
+      });
+      return;
+    }
+
+    if (!passwordValidations.hasNumber) {
+      await showErrorAlert({
+        title: 'Contraseña débil',
+        text: 'La contraseña debe contener al menos un número.',
+      });
+      return;
+    }
+
+    if (!passwordValidations.hasSpecial) {
+      await showErrorAlert({
+        title: 'Contraseña débil',
+        text: 'La contraseña debe contener al menos un carácter especial (!@#$%).',
       });
       return;
     }
@@ -515,14 +552,24 @@ const BeneficiarioAuthSetup = () => {
                           <Lock size={16} className="inline mr-2" />
                           Contraseña
                         </label>
-                        <input
-                          type="password"
-                          placeholder="Mínimo 8 caracteres"
-                          value={formData.password}
-                          onChange={e => setFormData({ ...formData, password: e.target.value })}
-                          className="w-full px-4 py-2 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-secondary"
-                          disabled={loading}
-                        />
+                        <div className="relative">
+                          <input
+                            type={showPassword ? 'text' : 'password'}
+                            placeholder="Mínimo 8 caracteres"
+                            value={formData.password}
+                            onChange={e => setFormData({ ...formData, password: e.target.value })}
+                            className="w-full px-4 py-2 pr-10 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-secondary"
+                            disabled={loading}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                            disabled={loading}
+                          >
+                            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                          </button>
+                        </div>
                       </div>
 
                       <div>
@@ -530,22 +577,59 @@ const BeneficiarioAuthSetup = () => {
                           <Lock size={16} className="inline mr-2" />
                           Confirmar contraseña
                         </label>
-                        <input
-                          type="password"
-                          placeholder="Repite tu contraseña"
-                          value={formData.passwordConfirm}
-                          onChange={e => setFormData({ ...formData, passwordConfirm: e.target.value })}
-                          className="w-full px-4 py-2 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-secondary"
-                          disabled={loading}
-                        />
+                        <div className="relative">
+                          <input
+                            type={showPasswordConfirm ? 'text' : 'password'}
+                            placeholder="Repite tu contraseña"
+                            value={formData.passwordConfirm}
+                            onChange={e => setFormData({ ...formData, passwordConfirm: e.target.value })}
+                            className="w-full px-4 py-2 pr-10 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-secondary"
+                            disabled={loading}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                            disabled={loading}
+                          >
+                            {showPasswordConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                          </button>
+                        </div>
                       </div>
 
-                      <div
-                        className="rounded-xl px-4 py-3 text-xs leading-relaxed flex items-start gap-2"
-                        style={{ background: 'rgba(34,197,94,0.10)', border: '1px solid rgba(34,197,94,0.25)', color: '#166534' }}
-                      >
-                        <CheckCircle2 size={14} className="shrink-0 mt-0.5" />
-                        Usa una contraseña fuerte: mayúsculas, minúsculas, números y símbolos.
+                      {/* Validadores de contraseña */}
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold text-slate-700">La contraseña debe contener:</p>
+                        <div className="space-y-1.5">
+                          <ValidationItem
+                            isValid={passwordValidations.minLength}
+                            text="Al menos 8 caracteres"
+                          />
+                          <ValidationItem
+                            isValid={passwordValidations.hasUpperCase}
+                            text="Una letra mayúscula (A-Z)"
+                          />
+                          <ValidationItem
+                            isValid={passwordValidations.hasLowerCase}
+                            text="Una letra minúscula (a-z)"
+                          />
+                          <ValidationItem
+                            isValid={passwordValidations.hasNumber}
+                            text="Un número (0-9)"
+                          />
+                          <ValidationItem
+                            isValid={passwordValidations.hasSpecial}
+                            text="Un carácter especial (!@#$%)"
+                          />
+                        </div>
+                        {formData.passwordConfirm && (
+                          <div className="pt-2 border-t border-border">
+                            <ValidationItem
+                              isValid={passwordValidations.passwordsMatch}
+                              text="Las contraseñas coinciden"
+                            />
+                          </div>
+                        )}
                       </div>
 
                       <button
@@ -836,5 +920,17 @@ const BeneficiarioAuthSetup = () => {
     </div>
   );
 };
+
+// Componente auxiliar para mostrar validaciones de contraseña
+const ValidationItem = ({ isValid, text }) => (
+  <div className={`flex items-center gap-2 text-xs ${isValid ? 'text-green-700' : 'text-slate-500'}`}>
+    {isValid ? (
+      <Check size={14} className="shrink-0" />
+    ) : (
+      <X size={14} className="shrink-0" />
+    )}
+    <span>{text}</span>
+  </div>
+);
 
 export default BeneficiarioAuthSetup;

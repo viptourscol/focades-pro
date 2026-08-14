@@ -131,7 +131,15 @@ Deno.serve(async (req) => {
     if (method === 'setup-complete') {
       const { setup_token, password, password_confirm } = body
 
+      console.log('🔍 DEBUG setup-complete:', {
+        has_token: !!setup_token,
+        token_length: setup_token?.length,
+        has_password: !!password,
+        has_password_confirm: !!password_confirm,
+      })
+
       if (!setup_token || !password || !password_confirm) {
+        console.error('❌ Faltan campos requeridos')
         return new Response(
           JSON.stringify({ ok: false, error: 'Token, contraseña y confirmación requeridos' }),
           { status: 400, headers: corsHeaders }
@@ -139,6 +147,7 @@ Deno.serve(async (req) => {
       }
 
       if (password !== password_confirm) {
+        console.error('❌ Contraseñas no coinciden')
         return new Response(
           JSON.stringify({ ok: false, error: 'Las contraseñas no coinciden' }),
           { status: 400, headers: corsHeaders }
@@ -146,6 +155,7 @@ Deno.serve(async (req) => {
       }
 
       // 1. Validar token de setup
+      console.log('🔍 Buscando token en BD:', setup_token.substring(0, 10) + '...')
       const { data: cred, error: credErr } = await supabase
         .from('portal_auth_credentials')
         .select('id, beneficiario_id, email_verified, setup_token_expires_at, document_number')
@@ -153,7 +163,10 @@ Deno.serve(async (req) => {
         .gt('setup_token_expires_at', new Date().toISOString())
         .maybeSingle()
 
+      console.log('🔍 Resultado búsqueda token:', { found: !!cred, error: credErr?.message })
+
       if (credErr || !cred) {
+        console.error('❌ Token inválido o expirado')
         return new Response(
           JSON.stringify({ ok: false, error: 'Token inválido o expirado' }),
           { status: 401, headers: corsHeaders }
@@ -163,8 +176,11 @@ Deno.serve(async (req) => {
       // 2. Hash contraseña
       let passwordHash: string
       try {
+        console.log('🔍 Hasheando contraseña...')
         passwordHash = await hashPassword(password)
+        console.log('✅ Contraseña hasheada exitosamente')
       } catch (err) {
+        console.error('❌ Error hasheando contraseña:', err.message)
         return new Response(
           JSON.stringify({ ok: false, error: err.message }),
           { status: 400, headers: corsHeaders }

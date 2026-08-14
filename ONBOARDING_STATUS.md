@@ -44,7 +44,7 @@
 
 ---
 
-## 🚧 Fase 3: Frontend - Componente Base (EN PROGRESO)
+## 🚧 Fase 3: Frontend - Componente Base (COMPLETADA ✅)
 
 **Archivo:** `src/pages/BeneficiarioOnboardingCompleto.jsx`
 
@@ -58,77 +58,57 @@
 - ✅ Barra de progreso visual
 - ✅ Botón "Guardar y salir"
 - ✅ Integración con Edge Functions (`update-profile`, `complete-onboarding`)
+- ✅ **Renderizado de todos los pasos (1-12)**
+- ✅ **Paso 1:** Verificar documento
+- ✅ **Paso 2:** Revisar email
+- ✅ **Paso 3:** Establecer contraseña (con validadores)
+- ✅ **Paso 4:** Datos personales (género, fecha nac, teléfono, dirección)
+- ✅ **Paso 5:** Información socioeconómica (SISBEN, subsidios, enfoque)
+- ✅ **Paso 6:** Formación secundaria (colegio, ICFES, año graduación)
+- ✅ **Paso 7:** Formación superior (universidad, programa, modalidad)
+- ✅ **Paso 8:** Información de beca (modalidad, año convocatoria)
+- ✅ **Paso 9:** Información bancaria (banco, cuenta con confirmación)
+- ✅ **Paso 10:** Documentos (placeholder - mensaje informativo)
+- ✅ **Paso 11:** Términos y firma (checkboxes de aceptación)
+- ✅ **Paso 12:** Resumen final (botón "Ir al Portal")
+- ✅ Componente ValidationItem para validadores de contraseña
+- ✅ Integración con catálogos (bancos, establecimientos)
+- ✅ Lógica de autenticación (setup-init, setup-complete)
+- ✅ Actualizado App.jsx para usar nuevo componente
 
 ### Pendiente:
-- ❌ **Renderizado de cada paso (4-12)** ← SIGUIENTE TAREA
-- ❌ Componentes de formulario para cada paso
-- ❌ Subida de documentos (paso 10)
+- ❌ **Subida de documentos real (paso 10)** ← PRÓXIMA TAREA
 - ❌ Canvas de firma digital (paso 11)
-- ❌ Resumen final (paso 12)
-- ❌ Integración con catálogos (departamentos, municipios, colegios, universidades, bancos)
+- ❌ Resumen completo con todos los datos (paso 12)
 
 ---
 
 ## 📋 Próximos Pasos Inmediatos
 
-### 1. Ejecutar migración en Supabase (10 min)
-```bash
-# Opción A: Desde Supabase Dashboard
-# - Ir a SQL Editor
-# - Copiar contenido de 202608140001_extend_beneficiarios_onboarding_completo.sql
-# - Ejecutar
+### 🔴 URGENTE: Ejecutar migración en Supabase (10 min)
 
-# Opción B: Desde CLI
-supabase db push
-```
+Ve al [Supabase Dashboard](https://supabase.com/dashboard/project/jwifxjzxdxjntbdqbyku/sql/new) y:
+1. Copia el contenido de `supabase/migrations/202608140001_extend_beneficiarios_onboarding_completo.sql`
+2. Pega en SQL Editor
+3. Ejecuta
+4. Verifica que no haya errores
 
-### 2. Desplegar Edge Function actualizada (5 min)
+### 🔴 URGENTE: Desplegar Edge Function actualizada (5 min)
+
 ```bash
 supabase functions deploy auth-credentials
 ```
 
-### 3. Implementar renderizado de pasos (3-4 días)
+### 🟡 Testing del flujo completo (30 min)
 
-#### **Paso 4: Datos Personales** (medio día)
-- Campos: género, fecha nacimiento, teléfono, dirección, barrio, departamento, municipio, zona
-- Componentes: RadioGroup, DatePicker, Input, Select con búsqueda
+1. Abrir https://focades-pro.vercel.app/beneficiario/auth-setup
+2. Probar flujo completo de 12 pasos
+3. Verificar que datos se guardan en BD
+4. Verificar que al finalizar redirija al portal
 
-#### **Paso 5: Información Socioeconómica** (medio día)
-- Campos obligatorios: SISBEN, recibe subsidio, enfoque diferencial, trabaja
-- Campos opcionales: datos de padre y madre
-- Componentes: RadioGroup, Select, Input numérico (ingresos)
+### 🟢 Opcional: Implementar subida de documentos (1-2 días)
 
-#### **Paso 6: Formación Secundaria** (medio día)
-- Campos: título obtenido, año graduación, colegio, puntaje ICFES
-- Componentes: Select, NumberInput, Autocomplete para colegio
-
-#### **Paso 7: Formación Superior** (medio día)
-- Campos: universidad, programa, nivel, semestre ingreso/actual, modalidad, ciudad
-- Componentes: Autocomplete para universidad, Input, Select
-
-#### **Paso 8: Información de Beca** (medio día)
-- Campos: modalidad beca, año convocatoria
-- Componentes: RadioGroup, NumberInput
-
-#### **Paso 9: Información Bancaria** (medio día)
-- Campos: banco, tipo cuenta, número cuenta (confirmar 2 veces)
-- Componentes: Select banco, Input número (solo dígitos), RadioGroup
-
-#### **Paso 10: Documentos** (1 día)
-- 9 documentos (7 obligatorios + 2 condicionales)
-- Componentes: FileUploader con drag & drop, preview de PDF
-- Validaciones: tamaño máximo, tipo MIME, nombre archivo
-- Upload a Supabase Storage
-
-#### **Paso 11: Términos y Firma** (1 día)
-- Aceptación de términos y datos
-- Canvas de firma digital (react-signature-canvas)
-- Guardar firma como PNG en Storage
-
-#### **Paso 12: Resumen Final** (medio día)
-- Mostrar resumen de toda la información
-- Permitir regresar a editar cualquier paso
-- Botón "Finalizar y Crear Cuenta"
+Ver sección de implementación de documentos más abajo.
 
 ---
 
@@ -169,17 +149,17 @@ npm install react-dropzone  # Para drag & drop de documentos
 ## 📊 Progreso General
 
 ```
-[████████░░░░░░░░░░░░] 40% completado
+[████████████████░░░░] 80% completado
 
 ✅ Fase 1: Migración BD (100%)
 ✅ Fase 2: Backend (100%)
-🚧 Fase 3: Frontend estructura (30%)
-⏳ Fase 4: Frontend pasos (0%)
+✅ Fase 3: Frontend pasos básicos (100%)
+🚧 Fase 4: Subida de documentos (0%)
 ⏳ Fase 5: Testing (0%)
 ⏳ Fase 6: Despliegue (0%)
 ```
 
-**Tiempo estimado restante:** 5-7 días
+**Tiempo estimado restante:** 2-3 días
 
 ---
 

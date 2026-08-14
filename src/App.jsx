@@ -90,7 +90,24 @@ function BeneficiarioAuthGuard({ children }) {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return;
 
-      if (!session) {
+      // Verificar si hay sesión de documento en localStorage
+      const hasDocumentSession = (() => {
+        try {
+          const sessionStr = localStorage.getItem('focades:beneficiario-session');
+          if (!sessionStr) return false;
+          
+          const documentSession = JSON.parse(sessionStr);
+          const sessionTime = new Date(documentSession.timestamp).getTime();
+          const maxAge = 24 * 60 * 60 * 1000; // 24 horas
+          
+          return (Date.now() - sessionTime <= maxAge) && documentSession.beneficiario_id && documentSession.profile;
+        } catch {
+          return false;
+        }
+      })();
+
+      // Si no hay sesión de Supabase Auth ni de documento, denegar acceso
+      if (!session && !hasDocumentSession) {
         setHasAccess(false);
         setReady(true);
         return;

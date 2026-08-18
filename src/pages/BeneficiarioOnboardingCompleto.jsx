@@ -259,8 +259,8 @@ const BeneficiarioOnboardingCompleto = () => {
       const [{ data: bancos }, { data: establecimientos }, { data: departamentos }, { data: municipios }] = await Promise.all([
         supabase.from('catalog_bancos').select('nombre').order('nombre'),
         supabase.from('vw_catalog_establecimientos').select('nombre').order('nombre'),
-        supabase.from('vw_catalog_departamentos_colombia').select('*').order('departamento'),
-        supabase.from('vw_catalog_municipios_colombia').select('*').order('municipio'),
+        supabase.from('vw_catalog_departamentos_colombia').select('*').order('nombre'),
+        supabase.from('vw_catalog_municipios_colombia').select('*').order('nombre'),
       ]);
 
       setCatalogos(prev => ({
@@ -1106,7 +1106,7 @@ const BeneficiarioOnboardingCompleto = () => {
           >
             <option value="">Selecciona departamento...</option>
             {catalogos.departamentos.map((dept, idx) => (
-              <option key={idx} value={dept.departamento}>{dept.departamento}</option>
+              <option key={idx} value={dept.nombre}>{dept.nombre}</option>
             ))}
           </select>
           {errors.dpto_residencia && <p className="text-red-500 text-sm mt-1">{errors.dpto_residencia}</p>}
@@ -1122,7 +1122,7 @@ const BeneficiarioOnboardingCompleto = () => {
           >
             <option value="">Selecciona municipio...</option>
             {catalogos.municipiosFiltrados.map((mun, idx) => (
-              <option key={idx} value={mun.municipio}>{mun.municipio}</option>
+              <option key={idx} value={mun.nombre}>{mun.nombre}</option>
             ))}
           </select>
           {errors.municipio_residencia && <p className="text-red-500 text-sm mt-1">{errors.municipio_residencia}</p>}
@@ -1180,7 +1180,7 @@ const BeneficiarioOnboardingCompleto = () => {
             >
               <option value="">Selecciona...</option>
               {catalogos.departamentos.map((dept, idx) => (
-                <option key={idx} value={dept.departamento}>{dept.departamento}</option>
+                <option key={idx} value={dept.nombre}>{dept.nombre}</option>
               ))}
             </select>
           </div>
@@ -1195,7 +1195,7 @@ const BeneficiarioOnboardingCompleto = () => {
             >
               <option value="">Selecciona...</option>
               {catalogos.municipios.filter(m => m.departamento === formData.dpto_nacimiento).map((mun, idx) => (
-                <option key={idx} value={mun.municipio}>{mun.municipio}</option>
+                <option key={idx} value={mun.nombre}>{mun.nombre}</option>
               ))}
             </select>
           </div>
@@ -1615,7 +1615,7 @@ const BeneficiarioOnboardingCompleto = () => {
           >
             <option value="">Selecciona departamento...</option>
             {catalogos.departamentos.map((dept, idx) => (
-              <option key={idx} value={dept.departamento}>{dept.departamento}</option>
+              <option key={idx} value={dept.nombre}>{dept.nombre}</option>
             ))}
           </select>
           {errors.dpto_institucion && <p className="text-red-500 text-sm mt-1">{errors.dpto_institucion}</p>}
@@ -1631,7 +1631,7 @@ const BeneficiarioOnboardingCompleto = () => {
           >
             <option value="">Selecciona municipio...</option>
             {catalogos.municipiosInstitucionFiltrados.map((mun, idx) => (
-              <option key={idx} value={mun.municipio}>{mun.municipio}</option>
+              <option key={idx} value={mun.nombre}>{mun.nombre}</option>
             ))}
           </select>
           {errors.municipio_institucion && <p className="text-red-500 text-sm mt-1">{errors.municipio_institucion}</p>}

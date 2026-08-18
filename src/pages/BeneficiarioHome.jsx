@@ -131,6 +131,27 @@ const BeneficiarioHome = () => {
         await showInfoAlert({
           title: modalData.title || 'Información importante',
           text: modalData.content || '',
+        });
+        sessionStorage.setItem(modalDismissKey, '1');
+      }
+    };
+
+    loadData();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  return (
+    <div className="ui-page">
+      <NewsModal item={selectedNews} onClose={() => setSelectedNews(null)} />
+
+      <section className="ui-card animate-slide-up">
+        <h2 className="ui-title text-[clamp(1.4rem,2.4vw,2rem)]">Inicio</h2>
+        <p className="ui-subtitle mt-1">Noticias y avisos relevantes del programa.</p>
+      </section>
+
       {/* Banner de perfil incompleto */}
       {perfilIncompleto && (
         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-r-xl shadow-sm animate-slide-up">
@@ -154,27 +175,6 @@ const BeneficiarioHome = () => {
           </div>
         </div>
       )}
-
-        });
-        sessionStorage.setItem(modalDismissKey, '1');
-      }
-    };
-
-    loadData();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  return (
-    <div className="ui-page">
-      <NewsModal item={selectedNews} onClose={() => setSelectedNews(null)} />
-
-      <section className="ui-card animate-slide-up">
-        <h2 className="ui-title text-[clamp(1.4rem,2.4vw,2rem)]">Inicio</h2>
-        <p className="ui-subtitle mt-1">Noticias y avisos relevantes del programa.</p>
-      </section>
 
   <section id="centro-notificaciones" className="scroll-mt-24">
   {/* Panel de Notificaciones */}

@@ -495,9 +495,9 @@ const BeneficiarioOnboardingCompleto = () => {
     }
   };
 
-  coconst minStep = isLoginMode ? 4 : 1; // Can't go before step 4 if coming from login
-    if (currentStep > minStep= () => {
-    if (currentStep > 1) {
+  const handlePrevious = () => {
+    const minStep = isLoginMode ? 4 : 1; // Can't go before step 4 if coming from login
+    if (currentStep > minStep) {
       setCurrentStep(currentStep - 1);
     }
   };
@@ -1683,8 +1683,8 @@ const BeneficiarioOnboardingCompleto = () => {
             <div className="px-8 py-6 bg-slate-50 border-t border-border flex justify-between">
               <button
                 type="button"
-                onClick={handlePrevious} || (isLoginMode && currentStep === 4)
-                disabled={currentStep === 1}
+                onClick={handlePrevious}
+                disabled={(isLoginMode && currentStep === 4) || currentStep === 1}
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm disabled:opacity-30 disabled:cursor-not-allowed border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors"
               >
                 <ChevronLeft size={18} />

@@ -1042,6 +1042,32 @@ const BeneficiarioOnboardingCompleto = () => {
 
       <div className="grid grid-cols-2 gap-4">
         <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Departamento *</label>
+          <input
+            type="text"
+            value={formData.dpto_residencia}
+            onChange={(e) => setFormData({ ...formData, dpto_residencia: e.target.value })}
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+            placeholder="Ej: Antioquia"
+          />
+          {errors.dpto_residencia && <p className="text-red-500 text-sm mt-1">{errors.dpto_residencia}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Municipio *</label>
+          <input
+            type="text"
+            value={formData.municipio_residencia}
+            onChange={(e) => setFormData({ ...formData, municipio_residencia: e.target.value })}
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+            placeholder="Ej: Medellín"
+          />
+          {errors.municipio_residencia && <p className="text-red-500 text-sm mt-1">{errors.municipio_residencia}</p>}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
           <label className="block text-sm font-semibold text-slate-700 mb-2">Barrio/Corregimiento</label>
           <input
             type="text"
@@ -1062,6 +1088,44 @@ const BeneficiarioOnboardingCompleto = () => {
             <option value="URBANA">Urbana</option>
             <option value="RURAL">Rural</option>
           </select>
+        </div>
+      </div>
+
+      <div className="border-t border-slate-200 pt-4 mt-4">
+        <h3 className="text-lg font-semibold text-slate-700 mb-4">Lugar de Nacimiento</h3>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">País</label>
+            <input
+              type="text"
+              value={formData.pais_nacimiento}
+              onChange={(e) => setFormData({ ...formData, pais_nacimiento: e.target.value })}
+              className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+              placeholder="Colombia"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Departamento</label>
+            <input
+              type="text"
+              value={formData.dpto_nacimiento}
+              onChange={(e) => setFormData({ ...formData, dpto_nacimiento: e.target.value })}
+              className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+              placeholder="Ej: Antioquia"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Municipio</label>
+            <input
+              type="text"
+              value={formData.municipio_nacimiento}
+              onChange={(e) => setFormData({ ...formData, municipio_nacimiento: e.target.value })}
+              className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+              placeholder="Ej: Medellín"
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -1157,6 +1221,110 @@ const BeneficiarioOnboardingCompleto = () => {
           <option value="NO">No</option>
         </select>
       </div>
+
+      <div className="border-t border-slate-200 pt-4 mt-6">
+        <h3 className="text-lg font-semibold text-slate-700 mb-4">
+          <Users className="inline-block mr-2" size={20} />
+          Composición Familiar (Opcional)
+        </h3>
+        <p className="text-sm text-slate-600 mb-4">Si deseas, puedes proporcionar información sobre tus padres</p>
+
+        <div className="space-y-6">
+          {/* Información del Padre */}
+          <div className="bg-slate-50 rounded-xl p-4">
+            <h4 className="text-sm font-semibold text-slate-700 mb-3">Información del Padre</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">Nombre Completo</label>
+                <input
+                  type="text"
+                  value={formData.nombre_padre}
+                  onChange={(e) => setFormData({ ...formData, nombre_padre: e.target.value })}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+                  placeholder="Nombre del padre"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">Documento</label>
+                <input
+                  type="text"
+                  value={formData.documento_padre}
+                  onChange={(e) => setFormData({ ...formData, documento_padre: e.target.value })}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+                  placeholder="Número de documento"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">Ocupación</label>
+                <input
+                  type="text"
+                  value={formData.ocupacion_padre}
+                  onChange={(e) => setFormData({ ...formData, ocupacion_padre: e.target.value })}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+                  placeholder="Ocupación o profesión"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">Ingresos Mensuales</label>
+                <input
+                  type="number"
+                  value={formData.ingresos_padre}
+                  onChange={(e) => setFormData({ ...formData, ingresos_padre: e.target.value })}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+                  placeholder="$ 0"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Información de la Madre */}
+          <div className="bg-slate-50 rounded-xl p-4">
+            <h4 className="text-sm font-semibold text-slate-700 mb-3">Información de la Madre</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">Nombre Completo</label>
+                <input
+                  type="text"
+                  value={formData.nombre_madre}
+                  onChange={(e) => setFormData({ ...formData, nombre_madre: e.target.value })}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+                  placeholder="Nombre de la madre"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">Documento</label>
+                <input
+                  type="text"
+                  value={formData.documento_madre}
+                  onChange={(e) => setFormData({ ...formData, documento_madre: e.target.value })}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+                  placeholder="Número de documento"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">Ocupación</label>
+                <input
+                  type="text"
+                  value={formData.ocupacion_madre}
+                  onChange={(e) => setFormData({ ...formData, ocupacion_madre: e.target.value })}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+                  placeholder="Ocupación o profesión"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">Ingresos Mensuales</label>
+                <input
+                  type="number"
+                  value={formData.ingresos_madre}
+                  onChange={(e) => setFormData({ ...formData, ingresos_madre: e.target.value })}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+                  placeholder="$ 0"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 
@@ -1221,6 +1389,17 @@ const BeneficiarioOnboardingCompleto = () => {
           ))}
         </datalist>
         {errors.establecimiento_educativo && <p className="text-red-500 text-sm mt-1">{errors.establecimiento_educativo}</p>}
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-slate-700 mb-2">Municipio del Establecimiento</label>
+        <input
+          type="text"
+          value={formData.municipio_establecimiento}
+          onChange={(e) => setFormData({ ...formData, municipio_establecimiento: e.target.value })}
+          className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+          placeholder="Ciudad donde estudiaste"
+        />
       </div>
 
       <div>
@@ -1348,6 +1527,34 @@ const BeneficiarioOnboardingCompleto = () => {
             placeholder="5"
           />
           {errors.semestre_actual && <p className="text-red-500 text-sm mt-1">{errors.semestre_actual}</p>}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Ciudad de la Institución</label>
+          <input
+            type="text"
+            value={formData.ciudad_institucion}
+            onChange={(e) => setFormData({ ...formData, ciudad_institucion: e.target.value })}
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+            placeholder="Ej: Medellín"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Promedio Académico Anterior</label>
+          <input
+            type="number"
+            value={formData.promedio_anterior}
+            onChange={(e) => setFormData({ ...formData, promedio_anterior: e.target.value })}
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
+            min="0"
+            max="5"
+            step="0.1"
+            placeholder="4.5"
+          />
+          <p className="text-xs text-slate-500 mt-1">Escala de 0.0 a 5.0</p>
         </div>
       </div>
     </div>

@@ -636,6 +636,23 @@ const BeneficiarioOnboardingCompleto = () => {
       // 5. Limpiar progreso guardado
       localStorage.removeItem('focades:onboarding-progress');
 
+      // 6. Actualizar sesión en localStorage para que BeneficiarioHome detecte perfil completo
+      try {
+        const sessionStr = localStorage.getItem('focades:beneficiario-session');
+        if (sessionStr) {
+          const session = JSON.parse(sessionStr);
+          if (session.profile) {
+            session.profile.onboarding_completado = true;
+            session.profile.perfil_completado_en = new Date().toISOString();
+            session.profile.acepta_terminos_at = new Date().toISOString();
+            session.profile.acepta_datos_at = new Date().toISOString();
+            localStorage.setItem('focades:beneficiario-session', JSON.stringify(session));
+          }
+        }
+      } catch (error) {
+        console.error('Error actualizando sesión en localStorage:', error);
+      }
+
       await showSuccessAlert({
         title: '¡Registro Completado!',
         text: 'Tu perfil ha sido creado exitosamente',

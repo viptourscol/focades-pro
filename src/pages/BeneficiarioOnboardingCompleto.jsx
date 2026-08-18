@@ -1507,7 +1507,7 @@ const BeneficiarioOnboardingCompleto = () => {
       {(formData.modalidad_beca || formData.año_convocatoria) && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
           <p className="text-sm text-blue-800">
-            <strong>Información de tu beca:</strong> {formData.modalidad_beca || 'Beca'} - Convocatoria {formData.año_convocatoria || '2024'}
+            <strong>Información de tu Crédito:</strong> {formData.modalidad_beca || 'Crédito'} - Convocatoria {formData.año_convocatoria || '2024'}
           </p>
         </div>
       )}
@@ -1746,7 +1746,7 @@ const BeneficiarioOnboardingCompleto = () => {
         </div>
 
         <div className="space-y-4">
-          {documentos.map(doc => (
+          {documentos.filter(doc => doc.required !== false).map(doc => (
             <div key={doc.key} className="bg-white border border-slate-200 rounded-xl p-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">

@@ -24,9 +24,29 @@ export const invokeBeneficiarioTickets = async (payload) => {
     return { ok: false, error: 'Faltan variables de entorno de Supabase.' };
   }
 
+  // Intentar obtener sesión de Supabase Auth (Google OAuth)
   const { session } = await getSafeSession();
   const accessToken = String(session?.access_token || '').trim();
-  if (!accessToken) {
+  
+  // Intentar obtener sesión de documento (localStorage)
+  let beneficiarioId = null;
+  try {
+    const sessionStr = localStorage.getItem('focades:beneficiario-session');
+    if (sessionStr) {
+      const documentSession = JSON.parse(sessionStr);
+      const sessionTime = new Date(documentSession.timestamp).getTime();
+      const maxAge = 24 * 60 * 60 * 1000;
+      
+      if (Date.now() - sessionTime <= maxAge && documentSession.beneficiario_id) {
+        beneficiarioId = documentSession.beneficiario_id;
+      }
+    }
+  } catch (error) {
+    console.error('Error leyendo sesión de documento:', error);
+  }
+
+  // Si no hay ninguna sesión válida, retornar error
+  if (!accessToken && !beneficiarioId) {
     return {
       ok: false,
       error: 'Tu sesión expiró. Inicia sesión nuevamente para ver tus tickets.',
@@ -36,21 +56,31 @@ export const invokeBeneficiarioTickets = async (payload) => {
 
   try {
     const executeCall = async () => {
+      const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+      const bodyData = {
+        ...(payload || {}),
+      };
+      
+      // Incluir access_token o beneficiario_id según el tipo de sesión
+      if (accessToken) {
+        bodyData.access_token = accessToken;
+      } else if (beneficiarioId) {
+        bodyData.beneficiario_id = beneficiarioId;
+      }
+      
       const result = await supabase.functions.invoke('beneficiary-support-tickets', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: {
-          ...(payload || {}),
-          access_token: accessToken,
-        },
+        headers,
+        body: bodyData,
       });
       return parseInvokeResult(result);
     };
 
     let result = await executeCall();
     const normalizedError = String(result?.error || '').toLowerCase();
+    
+    // Solo intentar refresh si estamos usando JWT (no aplica para sesión de documento)
     const isJwtError =
+      accessToken && // Solo si hay JWT
       (result?.status === 401 || normalizedError.includes('unauthorized')) &&
       (normalizedError.includes('invalid jwt') ||
         normalizedError.includes('jwt expired') ||
@@ -87,6 +117,16 @@ export const invokeBeneficiarioTickets = async (payload) => {
           error: result.error || 'No autorizado para consultar tickets en este momento.',
         };
       }
+    }
+    
+    // Si hay error 401 con sesión de documento, limpiar localStorage
+    if (!accessToken && beneficiarioId && result?.status === 401) {
+      localStorage.removeItem('focades:beneficiario-session');
+      return {
+        ok: false,
+        error: 'Tu sesión expiró. Inicia sesión nuevamente para continuar.',
+        authExpired: true,
+      };
     }
 
     if (!result.ok) {

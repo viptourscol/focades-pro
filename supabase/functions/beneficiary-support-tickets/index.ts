@@ -116,42 +116,77 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const tokenFromBody = sanitizeText(body?.access_token, 8000);
     const authToken = getBearerTokenFromRequest(req) || tokenFromBody;
+    const beneficiarioIdFromBody = sanitizeText(body?.beneficiario_id, 100);
 
-    if (!authToken) {
-      throw new HttpError('Sesión inválida. Inicia sesión nuevamente para gestionar tickets.', 401);
-    }
+    // Validar autenticación: puede ser JWT (Google OAuth) o beneficiario_id (login con documento)
+    let profile = null;
+    
+    if (authToken) {
+      // Autenticación con JWT (Google OAuth)
+      const authClient = createClient(supabaseUrl, anonKey);
 
-    const authClient = createClient(supabaseUrl, anonKey);
+      const {
+        data: { user },
+        error: userError,
+      } = await authClient.auth.getUser(authToken);
 
-    const {
-      data: { user },
-      error: userError,
-    } = await authClient.auth.getUser(authToken);
+      if (userError || !user?.id) {
+        throw new HttpError('Sesión inválida. Inicia sesión nuevamente para gestionar tickets.', 401);
+      }
 
-    if (userError || !user?.id) {
+      const admin = createClient(supabaseUrl, serviceRoleKey);
+
+      const { data: profileData, error: profileError } = await admin
+        .from('portal_beneficiarios')
+        .select('id,email,radicado_inscripcion,nombre_completo')
+        .eq('auth_user_id', user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        throw new HttpError(profileError.message || 'No se pudo validar tu perfil de beneficiario.', 400);
+      }
+
+      if (!profileData?.id) {
+        throw new HttpError('Tu cuenta no está vinculada a un beneficiario activo.', 403);
+      }
+      
+      profile = profileData;
+    } else if (beneficiarioIdFromBody) {
+      // Autenticación con beneficiario_id (login con documento)
+      const admin = createClient(supabaseUrl, serviceRoleKey);
+      
+      // Validar que el beneficiario existe y tiene credenciales
+      const { data: cred, error: credErr } = await admin
+        .from('portal_auth_credentials')
+        .select('beneficiario_id')
+        .eq('beneficiario_id', beneficiarioIdFromBody)
+        .not('password_hash', 'is', null)
+        .maybeSingle();
+      
+      if (credErr || !cred) {
+        throw new HttpError('Sesión inválida. Inicia sesión nuevamente para gestionar tickets.', 401);
+      }
+      
+      const { data: profileData, error: profileError } = await admin
+        .from('portal_beneficiarios')
+        .select('id,email,radicado_inscripcion,nombre_completo')
+        .eq('id', beneficiarioIdFromBody)
+        .maybeSingle();
+
+      if (profileError) {
+        throw new HttpError(profileError.message || 'No se pudo validar tu perfil de beneficiario.', 400);
+      }
+
+      if (!profileData?.id) {
+        throw new HttpError('Tu cuenta no está vinculada a un beneficiario activo.', 403);
+      }
+      
+      profile = profileData;
+    } else {
       throw new HttpError('Sesión inválida. Inicia sesión nuevamente para gestionar tickets.', 401);
     }
 
     const admin = createClient(supabaseUrl, serviceRoleKey);
-    const action = sanitizeText(body?.action, 20).toLowerCase();
-
-    if (!action) {
-      throw new HttpError('Acción inválida para tickets de beneficiario.', 400);
-    }
-
-    const { data: profile, error: profileError } = await admin
-      .from('portal_beneficiarios')
-      .select('id,email,radicado_inscripcion,nombre_completo')
-      .eq('auth_user_id', user.id)
-      .maybeSingle();
-
-    if (profileError) {
-      throw new HttpError(profileError.message || 'No se pudo validar tu perfil de beneficiario.', 400);
-    }
-
-    if (!profile?.id) {
-      throw new HttpError('Tu cuenta no está vinculada a un beneficiario activo.', 403);
-    }
 
     const contactEmail = sanitizeText(profile.email, 150).toLowerCase();
     const radicado = sanitizeText(profile.radicado_inscripcion, 50);

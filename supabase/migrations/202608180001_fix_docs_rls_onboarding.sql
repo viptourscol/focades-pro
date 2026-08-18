@@ -76,16 +76,16 @@ BEGIN
     USING (
       bucket_id = 'soportes'
       AND (
-        SELECT is_admin FROM public.portal_admins 
-        WHERE supabase_user_id = auth.uid()
-      ) = true
+        SELECT 1 FROM public.portal_admin_users 
+        WHERE user_id = auth.uid()
+      ) IS NOT NULL
     )
     WITH CHECK (
       bucket_id = 'soportes'
       AND (
-        SELECT is_admin FROM public.portal_admins 
-        WHERE supabase_user_id = auth.uid()
-      ) = true
+        SELECT 1 FROM public.portal_admin_users 
+        WHERE user_id = auth.uid()
+      ) IS NOT NULL
     );
     
 EXCEPTION

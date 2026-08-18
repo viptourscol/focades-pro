@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { RefreshCw, Send, Copy, Check, AlertCircle, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { showSuccessAlert, showErrorAlert, showConfirmDialog } from '../lib/alerts';
+import { showSuccessAlert, showErrorAlert, showConfirmAlert } from '../lib/alerts';
 
 const ADMIN_API_KEY = 'focades-admin-2026'; // En producción, mover a variable de entorno
 
@@ -72,7 +72,7 @@ export default function AdminTokensActivacion() {
       setBeneficiarios(beneficiariosConEstado);
     } catch (error) {
       console.error('Error cargando beneficiarios:', error);
-      showErrorAlert('Error', 'No se pudieron cargar los beneficiarios');
+      showErrorAlert({ title: 'Error', text: 'No se pudieron cargar los beneficiarios' });
     } finally {
       setLoading(false);
     }
@@ -80,14 +80,14 @@ export default function AdminTokensActivacion() {
 
   const handleRegenerateToken = async (beneficiario) => {
     if (beneficiario.estado === 'activado') {
-      showErrorAlert(
-        'Ya Activado',
-        'Este beneficiario ya estableció su contraseña. No se puede regenerar el token.'
-      );
+      showErrorAlert({
+        title: 'Ya Activado',
+        text: 'Este beneficiario ya estableció su contraseña. No se puede regenerar el token.'
+      });
       return;
     }
 
-    const confirmed = await showConfirmDialog({
+    const confirmed = await showConfirmAlert({
       title: '¿Regenerar Token?',
       text: `Se generará un nuevo token de activación para ${beneficiario.nombre_completo}. El token anterior quedará inválido.`,
       confirmButtonText: 'Sí, Regenerar',
@@ -133,7 +133,7 @@ export default function AdminTokensActivacion() {
       loadBeneficiarios();
     } catch (error) {
       console.error('Error regenerando token:', error);
-      showErrorAlert('Error', error.message || 'No se pudo regenerar el token');
+      showErrorAlert({ title: 'Error', text: error.message || 'No se pudo regenerar el token' });
     } finally {
       setRegenerating(null);
     }

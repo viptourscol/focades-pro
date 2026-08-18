@@ -6,7 +6,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import { 
   ChevronRight, ChevronLeft, Lock, User, Home, BookOpen, 
   DollarSign, FileText, Check, X, Eye, EyeOff, AlertCircle,
-  Users, GraduationCap, Briefcase, Upload, PenTool, Shield, CheckCircle, Trash2
+  Users, GraduationCap, Briefcase, Upload, PenTool, Shield, CheckCircle, Trash2, Info
 } from 'lucide-react';
 
 // Componente auxiliar para validaciones de contraseña
@@ -1265,8 +1265,6 @@ const BeneficiarioOnboardingCompleto = () => {
             <option value="PROFESIONAL">Profesional</option>
             <option value="TECNICO">Técnico</option>
             <option value="TECNOLOGO">Tecnólogo</option>
-            <option value="ESPECIALIZACION">Especialización</option>
-            <option value="MAESTRIA">Maestría</option>
           </select>
           {errors.tipo_educacion && <p className="text-red-500 text-sm mt-1">{errors.tipo_educacion}</p>}
         </div>
@@ -1290,7 +1288,16 @@ const BeneficiarioOnboardingCompleto = () => {
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-2">Semestre de Ingreso *</label>
+          <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-2">
+            Semestre de Ingreso *
+            <div className="group relative">
+              <Info size={16} className="text-slate-400 cursor-help" />
+              <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block w-64 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-lg z-10">
+                Ingresa el periodo académico en que iniciaste tus estudios en la universidad (formato: año-semestre, ejemplo: 2020-1 o 2021-2)
+                <div className="absolute top-full left-4 -mt-1 border-4 border-transparent border-t-slate-800"></div>
+              </div>
+            </div>
+          </label>
           <input
             type="text"
             value={formData.semestre_ingreso}
@@ -1635,13 +1642,22 @@ const BeneficiarioOnboardingCompleto = () => {
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#F5F7FA' }}>
       {/* Header */}
-      <header className="h-[72px] bg-white border-b border-border px-8 flex items-center gap-4">
-        <img
-          src="https://raw.githubusercontent.com/focades-debug/mis-imagenes-apps-script/main/logofocades-solo.png"
-          alt="FOCADES"
-          className="h-10"
-        />
-        <h1 className="text-primary font-bold text-lg">Configuración de Cuenta - Beneficiario</h1>
+      <header className="h-[72px] bg-white border-b border-border px-8 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <img
+            src="https://raw.githubusercontent.com/focades-debug/mis-imagenes-apps-script/main/logofocades-solo.png"
+            alt="FOCADES"
+            className="h-10"
+          />
+          <h1 className="text-primary font-bold text-lg">Configuración de Cuenta - Beneficiario</h1>
+        </div>
+        <a
+          href="/"
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-600 hover:text-primary transition-colors"
+        >
+          <Home size={18} />
+          Volver al inicio
+        </a>
       </header>
 
       {/* Progress Bar */}

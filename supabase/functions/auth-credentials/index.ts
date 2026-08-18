@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
         .upsert({
           beneficiario_id: beneficiario.id,
           document_number: document_number.trim(),
-          email_verified: email,
+          email_verified: email.trim(),
           setup_token: setupToken,
           setup_token_expires_at: setupExpiresAt,
           updated_at: new Date().toISOString(),

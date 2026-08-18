@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { showErrorAlert, showSuccessAlert } from '../lib/alerts';
+import { TERMS_AND_CONDITIONS_TEXT, DATA_POLICY_TEXT } from '../lib/legalTexts';
 import SignatureCanvas from 'react-signature-canvas';
 import { 
   ChevronRight, ChevronLeft, Lock, User, Home, BookOpen, 
@@ -36,6 +37,11 @@ const BeneficiarioOnboardingCompleto = () => {
   const [uploadedDocs, setUploadedDocs] = useState({});
   const [uploadingDoc, setUploadingDoc] = useState(null);
   const signatureRef = useRef(null);
+  
+  // Estados para modales legales
+  const [leidoTerminos, setLeidoTerminos] = useState(false);
+  const [leidoDatos, setLeidoDatos] = useState(false);
+  const [modalLegal, setModalLegal] = useState(null); // 'terminos' | 'datos' | null
   
   const [formData, setFormData] = useState({
     // Paso 1-3: Autenticación (ya manejado en BeneficiarioAuthSetup)
@@ -772,6 +778,14 @@ const BeneficiarioOnboardingCompleto = () => {
     setFormData(prev => ({ ...prev, firma_digital: signatureData }));
     return true;
   };
+  
+  // Auto-guardar firma cuando el usuario deja de dibujar
+  const handleSignatureEnd = () => {
+    if (signatureRef.current && !signatureRef.current.isEmpty()) {
+      const signatureData = signatureRef.current.toDataURL('image/png');
+      setFormData(prev => ({ ...prev, firma_digital: signatureData }));
+    }
+  };
 
   const handleClearSignature = () => {
     if (signatureRef.current) {
@@ -1505,32 +1519,54 @@ const BeneficiarioOnboardingCompleto = () => {
         <p className="text-slate-600 mt-2">Lee, acepta y firma digitalmente</p>
       </div>
 
-      <div className="space-y-4">
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={formData.acepta_terminos}
-            onChange={(e) => setFormData({ ...formData, acepta_terminos: e.target.checked })}
-            className="mt-1 w-5 h-5 text-secondary border-slate-300 rounded focus:ring-secondary"
-          />
-          <span className="text-sm text-slate-700">
-            Acepto los <strong>términos y condiciones</strong> del programa FOCADES
-          </span>
-        </label>
-        {errors.acepta_terminos && <p className="text-red-500 text-sm">{errors.acepta_terminos}</p>}
+      <div className="space-y-3">
+        {/* Términos y Condiciones */}
+        <div className="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50">
+          <label className="flex items-start gap-3 flex-1">
+            <input
+              type="checkbox"
+              checked={formData.acepta_terminos}
+              disabled={!leidoTerminos}
+              readOnly
+              className="mt-1 w-5 h-5 text-secondary border-slate-300 rounded focus:ring-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            <span className="text-sm text-slate-700">
+              Acepto los <strong>términos y condiciones</strong> del programa FOCADES
+            </span>
+          </label>
+          <button
+            type="button"
+            onClick={() => setModalLegal('terminos')}
+            className="shrink-0 px-3 py-1.5 rounded-lg border border-secondary text-secondary font-semibold text-xs hover:bg-secondary hover:text-white transition-colors"
+          >
+            {leidoTerminos ? 'Ver términos' : 'Leer y aceptar'}
+          </button>
+        </div>
+        {errors.acepta_terminos && <p className="text-red-500 text-sm ml-3">{errors.acepta_terminos}</p>}
 
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={formData.acepta_datos}
-            onChange={(e) => setFormData({ ...formData, acepta_datos: e.target.checked })}
-            className="mt-1 w-5 h-5 text-secondary border-slate-300 rounded focus:ring-secondary"
-          />
-          <span className="text-sm text-slate-700">
-            Autorizo el <strong>tratamiento de mis datos personales</strong> según la Ley 1581 de 2012
-          </span>
-        </label>
-        {errors.acepta_datos && <p className="text-red-500 text-sm">{errors.acepta_datos}</p>}
+        {/* Tratamiento de Datos */}
+        <div className="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50">
+          <label className="flex items-start gap-3 flex-1">
+            <input
+              type="checkbox"
+              checked={formData.acepta_datos}
+              disabled={!leidoDatos}
+              readOnly
+              className="mt-1 w-5 h-5 text-secondary border-slate-300 rounded focus:ring-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            <span className="text-sm text-slate-700">
+              Autorizo el <strong>tratamiento de mis datos personales</strong> según la Ley 1581 de 2012
+            </span>
+          </label>
+          <button
+            type="button"
+            onClick={() => setModalLegal('datos')}
+            className="shrink-0 px-3 py-1.5 rounded-lg border border-secondary text-secondary font-semibold text-xs hover:bg-secondary hover:text-white transition-colors"
+          >
+            {leidoDatos ? 'Ver política' : 'Leer y aceptar'}
+          </button>
+        </div>
+        {errors.acepta_datos && <p className="text-red-500 text-sm ml-3">{errors.acepta_datos}</p>}
       </div>
 
       <div className="border-t border-slate-200 pt-6">
@@ -1553,6 +1589,7 @@ const BeneficiarioOnboardingCompleto = () => {
             penColor="rgb(0, 0, 0)"
             minWidth={0.5}
             maxWidth={2.5}
+            onEnd={handleSignatureEnd}
           />
         </div>
 
@@ -1755,6 +1792,90 @@ const BeneficiarioOnboardingCompleto = () => {
               )}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Modales Legales */}
+      {modalLegal === 'terminos' && (
+        <LegalModal
+          title="Términos y Condiciones FOCADES"
+          paragraphs={TERMS_AND_CONDITIONS_TEXT}
+          onClose={() => setModalLegal(null)}
+          onAccept={() => {
+            setLeidoTerminos(true);
+            setFormData(prev => ({ ...prev, acepta_terminos: true }));
+            setModalLegal(null);
+          }}
+          acceptLabel="He leído y acepto términos"
+        />
+      )}
+
+      {modalLegal === 'datos' && (
+        <LegalModal
+          title="Política de Tratamiento de Datos Personales"
+          paragraphs={DATA_POLICY_TEXT}
+          onClose={() => setModalLegal(null)}
+          onAccept={() => {
+            setLeidoDatos(true);
+            setFormData(prev => ({ ...prev, acepta_datos: true }));
+            setModalLegal(null);
+          }}
+          acceptLabel="He leído y autorizo tratamiento"
+        />
+      )}
+    </div>
+  );
+};
+
+// Componente Modal Legal (reutilizable)
+const LegalModal = ({ title, paragraphs, onClose, onAccept, acceptLabel }) => {
+  const [canAccept, setCanAccept] = useState(false);
+
+  useEffect(() => {
+    setCanAccept(false);
+  }, [title]);
+
+  const handleScroll = (event) => {
+    const target = event.currentTarget;
+    const reachedBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 8;
+    if (reachedBottom) {
+      setCanAccept(true);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4">
+      <div className="w-full max-w-3xl bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-200">
+          <h3 className="text-lg font-bold text-primary">{title}</h3>
+          <p className="text-xs text-slate-500 mt-1">Debes leer hasta el final para habilitar la aceptación.</p>
+        </div>
+
+        <div 
+          onScroll={handleScroll} 
+          className="max-h-[60vh] overflow-y-auto px-5 py-4 space-y-4 text-sm text-slate-700 leading-relaxed"
+        >
+          {paragraphs.map((paragraph, index) => (
+            <p key={index}>{paragraph}</p>
+          ))}
+        </div>
+
+        <div className="px-5 py-4 border-t border-slate-200 flex items-center justify-end gap-3">
+          <button 
+            type="button" 
+            onClick={onClose} 
+            className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-semibold text-sm hover:bg-slate-50 transition-colors"
+          >
+            Cerrar
+          </button>
+          <button
+            type="button"
+            onClick={onAccept}
+            disabled={!canAccept}
+            className="px-4 py-2 rounded-lg bg-secondary text-white font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:brightness-110 transition-all"
+          >
+            {canAccept ? acceptLabel : 'Desplázate al final para aceptar'}
+          </button>
         </div>
       </div>
     </div>

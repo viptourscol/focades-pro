@@ -1,6 +1,0 @@
-🎨 style: Cambiar textos a color claro en login de beneficiario
-
-- Cambiar labels de gris oscuro (text-slate-800) a blanco (text-white)
-- Actualizar estilos inline para mejor contraste en fondo oscuro
-- Aplica a: Iniciar sesión, Número de documento, Contraseña
-- Mejora significativa en la legibilidad del formulario

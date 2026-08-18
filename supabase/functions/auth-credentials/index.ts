@@ -436,6 +436,65 @@ Deno.serve(async (req) => {
       )
     }
 
+    // === register-document: Registrar documento subido (sin subir archivo) ===
+    if (method === 'register-document') {
+      const { beneficiario_id, titulo, tipo_documento, storage_path, archivo_size_bytes } = body
+
+      if (!beneficiario_id || !tipo_documento || !storage_path) {
+        return new Response(
+          JSON.stringify({ ok: false, error: 'Campos requeridos: beneficiario_id, tipo_documento, storage_path' }),
+          { status: 400, headers: corsHeaders }
+        )
+      }
+
+      // Verificar que el beneficiario existe
+      const { data: beneficiario, error: benefErr } = await supabase
+        .from('portal_beneficiarios')
+        .select('id')
+        .eq('id', beneficiario_id)
+        .maybeSingle()
+
+      if (benefErr || !beneficiario) {
+        return new Response(
+          JSON.stringify({ ok: false, error: 'Beneficiario no encontrado' }),
+          { status: 404, headers: corsHeaders }
+        )
+      }
+
+      // Registrar documento en la tabla (usando service role, evita RLS)
+      const { data: documento, error: docErr } = await supabase
+        .from('portal_beneficiario_documentos_historicos')
+        .insert({
+          beneficiario_id: beneficiario_id,
+          titulo: titulo || tipo_documento,
+          tipo_documento: tipo_documento,
+          estado: 'cargado',
+          storage_bucket: 'soportes',
+          storage_path: storage_path,
+          archivo_mime_type: 'application/pdf',
+          archivo_size_bytes: archivo_size_bytes || 0,
+        })
+        .select()
+        .single()
+
+      if (docErr) {
+        console.error('Error registrando documento:', docErr)
+        return new Response(
+          JSON.stringify({ ok: false, error: `Error al registrar documento: ${docErr.message}` }),
+          { status: 500, headers: corsHeaders }
+        )
+      }
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          message: 'Documento registrado exitosamente',
+          documento: documento,
+        }),
+        { status: 200, headers: corsHeaders }
+      )
+    }
+
     // Método desconocido
     return new Response(
       JSON.stringify({ ok: false, error: `Método desconocido: ${method}` }),

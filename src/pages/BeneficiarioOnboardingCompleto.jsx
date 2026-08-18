@@ -692,22 +692,21 @@ const BeneficiarioOnboardingCompleto = () => {
         throw new Error(`Error al subir archivo: ${uploadError.message}`);
       }
 
-      // Registrar en tabla de documentos
-      const { error: dbError } = await supabase
-        .from('portal_beneficiario_documentos_historicos')
-        .insert({
+      // Registrar en tabla de documentos a través del Edge Function
+      // Esto evita problemas de RLS con usuarios anónimos
+      const registerResult = await supabase.functions.invoke('auth-credentials', {
+        body: {
+          method: 'register-document',
           beneficiario_id: beneficiarioId,
           titulo: getDocumentTitle(tipoDoc),
           tipo_documento: tipoDoc,
-          estado: 'cargado',
-          storage_bucket: 'soportes',
           storage_path: dbPath,
-          archivo_mime_type: 'application/pdf',
           archivo_size_bytes: file.size,
-        });
+        },
+      });
 
-      if (dbError) {
-        throw new Error(`Error al registrar documento: ${dbError.message}`);
+      if (!registerResult.data?.ok) {
+        throw new Error(registerResult.data?.error || 'Error al registrar documento');
       }
 
       // Actualizar estado local

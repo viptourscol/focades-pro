@@ -105,15 +105,15 @@ export const BeneficiarioLoginForm = ({ onSuccess, isLoading, setIsLoading }) =>
   return (
     <div className="space-y-4">
       {/* Solo Login con Documento */}
-      <div className="border-b border-border pb-3">
-        <h3 className="text-lg font-semibold text-slate-800">Iniciar sesión</h3>
-        <p className="text-sm text-slate-600 mt-1">Ingresa con tu documento y contraseña</p>
+      <div className="border-b pb-3" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+        <h3 className="text-lg font-semibold text-white">Iniciar sesión</h3>
+        <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.65)' }}>Ingresa con tu documento y contraseña</p>
       </div>
 
       {/* Document Login Form */}
       <form onSubmit={handleDocumentLogin} className="space-y-4">
         <div>
-          <label className="block text-sm font-semibold text-slate-800 mb-2">
+          <label className="block text-sm font-semibold text-white mb-2">
             Número de documento
           </label>
           <input
@@ -128,7 +128,7 @@ export const BeneficiarioLoginForm = ({ onSuccess, isLoading, setIsLoading }) =>
 
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="block text-sm font-semibold text-slate-800">
+            <label className="block text-sm font-semibold text-white">
               Contraseña
             </label>
             <button
@@ -169,9 +169,9 @@ export const BeneficiarioLoginForm = ({ onSuccess, isLoading, setIsLoading }) =>
           {isLoading ? 'Iniciando sesión...' : 'Iniciar sesión'}
         </button>
 
-        <p className="text-center text-xs text-slate-500">
+        <p className="text-center text-xs" style={{ color: 'rgba(255,255,255,0.60)' }}>
           ¿No tienes cuenta?{' '}
-          <a href="/beneficiario/auth-setup" className="font-semibold text-secondary hover:text-primary transition-colors">
+          <a href="/beneficiario/auth-setup" className="font-semibold hover:opacity-80 transition-opacity" style={{ color: '#F9A03F' }}>
             Configura tu acceso
           </a>
         </p>

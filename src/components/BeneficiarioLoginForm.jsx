@@ -106,14 +106,14 @@ export const BeneficiarioLoginForm = ({ onSuccess, isLoading, setIsLoading }) =>
     <div className="space-y-4">
       {/* Solo Login con Documento */}
       <div className="border-b border-border pb-3">
-        <h3 className="text-lg font-semibold text-primary">Iniciar sesión</h3>
+        <h3 className="text-lg font-semibold text-slate-800">Iniciar sesión</h3>
         <p className="text-sm text-slate-600 mt-1">Ingresa con tu documento y contraseña</p>
       </div>
 
       {/* Document Login Form */}
       <form onSubmit={handleDocumentLogin} className="space-y-4">
         <div>
-          <label className="block text-sm font-semibold text-primary mb-2">
+          <label className="block text-sm font-semibold text-slate-800 mb-2">
             Número de documento
           </label>
           <input
@@ -128,7 +128,7 @@ export const BeneficiarioLoginForm = ({ onSuccess, isLoading, setIsLoading }) =>
 
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="block text-sm font-semibold text-primary">
+            <label className="block text-sm font-semibold text-slate-800">
               Contraseña
             </label>
             <button
@@ -187,11 +187,11 @@ export const BeneficiarioLoginForm = ({ onSuccess, isLoading, setIsLoading }) =>
             className="bg-white rounded-3xl shadow-xl max-w-sm w-full p-6 space-y-4"
             onClick={e => e.stopPropagation()}
           >
-            <h3 className="text-xl font-bold text-primary">Recuperar contraseña</h3>
+            <h3 className="text-xl font-bold text-slate-800">Recuperar contraseña</h3>
 
             <form onSubmit={handlePasswordReset} className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-primary mb-2">
+                <label className="block text-sm font-semibold text-slate-800 mb-2">
                   <Mail size={16} className="inline mr-2" />
                   Correo electrónico
                 </label>

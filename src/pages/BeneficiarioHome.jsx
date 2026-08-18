@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { ExternalLink, Megaphone, X } from 'lucide-react';
+import { ExternalLink, Megaphone, X, AlertCircle, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { showInfoAlert } from '../lib/alerts';
 import BeneficiarioNotificacionesPanel from '../components/BeneficiarioNotificacionesPanel';
@@ -68,6 +68,7 @@ const BeneficiarioHome = () => {
   const [loading, setLoading] = useState(true);
   const [news, setNews] = useState([]);
   const [selectedNews, setSelectedNews] = useState(null);
+  const [perfilIncompleto, setPerfilIncompleto] = useState(false);
 
   useEffect(() => {
     if (location.hash !== '#centro-notificaciones') return;
@@ -83,7 +84,22 @@ const BeneficiarioHome = () => {
 
     const loadData = async () => {
       const nowIso = new Date().toISOString();
+// Verificar si el perfil del beneficiario está incompleto
+      try {
+        const sessionStr = localStorage.getItem('focades:beneficiario-session');
+        if (sessionStr) {
+          const session = JSON.parse(sessionStr);
+          const profile = session.profile;
+          
+          if (profile && !profile.onboarding_completado) {
+            setPerfilIncompleto(true);
+          }
+        }
+      } catch (error) {
+        console.error('Error verificando perfil:', error);
+      }
 
+      
       const [{ data: newsData }, { data: modalData }] = await Promise.all([
         supabase
           .from('portal_noticias')
@@ -115,6 +131,30 @@ const BeneficiarioHome = () => {
         await showInfoAlert({
           title: modalData.title || 'Información importante',
           text: modalData.content || '',
+      {/* Banner de perfil incompleto */}
+      {perfilIncompleto && (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-r-xl shadow-sm animate-slide-up">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-6 w-6 text-yellow-400 mt-0.5 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-semibold text-yellow-800">
+                Tu perfil está incompleto
+              </h3>
+              <p className="text-sm text-yellow-700 mt-1">
+                Para acceder a todas las funcionalidades del portal, necesitas completar tu información personal y subir los documentos requeridos.
+              </p>
+              <a
+                href="/beneficiario/completar-onboarding"
+                className="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 rounded-lg text-sm font-semibold transition-all duration-200 hover:shadow-md"
+              >
+                Completar mi perfil ahora
+                <ChevronRight size={16} />
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
         });
         sessionStorage.setItem(modalDismissKey, '1');
       }

@@ -30,6 +30,7 @@ const BeneficiarioOnboardingCompleto = () => {
   const [redirectToDashboard, setRedirectToDashboard] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
+  const [isLoginMode, setIsLoginMode] = useState(false); // Track if user came from login
   
   // Estados para documentos y firma
   const [uploadedDocs, setUploadedDocs] = useState({});
@@ -142,19 +143,88 @@ const BeneficiarioOnboardingCompleto = () => {
   const TOTAL_STEPS = 11; // Eliminamos paso 8 (info beca) ya que admin ya tiene esos datos
 
   useEffect(() => {
-    // Cargar catálogos
-    loadCatalogos();
+    const initComponent = async () => {
+      // Cargar catálogos
+      await loadCatalogos();
+      
+      // Verificar si viene desde login (sesión en localStorage)
+      const sessionStr = localStorage.getItem('focades:beneficiario-session');
+      if (sessionStr) {
+        try {
+          const session = JSON.parse(sessionStr);
+          const profile = session.profile;
+          
+          // Si onboarding ya está completo, redirigir al dashboard
+          if (profile && profile.onboarding_completado) {
+            setRedirectToDashboard(true);
+            return;
+          }
+          
+          // Usuario ya estableció contraseña, continuar desde paso 4
+          setBeneficiarioId(profile.id);
+          setCurrentStep(4);
+          setIsLoginMode(true); // Mark as login mode
+          
+          // Pre-cargar datos del perfil
+          setFormData(prev => ({
+            ...prev,
+            genero: profile.genero || '',
+            telefono: profile.telefono || '',
+            fecha_nacimiento: profile.fecha_nacimiento || '',
+            direccion_residencia: profile.direccion_residencia || '',
+            barrio_corregimiento: profile.barrio_corregimiento || '',
+            dpto_residencia: profile.dpto_residencia || '',
+            municipio_residencia: profile.municipio_residencia || '',
+            zona_residencia: profile.zona_residencia || '',
+            pais_nacimiento: profile.pais_nacimiento || 'COLOMBIA',
+            dpto_nacimiento: profile.dpto_nacimiento || '',
+            municipio_nacimiento: profile.municipio_nacimiento || '',
+            sisben_grupo: profile.sisben_grupo || '',
+            recibe_subsidio: profile.recibe_subsidio || '',
+            cual_subsidio: profile.cual_subsidio || '',
+            enfoque_diferencial: profile.enfoque_diferencial || 'NINGUNO',
+            labora_actualmente: profile.labora_actualmente || '',
+            titulo_obtenido: profile.titulo_obtenido || '',
+            ano_graduacion: profile.ano_graduacion || '',
+            establecimiento_educativo: profile.establecimiento_educativo || '',
+            puntaje_icfes: profile.puntaje_icfes || '',
+            municipio_establecimiento: profile.municipio_establecimiento || '',
+            institucion_superior: profile.institucion_superior || '',
+            programa_academico: profile.programa_academico || '',
+            tipo_educacion: profile.tipo_educacion || 'PROFESIONAL',
+            semestre_ingreso: profile.semestre_ingreso || '',
+            semestre_actual: profile.semestre_actual || '',
+            ciudad_institucion: profile.ciudad_institucion || '',
+            modalidad: profile.modalidad || '',
+            promedio_anterior: profile.promedio_anterior || '',
+            modalidad_beca: profile.modalidad_beca || '',
+            año_convocatoria: profile.año_convocatoria || new Date().getFullYear(),
+            nombre_banco: profile.nombre_banco || '',
+            tipo_cuenta_bancaria: profile.tipo_cuenta_bancaria || 'AHORROS',
+            numero_cuenta: profile.numero_cuenta || '',
+          }));
+          
+          // Cargar progreso guardado si existe
+          loadSavedProgress();
+          return;
+        } catch (error) {
+          console.error('Error leyendo sesión:', error);
+        }
+      }
+      
+      // Si no hay sesión, verificar si hay token en URL (flujo normal desde email)
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token');
+      if (token) {
+        setFormData(prev => ({ ...prev, setupToken: token }));
+        setCurrentStep(3); // Ir directo a establecer contraseña
+      }
+      
+      // Cargar progreso guardado
+      loadSavedProgress();
+    };
     
-    // Verificar si hay token en URL
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('token');
-    if (token) {
-      setFormData(prev => ({ ...prev, setupToken: token }));
-      setCurrentStep(3); // Ir directo a establecer contraseña
-    }
-    
-    // Cargar progreso guardado
-    loadSavedProgress();
+    initComponent();
   }, []);
 
   const loadCatalogos = async () => {
@@ -425,7 +495,8 @@ const BeneficiarioOnboardingCompleto = () => {
     }
   };
 
-  const handlePrevious = () => {
+  coconst minStep = isLoginMode ? 4 : 1; // Can't go before step 4 if coming from login
+    if (currentStep > minStep= () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     }
@@ -1576,6 +1647,13 @@ const BeneficiarioOnboardingCompleto = () => {
       {/* Progress Bar */}
       <div className="bg-white border-b border-border px-8 py-4">
         <div className="max-w-4xl mx-auto">
+          {currentStep >= 4 && !formData.setupToken && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4">
+              <p className="text-sm text-blue-800">
+                <strong>¡Bienvenido de nuevo!</strong> Ya estableciste tu contraseña. Completa tu perfil para acceder a todas las funcionalidades.
+              </p>
+            </div>
+          )}
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-semibold text-primary">
               Paso {currentStep} de {TOTAL_STEPS}
@@ -1605,7 +1683,7 @@ const BeneficiarioOnboardingCompleto = () => {
             <div className="px-8 py-6 bg-slate-50 border-t border-border flex justify-between">
               <button
                 type="button"
-                onClick={handlePrevious}
+                onClick={handlePrevious} || (isLoginMode && currentStep === 4)
                 disabled={currentStep === 1}
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm disabled:opacity-30 disabled:cursor-not-allowed border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors"
               >

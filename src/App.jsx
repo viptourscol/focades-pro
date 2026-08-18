@@ -238,6 +238,7 @@ function App() {
         <Route path="/verificar-certificado" element={<VerificarCertificado />} />
         <Route path="/beneficiario/login" element={<BeneficiarioLogin />} />
         <Route path="/beneficiario/auth-setup" element={<BeneficiarioOnboardingCompleto />} />
+        <Route path="/beneficiario/completar-onboarding" element={<BeneficiarioOnboardingCompleto />} />
         <Route path="/beneficiario/completar-perfil" element={<BeneficiarioCompletarPerfil />} />
         <Route path="/beneficiario/onboarding" element={<BeneficiarioOnboarding />} />
         <Route path="/admin/login" element={<AdminLogin />} />

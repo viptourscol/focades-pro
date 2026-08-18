@@ -220,6 +220,7 @@ Deno.serve(async (req) => {
           ok: true,
           message: 'Contraseña establecida exitosamente. Ya puedes iniciar sesión.',
           beneficiario_id: cred.beneficiario_id,
+          has_completed_setup: true,
         }),
         { status: 200, headers: corsHeaders }
       )
@@ -309,12 +310,17 @@ Deno.serve(async (req) => {
         )
       }
 
+      // 6. Verificar si necesita completar onboarding
+      const needsOnboarding = !beneficiario.onboarding_completado
+
       return new Response(
         JSON.stringify({
           ok: true,
           message: 'Login exitoso',
           beneficiario_id: cred.beneficiario_id,
           profile: beneficiario,
+          needs_onboarding: needsOnboarding,
+          redirect_to: needsOnboarding ? '/beneficiario/completar-onboarding' : '/beneficiario',
         }),
         { status: 200, headers: corsHeaders }
       )

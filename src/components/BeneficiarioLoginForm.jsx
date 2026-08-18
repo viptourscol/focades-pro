@@ -44,6 +44,8 @@ export const BeneficiarioLoginForm = ({ onSuccess, isLoading, setIsLoading }) =>
       // Guardar sesión del beneficiario en localStorage
       const beneficiarioId = result.data.beneficiario_id;
       const profile = result.data.profile;
+      const needsOnboarding = result.data.needs_onboarding;
+      const redirectTo = result.data.redirect_to;
       
       const sessionData = {
         beneficiario_id: beneficiarioId,
@@ -59,7 +61,13 @@ export const BeneficiarioLoginForm = ({ onSuccess, isLoading, setIsLoading }) =>
         console.error('Error guardando sesión:', error);
       }
 
-      // Llamar onSuccess para redirigir
+      // Si necesita completar onboarding, redirigir a la página de continuación
+      if (needsOnboarding && redirectTo) {
+        window.location.href = redirectTo;
+        return;
+      }
+
+      // Llamar onSuccess para redirigir al dashboard normal
       if (onSuccess) onSuccess();
     } catch (error) {
       console.error('Login error:', error);

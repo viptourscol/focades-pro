@@ -36,6 +36,7 @@ import AdminFaq from './pages/AdminFaq';
 import BeneficiarioOnboarding from './pages/BeneficiarioOnboarding';
 import Landing from './pages/Landing';
 import AdminGeneradorTokens from './pages/AdminGeneradorTokens';
+import AdminTokensActivacion from './pages/AdminTokensActivacion';
 import { supabase } from './lib/supabase';
 import { resolvePortalAccess, setPortalAuthErrorMessage } from './lib/portalAuth';
 const AdminAnalytics = lazy(() => import('./pages/AdminAnalytics'));
@@ -302,6 +303,7 @@ function App() {
           <Route path="beneficiarios/importar" element={<AdminImportBeneficiarios />} />
           <Route path="beneficiarios/:beneficiarioId" element={<AdminBeneficiarioDetalle />} />
           <Route path="generador-tokens" element={<AdminGeneradorTokens />} />
+          <Route path="tokens-activacion" element={<AdminTokensActivacion />} />
           <Route path="actualizaciones" element={<AdminActualizaciones />} />
           <Route path="actualizaciones/ventanas" element={<AdminVentanasActualizacion />} />
           <Route path="condonaciones" element={<AdminCondonaciones />} />

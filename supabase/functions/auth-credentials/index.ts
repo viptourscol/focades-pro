@@ -495,6 +495,109 @@ Deno.serve(async (req) => {
       )
     }
 
+    // === admin-resend-token: Regenerar y reenviar token de activación ===
+    if (method === 'admin-resend-token') {
+      const { beneficiario_id, document_number, admin_api_key } = body
+
+      // Validación básica de admin (puedes mejorar esto con un API key real)
+      const expectedAdminKey = Deno.env.get('ADMIN_API_KEY') || 'focades-admin-2026'
+      if (admin_api_key !== expectedAdminKey) {
+        return new Response(
+          JSON.stringify({ ok: false, error: 'No autorizado' }),
+          { status: 403, headers: corsHeaders }
+        )
+      }
+
+      if (!beneficiario_id && !document_number) {
+        return new Response(
+          JSON.stringify({ ok: false, error: 'Debes proporcionar beneficiario_id o document_number' }),
+          { status: 400, headers: corsHeaders }
+        )
+      }
+
+      // 1. Buscar beneficiario
+      let query = supabase.from('portal_beneficiarios').select('id, nombre_completo, email, n_documento')
+      
+      if (beneficiario_id) {
+        query = query.eq('id', beneficiario_id)
+      } else {
+        query = query.eq('n_documento', document_number.trim())
+      }
+
+      const { data: beneficiario, error: benefErr } = await query.maybeSingle()
+
+      if (benefErr || !beneficiario) {
+        return new Response(
+          JSON.stringify({ ok: false, error: 'Beneficiario no encontrado' }),
+          { status: 404, headers: corsHeaders }
+        )
+      }
+
+      // 2. Verificar si ya completó la configuración
+      const { data: existingCred } = await supabase
+        .from('portal_auth_credentials')
+        .select('setup_completed_at, password_hash')
+        .eq('beneficiario_id', beneficiario.id)
+        .maybeSingle()
+
+      if (existingCred?.setup_completed_at && existingCred?.password_hash) {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error: 'Este beneficiario ya ha establecido su contraseña. No se puede regenerar el token.',
+            info: 'Si necesita restablecer su contraseña, usa la función de recuperación de contraseña.',
+          }),
+          { status: 400, headers: corsHeaders }
+        )
+      }
+
+      // 3. Generar nuevo token (invalida el anterior)
+      const setupToken = generateSetupToken()
+      const setupExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24h
+
+      const { error: credErr } = await supabase
+        .from('portal_auth_credentials')
+        .upsert({
+          beneficiario_id: beneficiario.id,
+          document_number: beneficiario.n_documento,
+          email_verified: beneficiario.email,
+          setup_token: setupToken,
+          setup_token_expires_at: setupExpiresAt,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'beneficiario_id' })
+
+      if (credErr) {
+        console.error('Error regenerando token:', credErr)
+        return new Response(
+          JSON.stringify({ ok: false, error: 'Error al generar nuevo token' }),
+          { status: 500, headers: corsHeaders }
+        )
+      }
+
+      // 4. TODO: Enviar email con nuevo link
+      const activationLink = `https://focades-pro.vercel.app/beneficiario/completar-onboarding?token=${setupToken}`
+      console.log(`🔄 Token regenerado para ${beneficiario.nombre_completo}`)
+      console.log(`   Link: ${activationLink}`)
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          message: 'Token de activación regenerado exitosamente',
+          beneficiario: {
+            id: beneficiario.id,
+            nombre_completo: beneficiario.nombre_completo,
+            email: beneficiario.email,
+            documento: beneficiario.n_documento,
+          },
+          setup_token: setupToken,
+          activation_link: activationLink,
+          expires_at: setupExpiresAt,
+          note: 'Copia el link de activación y envíaselo al beneficiario por email o WhatsApp',
+        }),
+        { status: 200, headers: corsHeaders }
+      )
+    }
+
     // Método desconocido
     return new Response(
       JSON.stringify({ ok: false, error: `Método desconocido: ${method}` }),

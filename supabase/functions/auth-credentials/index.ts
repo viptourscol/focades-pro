@@ -346,9 +346,9 @@ Deno.serve(async (req) => {
         'documento_padre', 'ocupacion_padre', 'ingresos_padre', 'nombre_madre', 
         'documento_madre', 'ocupacion_madre', 'ingresos_madre', 'titulo_obtenido', 
         'ano_graduacion', 'establecimiento_educativo', 'puntaje_icfes', 
-        'municipio_establecimiento', 'institucion_superior', 'programa_academico', 
-        'tipo_educacion', 'semestre_ingreso', 'semestre_actual', 'ciudad_institucion', 
-        'modalidad', 'promedio_anterior', 'modalidad_beca', 'año_convocatoria', 
+        'institucion_superior', 'programa_academico', 
+        'tipo_educacion', 'semestre_ingreso', 'semestre_actual', 'dpto_institucion', 
+        'municipio_institucion', 'modalidad', 'modalidad_beca', 'año_convocatoria', 
         'nombre_banco', 'numero_cuenta', 'tipo_cuenta_bancaria', 'nombre_colegio', 
         'nombre_universidad', 'direccion'
       ]

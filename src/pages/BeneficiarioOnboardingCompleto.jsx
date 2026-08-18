@@ -86,7 +86,6 @@ const BeneficiarioOnboardingCompleto = () => {
     ano_graduacion: '',
     establecimiento_educativo: '',
     puntaje_icfes: '',
-    municipio_establecimiento: '',
     
     // Paso 7: Formación superior
     institucion_superior: '',
@@ -94,9 +93,9 @@ const BeneficiarioOnboardingCompleto = () => {
     tipo_educacion: 'PROFESIONAL',
     semestre_ingreso: '',
     semestre_actual: '',
-    ciudad_institucion: '',
+    dpto_institucion: '',
+    municipio_institucion: '',
     modalidad: '',
-    promedio_anterior: '',
     
     // Datos de beca (pre-cargados por admin, no editables en este flujo)
     modalidad_beca: '',
@@ -131,10 +130,31 @@ const BeneficiarioOnboardingCompleto = () => {
   const [catalogos, setCatalogos] = useState({
     departamentos: [],
     municipios: [],
+    municipiosFiltrados: [],
+    municipiosInstitucionFiltrados: [],
     establecimientos: [],
     instituciones: [],
     bancos: [],
   });
+
+  // Opciones para selects
+  const OCUPACION_OPTIONS = [
+    'Fallecido',
+    'Hogar',
+    'Empleado',
+    'Independiente',
+    'Pensionado',
+    'Desempleado',
+    'No sabe/No responde',
+  ];
+
+  const INGRESOS_OPTIONS = [
+    'Sin ingresos',
+    'Menos de 1 SMLV',
+    'Entre 1 y 2 SMLV',
+    'Entre 2 y 3 SMLV',
+    'Más de 3 SMLV',
+  ];
 
   // Validadores de contraseña
   const passwordValidations = {
@@ -174,6 +194,8 @@ const BeneficiarioOnboardingCompleto = () => {
           // Pre-cargar datos del perfil
           setFormData(prev => ({
             ...prev,
+            email: profile.email || '',
+            document: profile.n_documento || '',
             genero: profile.genero || '',
             telefono: profile.telefono || '',
             fecha_nacimiento: profile.fecha_nacimiento || '',
@@ -194,15 +216,14 @@ const BeneficiarioOnboardingCompleto = () => {
             ano_graduacion: profile.ano_graduacion || '',
             establecimiento_educativo: profile.establecimiento_educativo || '',
             puntaje_icfes: profile.puntaje_icfes || '',
-            municipio_establecimiento: profile.municipio_establecimiento || '',
             institucion_superior: profile.institucion_superior || '',
             programa_academico: profile.programa_academico || '',
             tipo_educacion: profile.tipo_educacion || 'PROFESIONAL',
             semestre_ingreso: profile.semestre_ingreso || '',
             semestre_actual: profile.semestre_actual || '',
-            ciudad_institucion: profile.ciudad_institucion || '',
+            dpto_institucion: profile.dpto_institucion || '',
+            municipio_institucion: profile.municipio_institucion || '',
             modalidad: profile.modalidad || '',
-            promedio_anterior: profile.promedio_anterior || '',
             modalidad_beca: profile.modalidad_beca || '',
             año_convocatoria: profile.año_convocatoria || new Date().getFullYear(),
             nombre_banco: profile.nombre_banco || '',
@@ -235,20 +256,55 @@ const BeneficiarioOnboardingCompleto = () => {
 
   const loadCatalogos = async () => {
     try {
-      const [{ data: bancos }, { data: establecimientos }] = await Promise.all([
+      const [{ data: bancos }, { data: establecimientos }, { data: departamentos }, { data: municipios }] = await Promise.all([
         supabase.from('catalog_bancos').select('nombre').order('nombre'),
         supabase.from('vw_catalog_establecimientos').select('nombre').order('nombre'),
+        supabase.from('vw_catalog_departamentos_colombia').select('*').order('departamento'),
+        supabase.from('vw_catalog_municipios_colombia').select('*').order('municipio'),
       ]);
 
       setCatalogos(prev => ({
         ...prev,
         bancos: bancos?.map(b => b.nombre) || [],
         establecimientos: establecimientos?.map(e => e.nombre) || [],
+        departamentos: departamentos || [],
+        municipios: municipios || [],
+        municipiosFiltrados: [],
+        municipiosInstitucionFiltrados: [],
       }));
     } catch (error) {
       console.error('Error cargando catálogos:', error);
     }
   };
+
+  // Cargar catálogos al iniciar
+  useEffect(() => {
+    loadCatalogos();
+  }, []);
+
+  // Filtrar municipios de residencia cuando cambia el departamento
+  useEffect(() => {
+    if (formData.dpto_residencia && catalogos.municipios.length > 0) {
+      const filtered = catalogos.municipios.filter(
+        m => m.departamento === formData.dpto_residencia
+      );
+      setCatalogos(prev => ({ ...prev, municipiosFiltrados: filtered }));
+    } else {
+      setCatalogos(prev => ({ ...prev, municipiosFiltrados: [] }));
+    }
+  }, [formData.dpto_residencia, catalogos.municipios]);
+
+  // Filtrar municipios de institución cuando cambia el departamento
+  useEffect(() => {
+    if (formData.dpto_institucion && catalogos.municipios.length > 0) {
+      const filtered = catalogos.municipios.filter(
+        m => m.departamento === formData.dpto_institucion
+      );
+      setCatalogos(prev => ({ ...prev, municipiosInstitucionFiltrados: filtered }));
+    } else {
+      setCatalogos(prev => ({ ...prev, municipiosInstitucionFiltrados: [] }));
+    }
+  }, [formData.dpto_institucion, catalogos.municipios]);
 
   const loadSavedProgress = () => {
     try {
@@ -431,15 +487,14 @@ const BeneficiarioOnboardingCompleto = () => {
             ano_graduacion: benef.ano_graduacion || '',
             establecimiento_educativo: benef.establecimiento_educativo || '',
             puntaje_icfes: benef.puntaje_icfes || '',
-            municipio_establecimiento: benef.municipio_establecimiento || '',
             institucion_superior: benef.institucion_superior || '',
             programa_academico: benef.programa_academico || '',
             tipo_educacion: benef.tipo_educacion || 'PROFESIONAL',
             semestre_ingreso: benef.semestre_ingreso || '',
             semestre_actual: benef.semestre_actual || '',
-            ciudad_institucion: benef.ciudad_institucion || '',
+            dpto_institucion: benef.dpto_institucion || '',
+            municipio_institucion: benef.municipio_institucion || '',
             modalidad: benef.modalidad || '',
-            promedio_anterior: benef.promedio_anterior || '',
             modalidad_beca: benef.modalidad_beca || '',
             año_convocatoria: benef.año_convocatoria || new Date().getFullYear(),
             nombre_banco: benef.nombre_banco || '',
@@ -543,15 +598,14 @@ const BeneficiarioOnboardingCompleto = () => {
             ano_graduacion: formData.ano_graduacion,
             establecimiento_educativo: formData.establecimiento_educativo,
             puntaje_icfes: formData.puntaje_icfes,
-            municipio_establecimiento: formData.municipio_establecimiento,
             institucion_superior: formData.institucion_superior,
             programa_academico: formData.programa_academico,
             tipo_educacion: formData.tipo_educacion,
             semestre_ingreso: formData.semestre_ingreso,
             semestre_actual: formData.semestre_actual,
-            ciudad_institucion: formData.ciudad_institucion,
+            dpto_institucion: formData.dpto_institucion,
+            municipio_institucion: formData.municipio_institucion,
             modalidad: formData.modalidad,
-            promedio_anterior: formData.promedio_anterior,
             modalidad_beca: formData.modalidad_beca,
             año_convocatoria: formData.año_convocatoria,
             nombre_banco: formData.nombre_banco,
@@ -1043,26 +1097,38 @@ const BeneficiarioOnboardingCompleto = () => {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-semibold text-slate-700 mb-2">Departamento *</label>
-          <input
-            type="text"
+          <select
             value={formData.dpto_residencia}
-            onChange={(e) => setFormData({ ...formData, dpto_residencia: e.target.value })}
+            onChange={(e) => {
+              setFormData({ ...formData, dpto_residencia: e.target.value, municipio_residencia: '' });
+            }}
             className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
-            placeholder="Ej: Antioquia"
-          />
+          >
+            <option value="">Selecciona departamento...</option>
+            {catalogos.departamentos.map((dept, idx) => (
+              <option key={idx} value={dept.departamento}>{dept.departamento}</option>
+            ))}
+          </select>
           {errors.dpto_residencia && <p className="text-red-500 text-sm mt-1">{errors.dpto_residencia}</p>}
         </div>
 
         <div>
           <label className="block text-sm font-semibold text-slate-700 mb-2">Municipio *</label>
-          <input
-            type="text"
+          <select
             value={formData.municipio_residencia}
             onChange={(e) => setFormData({ ...formData, municipio_residencia: e.target.value })}
             className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
-            placeholder="Ej: Medellín"
-          />
+            disabled={!formData.dpto_residencia}
+          >
+            <option value="">Selecciona municipio...</option>
+            {catalogos.municipiosFiltrados.map((mun, idx) => (
+              <option key={idx} value={mun.municipio}>{mun.municipio}</option>
+            ))}
+          </select>
           {errors.municipio_residencia && <p className="text-red-500 text-sm mt-1">{errors.municipio_residencia}</p>}
+          {!formData.dpto_residencia && (
+            <p className="text-xs text-slate-500 mt-1">Primero selecciona un departamento</p>
+          )}
         </div>
       </div>
 
@@ -1107,24 +1173,31 @@ const BeneficiarioOnboardingCompleto = () => {
 
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-2">Departamento</label>
-            <input
-              type="text"
+            <select
               value={formData.dpto_nacimiento}
-              onChange={(e) => setFormData({ ...formData, dpto_nacimiento: e.target.value })}
+              onChange={(e) => setFormData({ ...formData, dpto_nacimiento: e.target.value, municipio_nacimiento: '' })}
               className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
-              placeholder="Ej: Antioquia"
-            />
+            >
+              <option value="">Selecciona...</option>
+              {catalogos.departamentos.map((dept, idx) => (
+                <option key={idx} value={dept.departamento}>{dept.departamento}</option>
+              ))}
+            </select>
           </div>
 
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-2">Municipio</label>
-            <input
-              type="text"
+            <select
               value={formData.municipio_nacimiento}
               onChange={(e) => setFormData({ ...formData, municipio_nacimiento: e.target.value })}
               className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
-              placeholder="Ej: Medellín"
-            />
+              disabled={!formData.dpto_nacimiento}
+            >
+              <option value="">Selecciona...</option>
+              {catalogos.municipios.filter(m => m.departamento === formData.dpto_nacimiento).map((mun, idx) => (
+                <option key={idx} value={mun.municipio}>{mun.municipio}</option>
+              ))}
+            </select>
           </div>
         </div>
       </div>
@@ -1256,23 +1329,29 @@ const BeneficiarioOnboardingCompleto = () => {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-2">Ocupación</label>
-                <input
-                  type="text"
+                <select
                   value={formData.ocupacion_padre}
                   onChange={(e) => setFormData({ ...formData, ocupacion_padre: e.target.value })}
                   className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
-                  placeholder="Ocupación o profesión"
-                />
+                >
+                  <option value="">Selecciona...</option>
+                  {OCUPACION_OPTIONS.map((opc, idx) => (
+                    <option key={idx} value={opc}>{opc}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-2">Ingresos Mensuales</label>
-                <input
-                  type="number"
+                <select
                   value={formData.ingresos_padre}
                   onChange={(e) => setFormData({ ...formData, ingresos_padre: e.target.value })}
                   className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
-                  placeholder="$ 0"
-                />
+                >
+                  <option value="">Selecciona...</option>
+                  {INGRESOS_OPTIONS.map((opc, idx) => (
+                    <option key={idx} value={opc}>{opc}</option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
@@ -1303,23 +1382,29 @@ const BeneficiarioOnboardingCompleto = () => {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-2">Ocupación</label>
-                <input
-                  type="text"
+                <select
                   value={formData.ocupacion_madre}
                   onChange={(e) => setFormData({ ...formData, ocupacion_madre: e.target.value })}
                   className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
-                  placeholder="Ocupación o profesión"
-                />
+                >
+                  <option value="">Selecciona...</option>
+                  {OCUPACION_OPTIONS.map((opc, idx) => (
+                    <option key={idx} value={opc}>{opc}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-2">Ingresos Mensuales</label>
-                <input
-                  type="number"
+                <select
                   value={formData.ingresos_madre}
                   onChange={(e) => setFormData({ ...formData, ingresos_madre: e.target.value })}
                   className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
-                  placeholder="$ 0"
-                />
+                >
+                  <option value="">Selecciona...</option>
+                  {INGRESOS_OPTIONS.map((opc, idx) => (
+                    <option key={idx} value={opc}>{opc}</option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
@@ -1389,17 +1474,7 @@ const BeneficiarioOnboardingCompleto = () => {
           ))}
         </datalist>
         {errors.establecimiento_educativo && <p className="text-red-500 text-sm mt-1">{errors.establecimiento_educativo}</p>}
-      </div>
-
-      <div>
-        <label className="block text-sm font-semibold text-slate-700 mb-2">Municipio del Establecimiento</label>
-        <input
-          type="text"
-          value={formData.municipio_establecimiento}
-          onChange={(e) => setFormData({ ...formData, municipio_establecimiento: e.target.value })}
-          className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
-          placeholder="Ciudad donde estudiaste"
-        />
+        <p className="text-xs text-slate-500 mt-1">Municipio: Montelíbano, Córdoba</p>
       </div>
 
       <div>
@@ -1532,29 +1607,37 @@ const BeneficiarioOnboardingCompleto = () => {
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-2">Ciudad de la Institución</label>
-          <input
-            type="text"
-            value={formData.ciudad_institucion}
-            onChange={(e) => setFormData({ ...formData, ciudad_institucion: e.target.value })}
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Departamento de la Institución *</label>
+          <select
+            value={formData.dpto_institucion}
+            onChange={(e) => setFormData({ ...formData, dpto_institucion: e.target.value, municipio_institucion: '' })}
             className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
-            placeholder="Ej: Medellín"
-          />
+          >
+            <option value="">Selecciona departamento...</option>
+            {catalogos.departamentos.map((dept, idx) => (
+              <option key={idx} value={dept.departamento}>{dept.departamento}</option>
+            ))}
+          </select>
+          {errors.dpto_institucion && <p className="text-red-500 text-sm mt-1">{errors.dpto_institucion}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-2">Promedio Académico Anterior</label>
-          <input
-            type="number"
-            value={formData.promedio_anterior}
-            onChange={(e) => setFormData({ ...formData, promedio_anterior: e.target.value })}
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Municipio de la Institución *</label>
+          <select
+            value={formData.municipio_institucion}
+            onChange={(e) => setFormData({ ...formData, municipio_institucion: e.target.value })}
             className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
-            min="0"
-            max="5"
-            step="0.1"
-            placeholder="4.5"
-          />
-          <p className="text-xs text-slate-500 mt-1">Escala de 0.0 a 5.0</p>
+            disabled={!formData.dpto_institucion}
+          >
+            <option value="">Selecciona municipio...</option>
+            {catalogos.municipiosInstitucionFiltrados.map((mun, idx) => (
+              <option key={idx} value={mun.municipio}>{mun.municipio}</option>
+            ))}
+          </select>
+          {errors.municipio_institucion && <p className="text-red-500 text-sm mt-1">{errors.municipio_institucion}</p>}
+          {!formData.dpto_institucion && (
+            <p className="text-xs text-slate-500 mt-1">Primero selecciona un departamento</p>
+          )}
         </div>
       </div>
     </div>

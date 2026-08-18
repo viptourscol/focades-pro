@@ -599,22 +599,20 @@ const BeneficiarioOnboardingCompleto = () => {
           throw new Error(`Error al subir firma: ${uploadError.message}`);
         }
 
-        // 2. Registrar firma en tabla de documentos
-        const { error: dbError } = await supabase
-          .from('portal_beneficiario_documentos_historicos')
-          .insert({
+        // 2. Registrar firma en tabla de documentos usando Edge Function (bypass RLS)
+        const registerResult = await supabase.functions.invoke('auth-credentials', {
+          body: {
+            method: 'register-document',
             beneficiario_id: beneficiarioId,
             titulo: 'Firma digital del beneficiario',
             tipo_documento: 'firma_digital',
-            estado: 'cargado',
-            storage_bucket: 'soportes',
             storage_path: dbPath,
-            archivo_mime_type: 'image/png',
             archivo_size_bytes: blob.size,
-          });
+          },
+        });
 
-        if (dbError) {
-          throw new Error(`Error al registrar firma: ${dbError.message}`);
+        if (!registerResult.data?.ok) {
+          throw new Error(registerResult.data?.error || 'Error al registrar firma');
         }
       }
 

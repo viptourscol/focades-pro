@@ -178,8 +178,8 @@ const BeneficiarioActualizacion = () => {
     let mounted = true;
 
     const loadData = async () => {
-      // Primero intentar obtener perfil desde localStorage (login con documento)
-      let profileData = null;
+      // Obtener beneficiario_id desde localStorage (login con documento)
+      let beneficiarioId = null;
       try {
         const sessionStr = localStorage.getItem('focades:beneficiario-session');
         if (sessionStr) {
@@ -187,16 +187,30 @@ const BeneficiarioActualizacion = () => {
           const sessionTime = new Date(documentSession.timestamp).getTime();
           const maxAge = 24 * 60 * 60 * 1000;
           
-          if (Date.now() - sessionTime <= maxAge && documentSession.profile) {
-            profileData = documentSession.profile;
+          if (Date.now() - sessionTime <= maxAge && documentSession.beneficiario_id) {
+            beneficiarioId = documentSession.beneficiario_id;
           }
         }
       } catch (error) {
         console.error('Error leyendo sesión de localStorage:', error);
       }
 
-      // Si no hay perfil en localStorage, intentar con Supabase Auth
-      if (!profileData) {
+      // Cargar perfil usando Edge Function (bypasses RLS)
+      let profileData = null;
+      if (beneficiarioId) {
+        try {
+          const { data: result, error } = await supabase.functions.invoke('get-beneficiario-profile', {
+            body: { beneficiario_id: beneficiarioId },
+          });
+
+          if (!error && result?.ok && result.profile) {
+            profileData = result.profile;
+          }
+        } catch (err) {
+          console.error('Error invocando get-beneficiario-profile:', err);
+        }
+      } else {
+        // Fallback: Si no hay beneficiario_id, intentar con Supabase Auth (Google OAuth)
         const { data: sessionData } = await supabase.auth.getSession();
         const userId = sessionData?.session?.user?.id;
         if (!userId) {
@@ -218,36 +232,35 @@ const BeneficiarioActualizacion = () => {
         return;
       }
 
-      const nowIso = new Date().toISOString();
+      // Cargar ventana activa y configuración usando Edge Function (bypasses RLS)
+      let ventanaData = null;
+      let configData = null;
+      try {
+        const { data: result, error } = await supabase.functions.invoke('get-ventana-actualizacion');
 
-      const [configResp, windowResp] = await Promise.all([
-        supabase.from('portal_configuracion').select('*').eq('is_active', true).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase
-          .from('portal_ventanas_actualizacion')
-          .select('*')
-          .eq('is_active', true)
-          .lte('fecha_inicio', nowIso)
-          .gte('fecha_fin', nowIso)
-          .order('fecha_inicio', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-      ]);
+        if (!error && result?.ok) {
+          ventanaData = result.ventana || null;
+          configData = result.config || null;
+        }
+      } catch (err) {
+        console.error('Error invocando get-ventana-actualizacion:', err);
+      }
 
       if (!mounted) return;
 
       setProfile(profileData);
-      setConfig(configResp.data || null);
-      setWindowInfo(windowResp.data || null);
+      setConfig(configData);
+      setWindowInfo(ventanaData);
 
       setForm({
         email: profileData?.email || '',
         telefono: profileData?.telefono || '',
-        direccion: profileData?.direccion || '',
+        direccion: profileData?.direccion_residencia || profileData?.direccion || '',
         semestre_actual: String(profileData?.semestre_actual || ''),
         promedio_semestre_anterior: '',
-        banco: profileData?.banco || '',
-        tipo_cuenta: profileData?.tipo_cuenta || '',
-        cuenta_bancaria: profileData?.cuenta_bancaria || '',
+        banco: profileData?.nombre_banco || profileData?.banco || '',
+        tipo_cuenta: profileData?.tipo_cuenta_bancaria || profileData?.tipo_cuenta || '',
+        cuenta_bancaria: profileData?.numero_cuenta || profileData?.cuenta_bancaria || '',
       });
       setCuentaBancariaConfirm('');
 

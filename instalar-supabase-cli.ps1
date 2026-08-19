@@ -4,10 +4,18 @@
 Write-Host "🚀 Instalando Supabase CLI..." -ForegroundColor Cyan
 
 # Verificar si npm está instalado
+$npmInstalled = $false
 try {
-    $npmVersion = npm --version
-    Write-Host "✅ npm detectado (versión $npmVersion)" -ForegroundColor Green
-    
+    $npmVersion = npm --version 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        $npmInstalled = $true
+        Write-Host "✅ npm detectado (versión $npmVersion)" -ForegroundColor Green
+    }
+} catch {
+    $npmInstalled = $false
+}
+
+if ($npmInstalled) {
     Write-Host "📦 Instalando supabase CLI con npm..." -ForegroundColor Yellow
     npm install -g supabase
     
@@ -17,14 +25,22 @@ try {
         Write-Host "❌ Error instalando Supabase CLI" -ForegroundColor Red
         exit 1
     }
-} catch {
+} else {
     Write-Host "❌ npm no está instalado. Instalando con Scoop..." -ForegroundColor Yellow
     
     # Verificar si Scoop está instalado
+    $scoopInstalled = $false
     try {
-        $scoopVersion = scoop --version
-        Write-Host "✅ Scoop detectado" -ForegroundColor Green
+        $scoopVersion = scoop --version 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            $scoopInstalled = $true
+            Write-Host "✅ Scoop detectado" -ForegroundColor Green
+        }
     } catch {
+        $scoopInstalled = $false
+    }
+    
+    if (-not $scoopInstalled) {
         Write-Host "📦 Instalando Scoop..." -ForegroundColor Yellow
         Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
         Invoke-RestMethod get.scoop.sh | Invoke-Expression

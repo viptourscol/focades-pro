@@ -67,15 +67,33 @@ const toIntegerOrNull = (value) => {
   return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : null;
 };
 
+const parseSemestreIngreso = (value) => {
+  if (!value) return null;
+  
+  // Si es un número simple, usarlo directamente
+  const asNumber = toIntegerOrNull(value);
+  if (asNumber !== null) return asNumber;
+  
+  // Si es formato "2025-2", extraer el segundo número (semestre)
+  const match = String(value).match(/(\d+)-(\d+)/);
+  if (match && match[2]) {
+    return toIntegerOrNull(match[2]);
+  }
+  
+  return null;
+};
+
 const buildLocalPaymentRights = ({ profile, paymentRows = [], enrollmentData = null }) => {
-  const nivelFormacion = profile?.nivel_formacion || enrollmentData?.datos_formulario?.nivel_formacion || null;
+  const nivelFormacion = profile?.nivel_formacion || profile?.tipo_educacion || enrollmentData?.datos_formulario?.nivel_formacion || null;
   const modalidad = profile?.modalidad || enrollmentData?.datos_formulario?.modalidad || enrollmentData?.datos_formulario?.modalidad_aspira || null;
-  const semestreIngreso = toIntegerOrNull(profile?.semestre_ingreso) || toIntegerOrNull(enrollmentData?.datos_formulario?.semestre_ingreso) || null;
+  const semestreIngreso = parseSemestreIngreso(profile?.semestre_ingreso) || parseSemestreIngreso(enrollmentData?.datos_formulario?.semestre_ingreso) || null;
   const topePagos = paymentCapForLevel(nivelFormacion);
   const derechoInicial = topePagos && semestreIngreso ? Math.max(0, topePagos - (semestreIngreso - 1)) : 0;
   const pagosEfectuados = paymentRows.filter((item) => item.estado === 'efectuado').length;
   const pagosRestantes = Math.max(0, derechoInicial - pagosEfectuados);
-  const esActivo = profile?.estado_beneficiario === 'activo';
+  
+  // Permitir pagos a menos que esté explícitamente inactivo o suspendido
+  const estadoBloqueado = ['inactivo', 'suspendido', 'inhabilitado'].includes(String(profile?.estado_beneficiario || '').toLowerCase());
 
   let motivoBloqueo = null;
   let esElegible = false;
@@ -84,7 +102,7 @@ const buildLocalPaymentRights = ({ profile, paymentRows = [], enrollmentData = n
     motivoBloqueo = 'Falta nivel de formacion para calcular tus derechos de pago.';
   } else if (!semestreIngreso) {
     motivoBloqueo = 'Falta semestre de ingreso para calcular tus derechos de pago.';
-  } else if (!esActivo) {
+  } else if (estadoBloqueado) {
     motivoBloqueo = 'Tu estado actual no permite nuevos pagos.';
   } else if (pagosRestantes <= 0) {
     motivoBloqueo = 'Ya agotaste tus cupos de pago disponibles.';
@@ -125,8 +143,8 @@ const BeneficiarioResumen = () => {
     let mounted = true;
 
     const loadProfile = async () => {
-      // Primero intentar obtener perfil desde localStorage (login con documento)
-      let profileData = null;
+      // Primero intentar obtener beneficiario_id desde localStorage (login con documento)
+      let beneficiarioId = null;
       try {
         const sessionStr = localStorage.getItem('focades:beneficiario-session');
         if (sessionStr) {
@@ -136,16 +154,26 @@ const BeneficiarioResumen = () => {
           const sessionTime = new Date(documentSession.timestamp).getTime();
           const maxAge = 24 * 60 * 60 * 1000;
           
-          if (Date.now() - sessionTime <= maxAge && documentSession.profile) {
-            profileData = documentSession.profile;
+          if (Date.now() - sessionTime <= maxAge && documentSession.beneficiario_id) {
+            beneficiarioId = documentSession.beneficiario_id;
           }
         }
       } catch (error) {
         console.error('Error leyendo sesión de localStorage:', error);
       }
 
-      // Si no hay perfil en localStorage, intentar con Supabase Auth (Google OAuth)
-      if (!profileData) {
+      // Si hay beneficiario_id, cargar perfil completo desde la base de datos
+      let profileData = null;
+      if (beneficiarioId) {
+        const { data } = await supabase
+          .from('portal_beneficiarios')
+          .select('*')
+          .eq('id', beneficiarioId)
+          .maybeSingle();
+        
+        profileData = data;
+      } else {
+        // Fallback: Si no hay beneficiario_id, intentar con Supabase Auth (Google OAuth)
         const { data: sessionData } = await supabase.auth.getSession();
         const userId = sessionData?.session?.user?.id;
         if (!userId) {
@@ -180,7 +208,16 @@ const BeneficiarioResumen = () => {
             : ''
         );
 
+        // Verificar si hay JWT antes de intentar llamar al RPC
+        const { data: sessionData } = await supabase.auth.getSession();
+        const hasJWT = !!sessionData?.session?.user?.id;
+
         try {
+          // Solo intentar RPC si hay JWT (login con Google OAuth)
+          if (!hasJWT) {
+            throw new Error('__NO_JWT_AVAILABLE__');
+          }
+
           if (isRpcMarkedUnavailable(BENEFICIARIO_PAYMENT_RIGHTS_RPC)) {
             throw new Error('__PAYMENT_RIGHTS_RPC_UNAVAILABLE__');
           }
@@ -216,9 +253,11 @@ const BeneficiarioResumen = () => {
           }
 
           setPaymentRightsNotice(
-            String(error?.message || '') === '__PAYMENT_RIGHTS_RPC_UNAVAILABLE__' ||
-              String(error?.message || '').includes('404') ||
-              String(error?.message || '').toLowerCase().includes('not found')
+            String(error?.message || '') === '__NO_JWT_AVAILABLE__'
+              ? 'Calculo local de derechos de pago (login por documento).'
+              : String(error?.message || '') === '__PAYMENT_RIGHTS_RPC_UNAVAILABLE__' ||
+                String(error?.message || '').includes('404') ||
+                String(error?.message || '').toLowerCase().includes('not found')
               ? 'El calculo centralizado de derechos de pago aun no esta desplegado. Te mostramos una estimacion local.'
               : 'No fue posible consultar el calculo centralizado. Te mostramos una estimacion local.'
           );
@@ -316,9 +355,9 @@ const BeneficiarioResumen = () => {
         <div className="mt-5 grid grid-cols-2 md:grid-cols-2 xl:grid-cols-4 gap-2.5 md:gap-3">
           <SummaryItem label="Correo" value={profile.email} />
           <SummaryItem label="Teléfono" value={profile.telefono} />
-          <SummaryItem label="Dirección" value={profile.direccion} />
+          <SummaryItem label="Dirección" value={profile.direccion_residencia} />
           <SummaryItem label="Radicado" value={profile.radicado_inscripcion} />
-          <SummaryItem label="Nivel formación" value={paymentRights?.nivelFormacion || profile.nivel_formacion} />
+          <SummaryItem label="Nivel formación" value={paymentRights?.nivelFormacion || profile.nivel_formacion || profile.tipo_educacion} />
           <SummaryItem label="Modalidad" value={paymentRights?.modalidad || profile.modalidad} />
           <SummaryItem
             label="Semestre ingreso"

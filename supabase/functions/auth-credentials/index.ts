@@ -359,10 +359,14 @@ Deno.serve(async (req) => {
         'nombre_universidad', 'direccion'
       ]
 
-      // Filtrar solo campos permitidos
+      // Filtrar solo campos permitidos y limpiar valores vacíos
       const updateData: any = {}
       for (const [key, value] of Object.entries(profile_data)) {
         if (allowedFields.includes(key)) {
+          // Omitir valores vacíos para evitar errores de tipo en PostgreSQL
+          if (value === '' || value === null || value === undefined) {
+            continue
+          }
           updateData[key] = value
         }
       }

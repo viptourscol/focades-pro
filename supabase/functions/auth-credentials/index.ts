@@ -330,6 +330,12 @@ Deno.serve(async (req) => {
     if (method === 'update-profile') {
       const { beneficiario_id, profile_data } = body
 
+      console.log('🔍 DEBUG update-profile:', {
+        beneficiario_id,
+        has_profile_data: !!profile_data,
+        profile_data_keys: profile_data ? Object.keys(profile_data) : [],
+      })
+
       if (!beneficiario_id || !profile_data) {
         return new Response(
           JSON.stringify({ ok: false, error: 'ID de beneficiario y datos de perfil requeridos' }),
@@ -363,24 +369,41 @@ Deno.serve(async (req) => {
 
       updateData.updated_at = new Date().toISOString()
 
+      console.log('🔍 Campos a actualizar:', Object.keys(updateData))
+      console.log('🔍 Valores:', JSON.stringify(updateData, null, 2))
+
       // Actualizar beneficiario
-      const { error: updateErr } = await supabase
+      const { data: updateResult, error: updateErr } = await supabase
         .from('portal_beneficiarios')
         .update(updateData)
         .eq('id', beneficiario_id)
+        .select()
 
       if (updateErr) {
-        console.error('Error updating profile:', updateErr)
+        console.error('❌ Error updating profile:', {
+          code: updateErr.code,
+          message: updateErr.message,
+          details: updateErr.details,
+          hint: updateErr.hint,
+        })
         return new Response(
-          JSON.stringify({ ok: false, error: 'Error al actualizar perfil' }),
+          JSON.stringify({ 
+            ok: false, 
+            error: 'Error al actualizar perfil',
+            error_details: updateErr.message,
+            error_code: updateErr.code,
+          }),
           { status: 500, headers: corsHeaders }
         )
       }
+
+      console.log('✅ Perfil actualizado exitosamente')
 
       return new Response(
         JSON.stringify({
           ok: true,
           message: 'Perfil actualizado exitosamente',
+          updated_fields: Object.keys(updateData),
         }),
         { status: 200, headers: corsHeaders }
       )

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { showErrorAlert, showWarningAlert } from '../lib/alerts';
-import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2, Info } from 'lucide-react';
 
 const MAX_FILE_MB = 10;
 const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
@@ -646,12 +646,15 @@ const BeneficiarioActualizacion = () => {
               <Input label="Teléfono" value={form.telefono} onChange={(value) => setForm((prev) => ({ ...prev, telefono: value }))} disabled={!canUpdate} />
               <Input label="Dirección" value={form.direccion} onChange={(value) => setForm((prev) => ({ ...prev, direccion: value }))} disabled={!canUpdate} />
               <Input label="Semestre que actualiza" value={form.semestre_actual} onChange={(value) => setForm((prev) => ({ ...prev, semestre_actual: value }))} disabled={!canUpdate} />
-              <Input
-                label="Promedio semestre anterior"
+            </div>
+
+            {/* Campo de Promedio con validación en tiempo real */}
+            <div className="mt-5">
+              <PromedioInput
                 value={form.promedio_semestre_anterior}
                 onChange={(value) => setForm((prev) => ({ ...prev, promedio_semestre_anterior: value }))}
                 disabled={!canUpdate}
-                placeholder={`Mínimo ${config?.promedio_minimo || 3.5}`}
+                promedioMinimo={config?.promedio_minimo || 3.5}
               />
             </div>
 
@@ -748,6 +751,90 @@ const BeneficiarioActualizacion = () => {
           </>
         )}
       </div>
+    </div>
+  );
+};
+
+const PromedioInput = ({ value, onChange, disabled = false, promedioMinimo = 3.5 }) => {
+  const promedio = Number(String(value || '').replace(',', '.'));
+  const hasValue = value && String(value).trim() !== '';
+  const isValid = hasValue && !isNaN(promedio) && promedio >= 0 && promedio <= 5;
+  
+  // Determinar el estado del promedio
+  let estado = 'neutral'; // neutral, bajo, bueno
+  let mensaje = '';
+  let colorClasses = {
+    border: 'border-slate-300',
+    bg: 'bg-white',
+    text: 'text-slate-700',
+    ring: 'focus:ring-secondary/25 focus:border-secondary',
+  };
+  
+  if (isValid) {
+    if (promedio < promedioMinimo) {
+      estado = 'bajo';
+      colorClasses = {
+        border: 'border-red-400',
+        bg: 'bg-red-50',
+        text: 'text-red-900',
+        ring: 'focus:ring-red-200 focus:border-red-500',
+      };
+      mensaje = `⚠️ Tu promedio está por debajo del mínimo requerido (${promedioMinimo}). Tu actualización será enviada pero entrará en período de revisión por los administradores. Recuerda que el bajo promedio académico es causal de no pago según el reglamento del programa.`;
+    } else {
+      estado = 'bueno';
+      colorClasses = {
+        border: 'border-emerald-400',
+        bg: 'bg-emerald-50',
+        text: 'text-emerald-900',
+        ring: 'focus:ring-emerald-200 focus:border-emerald-500',
+      };
+      mensaje = `🎉 ¡Excelente trabajo! Tu promedio cumple con los requisitos académicos. Sigue así, tu esfuerzo y dedicación son el motor de tu éxito. ¡Estamos orgullosos de ti!`;
+    }
+  }
+  
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-center gap-2">
+        <span className="text-xs uppercase tracking-wide font-bold text-slate-600">
+          Promedio semestre anterior
+        </span>
+        <div className="group relative">
+          <Info size={14} className="text-blue-600 cursor-help" />
+          <div className="absolute left-0 top-6 z-10 hidden group-hover:block w-72 p-3 bg-slate-900 text-white text-xs rounded-lg shadow-xl">
+            <strong>Importante:</strong> El promedio que ingreses debe coincidir exactamente con el que aparece en el certificado de notas que vas a adjuntar para esta actualización.
+            <div className="absolute -top-1 left-4 w-2 h-2 bg-slate-900 transform rotate-45"></div>
+          </div>
+        </div>
+      </div>
+      
+      <input
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        placeholder={`Mínimo ${promedioMinimo}`}
+        className={`
+          border rounded-lg px-3 py-2.5 transition-all duration-300
+          disabled:bg-slate-100 disabled:text-slate-500
+          ${colorClasses.border} ${colorClasses.bg} ${colorClasses.text} ${colorClasses.ring}
+          ${isValid && estado !== 'neutral' ? 'font-semibold' : ''}
+        `}
+      />
+      
+      {/* Mensaje contextual */}
+      {isValid && estado !== 'neutral' && (
+        <div
+          className={`
+            rounded-xl px-4 py-3 text-sm animate-fade-in
+            ${estado === 'bajo' 
+              ? 'bg-red-100 border border-red-300 text-red-800' 
+              : 'bg-emerald-100 border border-emerald-300 text-emerald-800'
+            }
+          `}
+        >
+          {mensaje}
+        </div>
+      )}
     </div>
   );
 };

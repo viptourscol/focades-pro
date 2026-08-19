@@ -627,9 +627,16 @@ Deno.serve(async (req) => {
       { status: 400, headers: corsHeaders }
     )
   } catch (error) {
-    console.error('Function error:', error)
+    console.error('❌ Function error:', error)
+    console.error('❌ Error stack:', error.stack)
+    console.error('❌ Error message:', error.message)
     return new Response(
-      JSON.stringify({ ok: false, error: 'Error interno del servidor' }),
+      JSON.stringify({ 
+        ok: false, 
+        error: 'Error interno del servidor',
+        error_message: error.message,
+        error_details: error.toString(),
+      }),
       { status: 500, headers: corsHeaders }
     )
   }

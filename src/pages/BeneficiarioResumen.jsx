@@ -147,8 +147,15 @@ const BeneficiarioResumen = () => {
       let beneficiarioId = null;
       try {
         const sessionStr = localStorage.getItem('focades:beneficiario-session');
+        console.log('[BeneficiarioResumen] localStorage session:', sessionStr ? 'EXISTE' : 'NO EXISTE');
+        
         if (sessionStr) {
           const documentSession = JSON.parse(sessionStr);
+          console.log('[BeneficiarioResumen] Session data:', {
+            beneficiario_id: documentSession.beneficiario_id,
+            has_profile: !!documentSession.profile,
+            timestamp: documentSession.timestamp
+          });
           
           // Validar que la sesión no sea muy antigua (24h)
           const sessionTime = new Date(documentSession.timestamp).getTime();
@@ -165,11 +172,18 @@ const BeneficiarioResumen = () => {
       // Si hay beneficiario_id, cargar perfil completo desde la base de datos
       let profileData = null;
       if (beneficiarioId) {
-        const { data } = await supabase
+        console.log('[BeneficiarioResumen] Cargando perfil para beneficiario_id:', beneficiarioId);
+        const { data, error } = await supabase
           .from('portal_beneficiarios')
           .select('*')
           .eq('id', beneficiarioId)
           .maybeSingle();
+        
+        if (error) {
+          console.error('[BeneficiarioResumen] Error cargando perfil:', error);
+        } else {
+          console.log('[BeneficiarioResumen] Perfil cargado:', data ? 'OK' : 'NULL');
+        }
         
         profileData = data;
       } else {

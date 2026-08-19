@@ -173,19 +173,26 @@ const BeneficiarioResumen = () => {
       let profileData = null;
       if (beneficiarioId) {
         console.log('[BeneficiarioResumen] Cargando perfil para beneficiario_id:', beneficiarioId);
-        const { data, error } = await supabase
-          .from('portal_beneficiarios')
-          .select('*')
-          .eq('id', beneficiarioId)
-          .maybeSingle();
         
-        if (error) {
-          console.error('[BeneficiarioResumen] Error cargando perfil:', error);
-        } else {
-          console.log('[BeneficiarioResumen] Perfil cargado:', data ? 'OK' : 'NULL');
+        try {
+          // Usar Edge Function con service key para bypassear RLS
+          const { data: result, error } = await supabase.functions.invoke('get-beneficiario-profile', {
+            body: { beneficiario_id: beneficiarioId },
+          });
+
+          if (error) {
+            console.error('[BeneficiarioResumen] Error invocando Edge Function:', error);
+          } else if (result?.ok && result.profile) {
+            console.log('[BeneficiarioResumen] Perfil cargado:', 'OK');
+            profileData = result.profile;
+          } else {
+            console.error('[BeneficiarioResumen] Edge Function retornó error:', result?.error);
+          }
+        } catch (err) {
+          console.error('[BeneficiarioResumen] Exception invocando Edge Function:', err);
         }
         
-        profileData = data;
+        profileData = profileData;
       } else {
         // Fallback: Si no hay beneficiario_id, intentar con Supabase Auth (Google OAuth)
         const { data: sessionData } = await supabase.auth.getSession();

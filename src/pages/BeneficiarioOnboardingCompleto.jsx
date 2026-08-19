@@ -366,6 +366,12 @@ const BeneficiarioOnboardingCompleto = () => {
         if (!formData.fecha_nacimiento) newErrors.fecha_nacimiento = 'Campo requerido';
         if (!formData.telefono) newErrors.telefono = 'Campo requerido';
         if (!formData.direccion_residencia) newErrors.direccion_residencia = 'Campo requerido';
+        if (!formData.barrio_corregimiento) newErrors.barrio_corregimiento = 'Campo requerido';
+        if (!formData.dpto_residencia) newErrors.dpto_residencia = 'Campo requerido';
+        if (!formData.municipio_residencia) newErrors.municipio_residencia = 'Campo requerido';
+        if (!formData.zona_residencia) newErrors.zona_residencia = 'Campo requerido';
+        if (!formData.dpto_nacimiento) newErrors.dpto_nacimiento = 'Campo requerido';
+        if (!formData.municipio_nacimiento) newErrors.municipio_nacimiento = 'Campo requerido';
         break;
 
       case 5: // Información socioeconómica
@@ -374,6 +380,8 @@ const BeneficiarioOnboardingCompleto = () => {
         if (formData.recibe_subsidio === 'SI' && !formData.cual_subsidio) {
           newErrors.cual_subsidio = 'Especifica qué subsidio recibes';
         }
+        if (!formData.enfoque_diferencial) newErrors.enfoque_diferencial = 'Campo requerido';
+        if (!formData.labora_actualmente) newErrors.labora_actualmente = 'Campo requerido';
         break;
 
       case 6: // Formación secundaria
@@ -390,6 +398,8 @@ const BeneficiarioOnboardingCompleto = () => {
         if (!formData.semestre_ingreso) newErrors.semestre_ingreso = 'Campo requerido';
         if (!formData.semestre_actual) newErrors.semestre_actual = 'Campo requerido';
         if (!formData.modalidad) newErrors.modalidad = 'Campo requerido';
+        if (!formData.dpto_institucion) newErrors.dpto_institucion = 'Campo requerido';
+        if (!formData.municipio_institucion) newErrors.municipio_institucion = 'Campo requerido';
         break;
 
       case 8: // Información bancaria (antes era paso 9)
@@ -1172,7 +1182,7 @@ const BeneficiarioOnboardingCompleto = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Departamento</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Departamento *</label>
             <select
               value={formData.dpto_nacimiento}
               onChange={(e) => setFormData({ ...formData, dpto_nacimiento: e.target.value, municipio_nacimiento: '' })}
@@ -1183,10 +1193,11 @@ const BeneficiarioOnboardingCompleto = () => {
                 <option key={idx} value={dept.nombre}>{dept.nombre}</option>
               ))}
             </select>
+            {errors.dpto_nacimiento && <p className="text-red-500 text-sm mt-1">{errors.dpto_nacimiento}</p>}
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Municipio</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Municipio *</label>
             <select
               value={formData.municipio_nacimiento}
               onChange={(e) => setFormData({ ...formData, municipio_nacimiento: e.target.value })}
@@ -1198,6 +1209,7 @@ const BeneficiarioOnboardingCompleto = () => {
                 <option key={idx} value={mun.nombre}>{mun.nombre}</option>
               ))}
             </select>
+            {errors.municipio_nacimiento && <p className="text-red-500 text-sm mt-1">{errors.municipio_nacimiento}</p>}
           </div>
         </div>
       </div>
@@ -1263,12 +1275,13 @@ const BeneficiarioOnboardingCompleto = () => {
       )}
 
       <div>
-        <label className="block text-sm font-semibold text-slate-700 mb-2">Enfoque Diferencial</label>
+        <label className="block text-sm font-semibold text-slate-700 mb-2">Enfoque Diferencial *</label>
         <select
           value={formData.enfoque_diferencial}
           onChange={(e) => setFormData({ ...formData, enfoque_diferencial: e.target.value })}
           className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
         >
+          <option value="">Selecciona...</option>
           <option value="NINGUNO">Ninguno</option>
           <option value="INDIGENA">Indígena</option>
           <option value="AFROCOLOMBIANO">Afrocolombiano</option>
@@ -1280,10 +1293,11 @@ const BeneficiarioOnboardingCompleto = () => {
           <option value="LGBTIQ">LGBTIQ+</option>
           <option value="OTRO">Otro</option>
         </select>
+        {errors.enfoque_diferencial && <p className="text-red-500 text-sm mt-1">{errors.enfoque_diferencial}</p>}
       </div>
 
       <div>
-        <label className="block text-sm font-semibold text-slate-700 mb-2">¿Laboras Actualmente?</label>
+        <label className="block text-sm font-semibold text-slate-700 mb-2">¿Laboras Actualmente? *</label>
         <select
           value={formData.labora_actualmente}
           onChange={(e) => setFormData({ ...formData, labora_actualmente: e.target.value })}
@@ -1293,6 +1307,7 @@ const BeneficiarioOnboardingCompleto = () => {
           <option value="SI">Sí</option>
           <option value="NO">No</option>
         </select>
+        {errors.labora_actualmente && <p className="text-red-500 text-sm mt-1">{errors.labora_actualmente}</p>}
       </div>
 
       <div className="border-t border-slate-200 pt-4 mt-6">

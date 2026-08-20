@@ -199,7 +199,15 @@ Deno.serve(async (req) => {
     }
 
     // Insertar el primer mensaje del beneficiario
-    const { error: mensajeError } = await supabase
+    console.log('🔍 [DEBUG] Insertando mensaje inicial para ticket:', createdTicket.id)
+    console.log('🔍 [DEBUG] Datos mensaje:', {
+      ticket_id: createdTicket.id,
+      autor_tipo: 'beneficiario',
+      mensaje_length: cleanMensaje.length,
+      admin_user_id: null,
+    })
+
+    const { data: mensajeData, error: mensajeError } = await supabase
       .from('portal_ticket_mensajes')
       .insert({
         ticket_id: createdTicket.id,
@@ -207,11 +215,32 @@ Deno.serve(async (req) => {
         mensaje: cleanMensaje,
         admin_user_id: null,
       })
+      .select()
 
     if (mensajeError) {
-      console.error('⚠️ Error insertando mensaje inicial:', mensajeError)
-      // No fallamos la creación del ticket, solo logueamos el error
+      console.error('❌ Error insertando mensaje inicial:', mensajeError)
+      console.error('❌ Error code:', mensajeError.code)
+      console.error('❌ Error details:', mensajeError.details)
+      console.error('❌ Error hint:', mensajeError.hint)
+      // FALLAR si no se puede crear el mensaje
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: 'No se pudo crear el mensaje inicial del ticket.',
+          details: mensajeError.message,
+          code: mensajeError.code,
+        }),
+        {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+        }
+      )
     }
+
+    console.log('✅ Mensaje inicial creado:', mensajeData)
 
     console.log('✅ Ticket creado:', createdTicket.ticket_codigo)
 

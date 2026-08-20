@@ -396,6 +396,7 @@ const BeneficiarioActualizacion = () => {
       ]);
 
       // Enviar actualización usando Edge Function (bypasses RLS)
+      console.log('📤 Invocando Edge Function...');
       const { data: result, error: invokeError } = await supabase.functions.invoke('enviar-actualizacion-beneficiario', {
         body: {
           beneficiario_id: profile.id,
@@ -427,17 +428,32 @@ const BeneficiarioActualizacion = () => {
         },
       });
 
-      if (invokeError || !result?.ok) {
-        throw new Error(result?.error || invokeError?.message || 'Error al enviar actualización');
+      console.log('📥 Respuesta recibida:', { result, invokeError });
+
+      if (invokeError) {
+        console.error('❌ Error de invocación:', invokeError);
+        throw new Error(invokeError.message || 'Error al comunicarse con el servidor');
       }
+
+      if (!result) {
+        console.error('❌ Respuesta vacía del servidor');
+        throw new Error('No se recibió respuesta del servidor');
+      }
+
+      if (!result.ok) {
+        console.error('❌ Error en respuesta:', result);
+        throw new Error(result.error || 'Error al procesar la actualización');
+      }
+
+      console.log('✅ Actualización enviada exitosamente:', result);
 
       // Notificación por correo (no bloquea si falla)
       supabase.functions.invoke('notify-beneficiario', {
         body: {
-          email: payload.email,
+          email: form.email,
           nombre: profile.primer_nombre || profile.nombre_completo || 'Beneficiario',
           ventana_nombre: windowInfo?.nombre || 'Periodo vigente',
-          semestre: payload.semestre_actual,
+          semestre: form.semestre_actual,
         },
       }).catch(() => {});
 

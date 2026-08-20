@@ -165,6 +165,8 @@ Deno.serve(async (req) => {
       console.log('✅ Perfil del beneficiario actualizado')
     }
 
+    console.log('🎉 Enviando respuesta exitosa al cliente')
+
     return new Response(
       JSON.stringify({
         ok: true,

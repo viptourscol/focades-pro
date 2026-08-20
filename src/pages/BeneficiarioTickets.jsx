@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LifeBuoy, MessageSquareText, Plus, RefreshCw, Send, Ticket } from 'lucide-react';
-import { invokeBeneficiarioTickets } from '../lib/beneficiarioTickets';
+import { supabase } from '../lib/supabase';
 
 const STATUS_LABELS = {
   recibido: 'Recibido',
@@ -40,25 +40,74 @@ const BeneficiarioTickets = () => {
     setError('');
     setAuthExpired(false);
 
-    const result = await invokeBeneficiarioTickets({ action: 'list' });
-
-    if (!result.ok) {
-      if (result.authExpired) {
-        setAuthExpired(true);
-        setError(result.error || 'Tu sesión expiró. Inicia sesión de nuevo para continuar.');
-        setLoading(false);
-        return;
+    // Obtener beneficiario_id desde localStorage
+    let beneficiarioId = null;
+    try {
+      const sessionStr = localStorage.getItem('focades:beneficiario-session');
+      if (sessionStr) {
+        const documentSession = JSON.parse(sessionStr);
+        const sessionTime = new Date(documentSession.timestamp).getTime();
+        const maxAge = 24 * 60 * 60 * 1000;
+        
+        if (Date.now() - sessionTime <= maxAge) {
+          beneficiarioId = documentSession.beneficiario_id;
+        }
       }
+    } catch (error) {
+      console.error('[BeneficiarioTickets] Error leyendo sesión:', error);
+    }
 
-      setError(result.error || 'No se pudieron cargar tus tickets.');
+    // Si no hay beneficiario_id, intentar con Supabase Auth
+    if (!beneficiarioId) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData?.session?.user?.id;
+      if (userId) {
+        const { data: profile } = await supabase
+          .from('portal_beneficiarios')
+          .select('id')
+          .eq('auth_user_id', userId)
+          .maybeSingle();
+        
+        beneficiarioId = profile?.id;
+      }
+    }
+
+    if (!beneficiarioId) {
+      setAuthExpired(true);
+      setError('Tu sesión expiró. Inicia sesión de nuevo para continuar.');
+      setLoading(false);
+      return;
+    }
+
+    console.log('[BeneficiarioTickets] Cargando tickets...');
+
+    // Cargar tickets usando Edge Function (bypasses RLS)
+    const { data: result, error: invokeError } = await supabase.functions.invoke('get-beneficiario-tickets', {
+      body: { beneficiario_id: beneficiarioId },
+    });
+
+    if (invokeError) {
+      console.error('[BeneficiarioTickets] Error invocando Edge Function:', invokeError);
+      setError(invokeError.message || 'No se pudieron cargar tus tickets.');
       setTickets([]);
       setSelectedId('');
       setLoading(false);
       return;
     }
 
-    const rows = Array.isArray(result.data?.tickets) ? result.data.tickets : [];
-    const profile = result.data?.profile || {};
+    if (!result?.ok) {
+      console.error('[BeneficiarioTickets] Error en respuesta:', result);
+      setError(result?.error || 'No se pudieron cargar tus tickets.');
+      setTickets([]);
+      setSelectedId('');
+      setLoading(false);
+      return;
+    }
+
+    console.log('[BeneficiarioTickets] Tickets cargados:', result.tickets?.length || 0);
+
+    const rows = Array.isArray(result.tickets) ? result.tickets : [];
+    const profile = result.profile || {};
 
     setTickets(rows);
     setProfileInfo({
@@ -106,27 +155,74 @@ const BeneficiarioTickets = () => {
     setError('');
     setSuccess('');
 
-    const result = await invokeBeneficiarioTickets({
-      action: 'create',
-      asunto,
-      mensaje,
-    });
-
-    if (!result.ok) {
-      if (result.authExpired) {
-        setAuthExpired(true);
-        setError(result.error || 'Tu sesión expiró. Inicia sesión de nuevo para continuar.');
-        setSubmitting(false);
-        return;
+    // Obtener beneficiario_id desde localStorage
+    let beneficiarioId = null;
+    try {
+      const sessionStr = localStorage.getItem('focades:beneficiario-session');
+      if (sessionStr) {
+        const documentSession = JSON.parse(sessionStr);
+        const sessionTime = new Date(documentSession.timestamp).getTime();
+        const maxAge = 24 * 60 * 60 * 1000;
+        
+        if (Date.now() - sessionTime <= maxAge) {
+          beneficiarioId = documentSession.beneficiario_id;
+        }
       }
+    } catch (error) {
+      console.error('[BeneficiarioTickets] Error leyendo sesión:', error);
+    }
 
-      setError(result.error || 'No se pudo crear el ticket.');
+    // Si no hay beneficiario_id, intentar con Supabase Auth
+    if (!beneficiarioId) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData?.session?.user?.id;
+      if (userId) {
+        const { data: profile } = await supabase
+          .from('portal_beneficiarios')
+          .select('id')
+          .eq('auth_user_id', userId)
+          .maybeSingle();
+        
+        beneficiarioId = profile?.id;
+      }
+    }
+
+    if (!beneficiarioId) {
+      setAuthExpired(true);
+      setError('Tu sesión expiró. Inicia sesión de nuevo para continuar.');
       setSubmitting(false);
       return;
     }
 
-    const createdTicket = result.data?.ticket || null;
-    setSuccess(result.data?.message || 'Tu ticket fue creado correctamente.');
+    console.log('[BeneficiarioTickets] Creando ticket...');
+
+    // Crear ticket usando Edge Function (bypasses RLS)
+    const { data: result, error: invokeError } = await supabase.functions.invoke('crear-ticket-beneficiario', {
+      body: {
+        beneficiario_id: beneficiarioId,
+        asunto,
+        mensaje,
+      },
+    });
+
+    if (invokeError) {
+      console.error('[BeneficiarioTickets] Error invocando Edge Function:', invokeError);
+      setError(invokeError.message || 'No se pudo crear el ticket.');
+      setSubmitting(false);
+      return;
+    }
+
+    if (!result?.ok) {
+      console.error('[BeneficiarioTickets] Error en respuesta:', result);
+      setError(result?.error || 'No se pudo crear el ticket.');
+      setSubmitting(false);
+      return;
+    }
+
+    console.log('[BeneficiarioTickets] Ticket creado:', result.ticket?.ticket_codigo);
+
+    const createdTicket = result.ticket || null;
+    setSuccess(result.message || 'Tu ticket fue creado correctamente.');
     setForm({ asunto: '', mensaje: '' });
     setShowForm(false);
     await loadTickets({ keepSelection: false });

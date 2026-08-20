@@ -55,12 +55,12 @@ if ($npmInstalled) {
 }
 
 Write-Host ""
-Write-Host "✨ Instalación completada" -ForegroundColor Green
+Write-Host "Instalacion completada" -ForegroundColor Green
 Write-Host ""
-Write-Host "📋 Próximos pasos:" -ForegroundColor Cyan
+Write-Host "Proximos pasos:" -ForegroundColor Cyan
 Write-Host "1. Ejecutar: supabase login" -ForegroundColor White
 Write-Host "2. Ejecutar: supabase link --project-ref jwifxjzxdxjntbdqbyku" -ForegroundColor White
 Write-Host "3. Ejecutar: supabase functions deploy auth-credentials" -ForegroundColor White
 Write-Host "4. Ejecutar: supabase functions deploy beneficiary-support-tickets" -ForegroundColor White
 Write-Host ""
-Write-Host "O simplemente ejecuta: .\desplegar-funciones.ps1" -ForegroundColor Yellow
+Write-Host "O ejecuta el script: desplegar-funciones.ps1" -ForegroundColor Yellow

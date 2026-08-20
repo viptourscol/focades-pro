@@ -378,74 +378,56 @@ const BeneficiarioActualizacion = () => {
 
       setSaving(true);
 
-      const payload = {
-        beneficiario_id: profile.id,
-        ventana_id: windowInfo.id,
-        estado: 'en_revision',
-        email: String(form.email || '').trim().toLowerCase(),
-        telefono: String(form.telefono || '').trim(),
-        direccion: String(form.direccion || '').trim(),
-        semestre_actual: Number(form.semestre_actual || 0),
-        promedio_semestre_anterior: promedio,
-        payload_formulario: form,
+      // Convertir archivos a base64
+      const fileToBase64 = (file) => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
       };
 
-      const { data: insertData, error: insertError } = await supabase
-        .from('portal_actualizaciones')
-        .insert(payload)
-        .select('id')
-        .single();
+      const [certBancarioB64, certNotasB64, certMatriculaB64] = await Promise.all([
+        fileToBase64(files.certificado_bancario),
+        fileToBase64(files.certificado_notas),
+        fileToBase64(files.certificado_matricula),
+      ]);
 
-      if (insertError) {
-        throw new Error(insertError.message || 'No se pudo guardar la actualización.');
-      }
+      // Enviar actualización usando Edge Function (bypasses RLS)
+      const { data: result, error: invokeError } = await supabase.functions.invoke('enviar-actualizacion-beneficiario', {
+        body: {
+          beneficiario_id: profile.id,
+          ventana_id: windowInfo.id,
+          form_data: {
+            email: String(form.email || '').trim().toLowerCase(),
+            telefono: String(form.telefono || '').trim(),
+            direccion: String(form.direccion || '').trim(),
+            semestre_actual: Number(form.semestre_actual || 0),
+            promedio_semestre_anterior: String(form.promedio_semestre_anterior || ''),
+            banco: String(form.banco || '').trim(),
+            tipo_cuenta: String(form.tipo_cuenta || '').trim(),
+            cuenta_bancaria: accountNumber,
+          },
+          files_base64: {
+            certificado_bancario: {
+              data: certBancarioB64,
+              name: files.certificado_bancario.name,
+            },
+            certificado_notas: {
+              data: certNotasB64,
+              name: files.certificado_notas.name,
+            },
+            certificado_matricula: {
+              data: certMatriculaB64,
+              name: files.certificado_matricula.name,
+            },
+          },
+        },
+      });
 
-      const updateId = insertData.id;
-
-      const uploadOne = async (key, file) => {
-        const storagePath = `beneficiarios/${profile.id}/${updateId}/${key}-${Date.now()}.pdf`;
-        const { error: uploadError } = await supabase.storage.from('soportes').upload(storagePath, file, {
-          upsert: false,
-          contentType: 'application/pdf',
-        });
-
-        if (uploadError) {
-          throw new Error(`No se pudo subir ${key}: ${uploadError.message}`);
-        }
-
-        const { error: docError } = await supabase.from('portal_actualizacion_documentos').insert({
-          actualizacion_id: updateId,
-          tipo_documento: key,
-          storage_path: storagePath,
-          nombre_original: file.name,
-          mime_type: file.type || 'application/pdf',
-          size_bytes: file.size || 0,
-        });
-
-        if (docError) {
-          throw new Error(`No se pudo registrar ${key}: ${docError.message}`);
-        }
-      };
-
-      await uploadOne('certificado_bancario', files.certificado_bancario);
-      await uploadOne('certificado_notas', files.certificado_notas);
-      await uploadOne('certificado_matricula', files.certificado_matricula);
-
-      const { error: profileError } = await supabase
-        .from('portal_beneficiarios')
-        .update({
-          email: payload.email,
-          telefono: payload.telefono,
-          direccion: payload.direccion,
-          semestre_actual: payload.semestre_actual,
-          banco: String(form.banco || '').trim() || null,
-          tipo_cuenta: String(form.tipo_cuenta || '').trim() || null,
-          cuenta_bancaria: accountNumber || null,
-        })
-        .eq('id', profile.id);
-
-      if (profileError) {
-        throw new Error(profileError.message || 'No se pudo actualizar datos básicos del beneficiario.');
+      if (invokeError || !result?.ok) {
+        throw new Error(result?.error || invokeError?.message || 'Error al enviar actualización');
       }
 
       // Notificación por correo (no bloquea si falla)

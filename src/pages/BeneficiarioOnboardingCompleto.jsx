@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { showErrorAlert, showSuccessAlert } from '../lib/alerts';
+import { compressPDF, compressImage } from '../lib/fileCompression';
 import { TERMS_AND_CONDITIONS_TEXT, DATA_POLICY_TEXT } from '../lib/legalTexts';
 import SignatureCanvas from 'react-signature-canvas';
 import { 
@@ -648,13 +649,38 @@ const BeneficiarioOnboardingCompleto = () => {
       // 1. Subir firma digital a Storage
       if (formData.firma_digital) {
         const blob = await fetch(formData.firma_digital).then(res => res.blob());
+        
+        // Comprimir firma si es mayor a 500KB
+        let finalBlob = blob;
+        const fileSizeKB = blob.size / 1024;
+        
+        if (fileSizeKB > 500) {
+          try {
+            console.log('🗜️ Comprimiendo firma digital...');
+            // Convertir blob a File para comprimir
+            const file = new File([blob], 'firma.png', { type: 'image/png' });
+            const compressedFile = await compressImage(file, {
+              maxSizeMB: 0.5,
+              maxWidthOrHeight: 1920,
+            });
+            
+            const reduction = ((1 - compressedFile.size / blob.size) * 100).toFixed(1);
+            console.log(`✅ Firma comprimida (reducción: ${reduction}%)`);
+            
+            finalBlob = compressedFile;
+          } catch (error) {
+            console.warn('⚠️ Error en compresión, usando firma original:', error);
+            finalBlob = blob;
+          }
+        }
+        
         const timestamp = Date.now();
         const bucketPath = `beneficiarios_historicos/${beneficiarioId}/firma-digital-${timestamp}.png`;
         const dbPath = `soportes/${bucketPath}`;
 
         const { error: uploadError } = await supabase.storage
           .from('soportes')
-          .upload(bucketPath, blob, {
+          .upload(bucketPath, finalBlob, {
             contentType: 'image/png',
             upsert: false,
           });
@@ -671,7 +697,7 @@ const BeneficiarioOnboardingCompleto = () => {
             titulo: 'Firma digital del beneficiario',
             tipo_documento: 'firma_digital',
             storage_path: dbPath,
-            archivo_size_bytes: blob.size,
+            archivo_size_bytes: finalBlob.size,
           },
         });
 
@@ -765,15 +791,36 @@ const BeneficiarioOnboardingCompleto = () => {
 
     setUploadingDoc(tipoDoc);
     try {
+      // Comprimir archivo si es mayor a 2 MB
+      let finalFile = file;
+      const fileSizeMB = file.size / 1024 / 1024;
+      
+      if (fileSizeMB > 2) {
+        try {
+          console.log(`🗜️ Comprimiendo documento ${tipoDoc}...`);
+          const compressedFile = await compressPDF(file, {
+            targetSizeKB: 2048, // 2 MB máximo
+          });
+          
+          const reduction = ((1 - compressedFile.size / file.size) * 100).toFixed(1);
+          console.log(`✅ Documento comprimido (reducción: ${reduction}%)`);
+          
+          finalFile = compressedFile;
+        } catch (error) {
+          console.warn('⚠️ Error en compresión, usando archivo original:', error);
+          finalFile = file;
+        }
+      }
+
       // Subir a Storage
       const timestamp = Date.now();
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const safeName = finalFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const bucketPath = `beneficiarios_historicos/${beneficiarioId}/documentos/${tipoDoc}-${timestamp}.pdf`;
       const dbPath = `soportes/${bucketPath}`;
 
       const { error: uploadError } = await supabase.storage
         .from('soportes')
-        .upload(bucketPath, file, {
+        .upload(bucketPath, finalFile, {
           contentType: 'application/pdf',
           upsert: false,
         });
@@ -791,7 +838,7 @@ const BeneficiarioOnboardingCompleto = () => {
           titulo: getDocumentTitle(tipoDoc),
           tipo_documento: tipoDoc,
           storage_path: dbPath,
-          archivo_size_bytes: file.size,
+          archivo_size_bytes: finalFile.size,
         },
       });
 
@@ -803,8 +850,8 @@ const BeneficiarioOnboardingCompleto = () => {
       setUploadedDocs(prev => ({
         ...prev,
         [tipoDoc]: {
-          nombre: file.name,
-          size: file.size,
+          nombre: finalFile.name,
+          size: finalFile.size,
           path: dbPath,
         },
       }));

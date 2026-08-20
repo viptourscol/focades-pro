@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { showErrorAlert, showWarningAlert } from '../lib/alerts';
+import { compressPDF, getFileInfo } from '../lib/fileCompression';
 import { AlertCircle, CheckCircle2, Loader2, Info } from 'lucide-react';
 
 const MAX_FILE_MB = 10;
@@ -487,8 +488,29 @@ const BeneficiarioActualizacion = () => {
       return;
     }
 
-    // Si todo está bien, setear el archivo
-    setFileCallback(selectedFile);
+    // Comprimir archivo si es mayor a 2 MB
+    let finalFile = selectedFile;
+    const fileSizeMB = selectedFile.size / 1024 / 1024;
+    
+    if (fileSizeMB > 2) {
+      try {
+        console.log(`🗜️ Comprimiendo ${fieldName}...`);
+        const compressedFile = await compressPDF(selectedFile, {
+          targetSizeKB: 2048, // 2 MB máximo
+        });
+        
+        const reduction = ((1 - compressedFile.size / selectedFile.size) * 100).toFixed(1);
+        console.log(`✅ ${fieldName} comprimido (reducción: ${reduction}%)`);
+        
+        finalFile = compressedFile;
+      } catch (error) {
+        console.warn('⚠️ Error en compresión, usando archivo original:', error);
+        finalFile = selectedFile;
+      }
+    }
+
+    // Setear el archivo (comprimido o original)
+    setFileCallback(finalFile);
   };
 
   const handleCertificadoBancarioChange = (file) => {

@@ -108,31 +108,75 @@ const BeneficiarioCondonacion = () => {
     setLoading(true);
     setError('');
 
-    const [{ data, error: rpcError }, { data: profileData, error: profileError }] = await Promise.all([
-      supabase.rpc('beneficiario_modulo_condonacion'),
-      supabase
-        .from('portal_beneficiarios')
-        .select('id,semestre_actual,nivel_formacion,estado_beneficiario')
-        .limit(1)
-        .maybeSingle(),
-    ]);
+    console.log('[BeneficiarioCondonacion] Cargando módulo de condonación...');
 
-    if (rpcError) {
-      setError(rpcError.message || 'No se pudo cargar la informacion de condonaciones.');
-      setPayload(null);
+    // Obtener beneficiario_id desde localStorage
+    let beneficiarioId = null;
+    try {
+      const sessionStr = localStorage.getItem('focades:beneficiario-session');
+      if (sessionStr) {
+        const documentSession = JSON.parse(sessionStr);
+        const sessionTime = new Date(documentSession.timestamp).getTime();
+        const maxAge = 24 * 60 * 60 * 1000;
+        
+        if (Date.now() - sessionTime <= maxAge) {
+          beneficiarioId = documentSession.beneficiario_id;
+          console.log('[BeneficiarioCondonacion] beneficiario_id desde localStorage:', beneficiarioId);
+        }
+      }
+    } catch (error) {
+      console.error('[BeneficiarioCondonacion] Error leyendo sesión:', error);
+    }
+
+    // Si no hay beneficiario_id, intentar con Supabase Auth
+    if (!beneficiarioId) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData?.session?.user?.id;
+      if (userId) {
+        const { data: profile } = await supabase
+          .from('portal_beneficiarios')
+          .select('id')
+          .eq('auth_user_id', userId)
+          .maybeSingle();
+        
+        beneficiarioId = profile?.id;
+      }
+    }
+
+    if (!beneficiarioId) {
+      console.log('[BeneficiarioCondonacion] No se pudo obtener beneficiario_id');
+      setError('No hay beneficiario vinculado.');
       setLoading(false);
       return;
     }
 
-    if (!data?.ok) {
-      setError(data?.message || 'No se pudo cargar la informacion de condonaciones.');
-      setPayload(null);
+    // Cargar módulo de condonación usando Edge Function (bypasses RLS)
+    console.log('[BeneficiarioCondonacion] Invocando Edge Function get-condonacion-modulo...');
+    const { data: result, error: invokeError } = await supabase.functions.invoke('get-condonacion-modulo', {
+      body: { beneficiario_id: beneficiarioId },
+    });
+
+    if (invokeError) {
+      console.error('[BeneficiarioCondonacion] Error invocando Edge Function:', invokeError);
+      setError(invokeError.message || 'No se pudo cargar la información de condonaciones.');
       setLoading(false);
       return;
     }
 
-    setPayload(data);
-    setBeneficiarioProfile(profileError ? null : profileData || null);
+    if (!result?.ok) {
+      console.error('[BeneficiarioCondonacion] Error en respuesta:', result);
+      setError(result?.message || 'No se pudo cargar la información de condonaciones.');
+      setLoading(false);
+      return;
+    }
+
+    console.log('[BeneficiarioCondonacion] Módulo cargado:', {
+      condonaciones: result.condonaciones?.length || 0,
+      documentos: result.documentos_finales?.length || 0,
+    });
+
+    setPayload(result);
+    setBeneficiarioProfile(result.beneficiario_profile || null);
     setLoading(false);
   };
 

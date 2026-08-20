@@ -42,14 +42,33 @@ const DocViewerModal = ({ doc, onClose }) => {
         return;
       }
       try {
-        const { data, error } = await supabase.storage
-          .from('soportes')
-          .createSignedUrl(doc.storage_path, 300);
+        console.log('[DocViewerModal] Solicitando signed URL para:', doc.storage_path);
+        
+        // Usar Edge Function para generar signed URL (bypasses RLS)
+        const { data: result, error: invokeError } = await supabase.functions.invoke('get-signed-url', {
+          body: {
+            storage_path: doc.storage_path,
+            expires_in: 300,
+          },
+        });
+
         if (!mounted) return;
-        if (error) throw error;
-        setSignedUrl(data.signedUrl);
+
+        if (invokeError) {
+          console.error('[DocViewerModal] Error invocando Edge Function:', invokeError);
+          throw new Error(invokeError.message || 'Error al generar enlace del documento');
+        }
+
+        if (!result?.ok) {
+          console.error('[DocViewerModal] Error en respuesta:', result);
+          throw new Error(result.error || 'No se pudo generar el enlace del documento');
+        }
+
+        console.log('[DocViewerModal] Signed URL generada exitosamente');
+        setSignedUrl(result.signedUrl);
       } catch (e) {
         if (!mounted) return;
+        console.error('[DocViewerModal] Error:', e);
         setUrlError(e.message || 'No se pudo generar el enlace del documento.');
       } finally {
         if (mounted) setLoadingUrl(false);

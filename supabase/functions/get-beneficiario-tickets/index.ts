@@ -83,10 +83,10 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Obtener tickets del beneficiario
+    // Obtener tickets del beneficiario con sus mensajes
     const { data: tickets, error: ticketsError } = await supabase
       .from('soporte_tickets')
-      .select('id,ticket_codigo,radicado,email_contacto,nombre_contacto,asunto,mensaje_aspirante,estado,prioridad,respuesta_admin,admin_user_id,created_at,updated_at,respondido_at')
+      .select('id,ticket_codigo,radicado,email_contacto,nombre_contacto,asunto,estado,prioridad,admin_user_id,created_at,updated_at,respondido_at,cerrado_at,cerrado_por')
       .eq('email_contacto', contactEmail)
       .order('created_at', { ascending: false })
       .limit(50)
@@ -105,12 +105,29 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log(`✅ ${tickets?.length || 0} tickets cargados`)
+    const ticketIds = (tickets || []).map(t => t.id)
+
+    // Obtener mensajes de todos los tickets
+    let mensajes = []
+    if (ticketIds.length > 0) {
+      const { data: mensajesData, error: mensajesError } = await supabase
+        .from('portal_ticket_mensajes')
+        .select('id,ticket_id,autor_tipo,mensaje,admin_user_id,created_at')
+        .in('ticket_id', ticketIds)
+        .order('created_at', { ascending: true })
+
+      if (!mensajesError && mensajesData) {
+        mensajes = mensajesData
+      }
+    }
+
+    console.log(`✅ ${tickets?.length || 0} tickets cargados con ${mensajes.length} mensajes`)
 
     return new Response(
       JSON.stringify({
         ok: true,
         tickets: tickets || [],
+        mensajes: mensajes,
         profile: {
           email: contactEmail,
           radicado,

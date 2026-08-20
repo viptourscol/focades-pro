@@ -158,11 +158,10 @@ Deno.serve(async (req) => {
           email_contacto: contactEmail,
           nombre_contacto: sanitizeText(profile.nombre_completo, 150) || 'Beneficiario',
           asunto: cleanAsunto,
-          mensaje_aspirante: cleanMensaje,
           estado: 'recibido',
           prioridad: 'media',
         })
-        .select('id,ticket_codigo,radicado,email_contacto,nombre_contacto,asunto,mensaje_aspirante,estado,prioridad,created_at')
+        .select('id,ticket_codigo,radicado,email_contacto,nombre_contacto,asunto,estado,prioridad,created_at')
         .single()
 
       if (data) {
@@ -197,6 +196,21 @@ Deno.serve(async (req) => {
           },
         }
       )
+    }
+
+    // Insertar el primer mensaje del beneficiario
+    const { error: mensajeError } = await supabase
+      .from('portal_ticket_mensajes')
+      .insert({
+        ticket_id: createdTicket.id,
+        autor_tipo: 'beneficiario',
+        mensaje: cleanMensaje,
+        admin_user_id: null,
+      })
+
+    if (mensajeError) {
+      console.error('⚠️ Error insertando mensaje inicial:', mensajeError)
+      // No fallamos la creación del ticket, solo logueamos el error
     }
 
     console.log('✅ Ticket creado:', createdTicket.ticket_codigo)

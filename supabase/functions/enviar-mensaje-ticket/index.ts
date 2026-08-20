@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
     // Validar que el ticket existe y pertenece al beneficiario
     const { data: ticket, error: ticketError } = await supabase
       .from('soporte_tickets')
-      .select('id,ticket_codigo,email_contacto,estado')
+      .select('id,ticket_codigo,email_contacto,estado,cerrado_at')
       .eq('id', ticket_id)
       .eq('email_contacto', contactEmail)
       .maybeSingle()
@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
     }
 
     // Validar que el ticket no está cerrado
-    if (ticket.estado === 'cerrado') {
+    if (ticket.cerrado_at) {
       return new Response(
         JSON.stringify({ ok: false, error: 'Este ticket fue cerrado por el administrador. Por favor, crea un nuevo ticket si necesitas más ayuda.' }),
         {
@@ -126,22 +126,22 @@ Deno.serve(async (req) => {
       )
     }
 
-    // TODO: Cuando se implemente la tabla portal_ticket_mensajes, 
-    // insertar el mensaje allí en lugar de actualizar el campo mensaje_aspirante
-    
-    // Por ahora, simplemente actualizamos el ticket para indicar que hay nueva actividad
-    const { error: updateError } = await supabase
-      .from('soporte_tickets')
-      .update({
-        estado: 'respondido', // Indica que el beneficiario respondió
-        updated_at: new Date().toISOString(),
+    // Insertar mensaje en la tabla portal_ticket_mensajes
+    const { data: mensaje, error: insertError } = await supabase
+      .from('portal_ticket_mensajes')
+      .insert({
+        ticket_id: ticket_id,
+        autor_tipo: 'beneficiario',
+        mensaje: cleanMensaje,
+        admin_user_id: null,
       })
-      .eq('id', ticket_id)
+      .select('id,ticket_id,autor_tipo,mensaje,created_at')
+      .single()
 
-    if (updateError) {
-      console.error('❌ Error actualizando ticket:', updateError)
+    if (insertError || !mensaje) {
+      console.error('❌ Error insertando mensaje:', insertError)
       return new Response(
-        JSON.stringify({ ok: false, error: updateError.message || 'No se pudo enviar el mensaje.' }),
+        JSON.stringify({ ok: false, error: insertError?.message || 'No se pudo enviar el mensaje.' }),
         {
           status: 500,
           headers: {
@@ -151,6 +151,20 @@ Deno.serve(async (req) => {
         }
       )
     }
+    
+    // Actualizar el estado del ticket para indicar que hay nueva actividad
+    const { error: updateError } = await supabase
+      .from('soporte_tickets')
+      .update({
+        estado: 'respondido', // Indica que el beneficiario respondió
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', ticket_id)
+
+    if (updateError) {
+      console.error('❌ Error actualizando estado del ticket:', updateError)
+      // No fallamos si no se puede actualizar el estado, el mensaje ya fue guardado
+    }
 
     console.log('✅ Mensaje agregado al ticket:', ticket.ticket_codigo)
 
@@ -158,7 +172,7 @@ Deno.serve(async (req) => {
       JSON.stringify({
         ok: true,
         message: 'Mensaje enviado correctamente.',
-        ticket_id: ticket_id,
+        mensaje: mensaje,
       }),
       {
         status: 200,

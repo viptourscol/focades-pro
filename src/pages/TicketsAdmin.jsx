@@ -1,370 +1,415 @@
-import { useEffect, useMemo, useState } from 'react';
-import { RefreshCw, Search, MessageSquare, Send } from 'lucide-react';
-import { invokeAdminTickets } from '../lib/adminTickets';
+import React, { useEffect, useState, useRef, useCallback } from 'react'
+import {
+  Search,
+  Filter,
+  Clock,
+  AlertCircle,
+  CheckCircle,
+  XCircle,
+  Send,
+  X,
+  ChevronLeft,
+  Lock,
+  User,
+} from 'lucide-react'
+import { supabase } from '../lib/supabase'
+import ChatBubble from '../components/ChatBubble'
+import ChatInput from '../components/ChatInput'
 
-const STATUS_OPTIONS = [
-  { value: 'all', label: 'Todos' },
-  { value: 'recibido', label: 'Nuevos' },
-  { value: 'en_revision', label: 'En revisión' },
-  { value: 'respondido', label: 'Respondidos' },
-  { value: 'cerrado', label: 'Cerrados' },
-];
+export default function TicketsAdmin() {
+  const [tickets, setTickets] = useState([])
+  const [mensajes, setMensajes] = useState([])
+  const [stats, setStats] = useState({})
+  const [loading, setLoading] = useState(true)
+  const [selectedTicket, setSelectedTicket] = useState(null)
+  const [filtroEstado, setFiltroEstado] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showMobileChat, setShowMobileChat] = useState(false)
+  const [sending, setSending] = useState(false)
 
-const STATUS_LABELS = {
-  recibido: 'Recibido',
-  en_revision: 'En revisión',
-  respondido: 'Respondido',
-  cerrado: 'Cerrado',
-};
+  const chatEndRef = useRef(null)
 
-const PRIORITY_LABELS = {
-  baja: 'Baja',
-  media: 'Media',
-  alta: 'Alta',
-};
+  const loadTickets = useCallback(async () => {
+    try {
+      const { data: session } = await supabase.auth.getSession()
+      if (!session?.session) {
+        console.error('No hay sesión de admin')
+        return
+      }
 
-const statusBadgeClass = (status) => {
-  if (status === 'recibido') return 'bg-blue-100 text-blue-700 ring-1 ring-blue-200';
-  if (status === 'en_revision') return 'bg-amber-100 text-amber-700 ring-1 ring-amber-200';
-  if (status === 'respondido') return 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200';
-  if (status === 'cerrado') return 'bg-slate-200 text-slate-700 ring-1 ring-slate-300';
-  return 'bg-slate-100 text-slate-600 ring-1 ring-slate-200';
-};
+      const { data, error } = await supabase.functions.invoke('admin-list-tickets', {
+        body: {
+          estado: filtroEstado === 'all' ? undefined : filtroEstado,
+          query: searchQuery.trim() || undefined,
+          limit: 100,
+        },
+      })
 
-const TicketsAdmin = () => {
-  const [tickets, setTickets] = useState([]);
-  const [stats, setStats] = useState({
-    total: 0,
-    recibido: 0,
-    en_revision: 0,
-    respondido: 0,
-    cerrado: 0,
-    activos: 0,
-    resueltos: 0,
-    pendientes: 0,
-  });
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [activeFilter, setActiveFilter] = useState('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedTicketId, setSelectedTicketId] = useState('');
-  const [statusDraft, setStatusDraft] = useState('en_revision');
-  const [priorityDraft, setPriorityDraft] = useState('media');
-  const [replyDraft, setReplyDraft] = useState('');
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+      if (error) {
+        console.error('Error cargando tickets:', error)
+        return
+      }
 
-  const selectedTicket = useMemo(
-    () => tickets.find((ticket) => ticket.id === selectedTicketId) || null,
-    [tickets, selectedTicketId]
-  );
-
-  const loadTickets = async () => {
-    setLoading(true);
-    setError('');
-
-    const result = await invokeAdminTickets({
-      action: 'list',
-      estado: activeFilter,
-      query: searchTerm,
-      limit: 120,
-    });
-
-    if (!result.ok) {
-      setError(result.error || 'No se pudieron cargar tickets.');
-      setTickets([]);
-      setStats((prev) => ({ ...prev, total: 0 }));
-      setLoading(false);
-      return;
+      if (data?.ok) {
+        setTickets(data.tickets || [])
+        setMensajes(data.mensajes || [])
+        setStats(data.stats || {})
+      }
+    } catch (err) {
+      console.error('Error:', err)
+    } finally {
+      setLoading(false)
     }
-
-    const rows = Array.isArray(result.data?.tickets) ? result.data.tickets : [];
-    setTickets(rows);
-
-    const statsResult = await invokeAdminTickets({ action: 'stats' });
-    if (statsResult.ok && statsResult.data?.stats) {
-      setStats(statsResult.data.stats);
-    } else if (result.data?.stats) {
-      setStats((prev) => ({ ...prev, ...result.data.stats }));
-    }
-
-    if (rows.length > 0 && !rows.some((ticket) => ticket.id === selectedTicketId)) {
-      const next = rows[0];
-      setSelectedTicketId(next.id);
-      setStatusDraft(next.estado || 'en_revision');
-      setPriorityDraft(next.prioridad || 'media');
-      setReplyDraft(next.respuesta_admin || '');
-    }
-
-    if (rows.length === 0) {
-      setSelectedTicketId('');
-      setReplyDraft('');
-    }
-
-    setLoading(false);
-  };
+  }, [filtroEstado, searchQuery])
 
   useEffect(() => {
-    loadTickets();
-  }, [activeFilter]);
+    loadTickets()
+    const interval = setInterval(loadTickets, 30000) // Polling cada 30s
+    return () => clearInterval(interval)
+  }, [loadTickets])
 
-  const handleSearch = async () => {
-    await loadTickets();
-  };
+  useEffect(() => {
+    if (selectedTicket && chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [selectedTicket, mensajes])
 
   const handleSelectTicket = (ticket) => {
-    setSelectedTicketId(ticket.id);
-    setStatusDraft(ticket.estado || 'en_revision');
-    setPriorityDraft(ticket.prioridad || 'media');
-    setReplyDraft(ticket.respuesta_admin || '');
-    setMessage('');
-    setError('');
-  };
+    setSelectedTicket(ticket)
+    setShowMobileChat(true)
+  }
 
-  const handleSaveTicket = async () => {
-    if (!selectedTicketId) return;
+  const handleBackToList = () => {
+    setShowMobileChat(false)
+    setSelectedTicket(null)
+  }
 
-    setSaving(true);
-    setMessage('');
-    setError('');
+  const handleSendMessage = async (mensaje) => {
+    if (!selectedTicket || sending) return
 
-    const result = await invokeAdminTickets({
-      action: 'update',
-      ticket_id: selectedTicketId,
-      estado: statusDraft,
-      prioridad: priorityDraft,
-      respuesta_admin: replyDraft,
-    });
+    setSending(true)
+    try {
+      const { data: session } = await supabase.auth.getSession()
+      if (!session?.session) {
+        alert('Sesión expirada')
+        return
+      }
 
-    if (!result.ok) {
-      setError(result.error || 'No se pudo actualizar el ticket.');
-      setSaving(false);
-      return;
+      const { data, error } = await supabase.functions.invoke('admin-send-message-ticket', {
+        body: {
+          ticket_id: selectedTicket.id,
+          mensaje,
+          estado: 'en_revision',
+        },
+      })
+
+      if (error || !data?.ok) {
+        alert(data?.error || 'Error enviando mensaje')
+        return
+      }
+
+      // Recargar tickets para ver el nuevo mensaje
+      await loadTickets()
+    } catch (err) {
+      console.error('Error:', err)
+      alert('Error enviando mensaje')
+    } finally {
+      setSending(false)
     }
+  }
 
-    setTickets((prev) =>
-      prev.map((ticket) => (ticket.id === selectedTicketId ? { ...ticket, ...result.data.ticket } : ticket))
-    );
-    setMessage('Ticket actualizado correctamente.');
-    setSaving(false);
-    await loadTickets();
-  };
+  const handleCloseTicket = async () => {
+    if (!selectedTicket) return
+    if (!confirm('¿Cerrar este ticket? No se podrán agregar más mensajes.')) return
+
+    try {
+      const { data: session } = await supabase.auth.getSession()
+      if (!session?.session) {
+        alert('Sesión expirada')
+        return
+      }
+
+      const { data, error } = await supabase.functions.invoke('admin-close-ticket', {
+        body: { ticket_id: selectedTicket.id },
+      })
+
+      if (error || !data?.ok) {
+        alert(data?.error || 'Error cerrando ticket')
+        return
+      }
+
+      alert('Ticket cerrado correctamente')
+      await loadTickets()
+      setSelectedTicket(null)
+      setShowMobileChat(false)
+    } catch (err) {
+      console.error('Error:', err)
+      alert('Error cerrando ticket')
+    }
+  }
+
+  const getEstadoInfo = (estado) => {
+    switch (estado) {
+      case 'recibido':
+        return { icon: Clock, color: 'bg-blue-100 text-blue-800', label: 'Recibido' }
+      case 'en_revision':
+        return { icon: AlertCircle, color: 'bg-yellow-100 text-yellow-800', label: 'En Revisión' }
+      case 'respondido':
+        return { icon: CheckCircle, color: 'bg-green-100 text-green-800', label: 'Respondido' }
+      case 'cerrado':
+        return { icon: XCircle, color: 'bg-gray-100 text-gray-800', label: 'Cerrado' }
+      default:
+        return { icon: AlertCircle, color: 'bg-gray-100 text-gray-800', label: estado }
+    }
+  }
+
+  const ticketMensajes = selectedTicket
+    ? mensajes.filter((m) => m.ticket_id === selectedTicket.id)
+    : []
+
+  const isClosed = selectedTicket?.cerrado_at
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <section className="ui-card p-6 md:p-7">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[var(--gov-accent)]">Soporte institucional</p>
-            <h1 className="mt-1 text-2xl md:text-3xl font-black text-[var(--gov-ink)] tracking-tight">Gestión de Tickets</h1>
-            <p className="mt-1 text-sm text-slate-600">Consolida solicitudes de beneficiarios y administra respuestas desde un solo panel.</p>
+    <div className="h-screen flex flex-col bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 px-4 py-3 flex-shrink-0">
+        <div className="max-w-7xl mx-auto">
+          <h1 className="text-xl font-bold text-gray-900">Tickets de Soporte</h1>
+          <div className="mt-2 flex gap-4 text-sm">
+            <span className="text-gray-600">
+              Total: <span className="font-semibold">{stats.total || 0}</span>
+            </span>
+            <span className="text-blue-600">
+              Recibidos: <span className="font-semibold">{stats.recibido || 0}</span>
+            </span>
+            <span className="text-yellow-600">
+              En Revisión: <span className="font-semibold">{stats.en_revision || 0}</span>
+            </span>
+            <span className="text-green-600">
+              Respondidos: <span className="font-semibold">{stats.respondido || 0}</span>
+            </span>
+            <span className="text-gray-600">
+              Cerrados: <span className="font-semibold">{stats.cerrado || 0}</span>
+            </span>
           </div>
-          <button
-            type="button"
-            onClick={loadTickets}
-            className="ui-btn-secondary inline-flex items-center gap-2"
-          >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Refrescar
-          </button>
         </div>
-      </section>
+      </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <MetricCard title="Activos" value={stats.activos} tone="text-amber-700 bg-amber-50" />
-        <MetricCard title="Nuevos" value={stats.recibido} tone="text-blue-700 bg-blue-50" />
-        <MetricCard title="En revisión" value={stats.en_revision} tone="text-orange-700 bg-orange-50" />
-        <MetricCard title="Resueltos" value={stats.resueltos} tone="text-green-700 bg-green-50" />
-      </div>
-
-      <div className="ui-card p-4 md:p-6 space-y-4">
-        <div className="flex flex-wrap items-center gap-3">
-          {STATUS_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setActiveFilter(option.value)}
-              className={`px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                activeFilter === option.value
-                  ? 'bg-secondary text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-
-          <div className="ml-auto flex items-center gap-2 w-full md:w-auto">
-            <div className="relative flex-1 md:w-80">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+      {/* Main Content */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Lista de tickets (desktop siempre visible, mobile condicional) */}
+        <aside
+          className={`w-full md:w-96 bg-white border-r border-gray-200 flex flex-col ${
+            showMobileChat ? 'hidden md:flex' : 'flex'
+          }`}
+        >
+          {/* Filtros */}
+          <div className="p-4 border-b border-gray-200 space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Buscar por ticket, radicado, correo o asunto"
-                className="w-full border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-sm"
+                type="text"
+                placeholder="Buscar por código, email, asunto..."
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <button
-              type="button"
-              onClick={handleSearch}
-              className="px-3 py-2 rounded-xl bg-primary text-white text-sm font-bold"
-            >
-              Buscar
-            </button>
-            <button
-              type="button"
-              onClick={loadTickets}
-              className="p-2 rounded-xl text-secondary hover:bg-blue-50"
-            >
-              <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-            </button>
-          </div>
-        </div>
-
-        <div className="grid lg:grid-cols-2 gap-5">
-          <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white">
-            <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 text-xs font-black uppercase tracking-widest text-slate-500">
-              Tickets
-            </div>
-            <div className="max-h-[60vh] overflow-y-auto divide-y divide-slate-100">
-              {loading ? (
-                <p className="p-6 text-sm text-slate-500 italic">Cargando tickets...</p>
-              ) : tickets.length === 0 ? (
-                <p className="p-6 text-sm text-slate-500 italic">No hay tickets para este filtro.</p>
-              ) : (
-                tickets.map((ticket) => (
-                  <button
-                    type="button"
-                    key={ticket.id}
-                    onClick={() => handleSelectTicket(ticket)}
-                    className={`w-full text-left p-4 hover:bg-slate-50 transition-colors ${
-                      selectedTicketId === ticket.id ? 'bg-blue-50' : ''
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-bold text-primary text-sm">{ticket.ticket_codigo}</p>
-                      <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${statusBadgeClass(ticket.estado)}`}>
-                        {STATUS_LABELS[ticket.estado] || ticket.estado}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">Radicado: {ticket.radicado}</p>
-                    <p className="text-sm text-slate-700 mt-1 truncate">{ticket.asunto}</p>
-                    <p className="text-[11px] text-slate-500 mt-2">{ticket.created_at_label || ticket.created_at}</p>
-                  </button>
-                ))
-              )}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setFiltroEstado('all')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  filtroEstado === 'all'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Todos
+              </button>
+              <button
+                onClick={() => setFiltroEstado('recibido')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  filtroEstado === 'recibido'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Recibidos
+              </button>
+              <button
+                onClick={() => setFiltroEstado('en_revision')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  filtroEstado === 'en_revision'
+                    ? 'bg-yellow-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                En Revisión
+              </button>
+              <button
+                onClick={() => setFiltroEstado('cerrado')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  filtroEstado === 'cerrado'
+                    ? 'bg-gray-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Cerrados
+              </button>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 p-4 md:p-5 space-y-4 bg-white">
-            {!selectedTicket ? (
-              <div className="h-full flex items-center justify-center text-slate-400 text-sm italic">
-                Selecciona un ticket para gestionarlo.
+          {/* Lista scrollable */}
+          <div className="flex-1 overflow-y-auto">
+            {loading ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-gray-500">Cargando tickets...</div>
+              </div>
+            ) : tickets.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center text-gray-500">
+                  <Filter className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                  <p>No hay tickets con estos filtros</p>
+                </div>
               </div>
             ) : (
-              <>
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-lg font-black text-slate-800">{selectedTicket.ticket_codigo}</p>
-                    <p className="text-xs text-slate-500">{selectedTicket.created_at_label || selectedTicket.created_at}</p>
-                  </div>
-                  <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${statusBadgeClass(selectedTicket.estado)}`}>
-                    {STATUS_LABELS[selectedTicket.estado] || selectedTicket.estado}
-                  </span>
-                </div>
+              <div className="divide-y divide-gray-100">
+                {tickets.map((ticket) => {
+                  const estadoInfo = getEstadoInfo(ticket.estado)
+                  const EstadoIcon = estadoInfo.icon
+                  const ticketMessages = mensajes.filter((m) => m.ticket_id === ticket.id)
+                  const lastMessage = ticketMessages[ticketMessages.length - 1]
 
-                <div className="grid md:grid-cols-2 gap-3 text-sm">
-                  <InfoLine label="Radicado" value={selectedTicket.radicado} />
-                  <InfoLine label="Prioridad" value={PRIORITY_LABELS[selectedTicket.prioridad] || selectedTicket.prioridad} />
-                  <InfoLine label="Contacto" value={selectedTicket.nombre_contacto || 'No disponible'} />
-                  <InfoLine label="Correo" value={selectedTicket.email_contacto || 'No disponible'} />
-                </div>
-
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1">Asunto</p>
-                  <p className="text-sm text-slate-700">{selectedTicket.asunto}</p>
-                </div>
-
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-1">Mensaje del aspirante</p>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 whitespace-pre-wrap">
-                    {selectedTicket.mensaje_aspirante}
-                  </div>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Estado</label>
-                    <select
-                      value={statusDraft}
-                      onChange={(event) => setStatusDraft(event.target.value)}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm"
+                  return (
+                    <button
+                      key={ticket.id}
+                      onClick={() => handleSelectTicket(ticket)}
+                      className={`w-full text-left p-4 hover:bg-gray-50 transition-colors ${
+                        selectedTicket?.id === ticket.id ? 'bg-blue-50' : ''
+                      }`}
                     >
-                      <option value="recibido">Recibido</option>
-                      <option value="en_revision">En revisión</option>
-                      <option value="respondido">Respondido</option>
-                      <option value="cerrado">Cerrado</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Prioridad</label>
-                    <select
-                      value={priorityDraft}
-                      onChange={(event) => setPriorityDraft(event.target.value)}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm"
-                    >
-                      <option value="baja">Baja</option>
-                      <option value="media">Media</option>
-                      <option value="alta">Alta</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Respuesta del administrador</label>
-                  <textarea
-                    rows={5}
-                    value={replyDraft}
-                    onChange={(event) => setReplyDraft(event.target.value)}
-                    placeholder="Escribe una respuesta para el aspirante..."
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none"
-                  />
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleSaveTicket}
-                    disabled={saving}
-                    className="ui-btn-primary inline-flex items-center gap-2 disabled:opacity-50"
-                  >
-                    <Send size={15} />
-                    {saving ? 'Guardando...' : 'Guardar gestión'}
-                  </button>
-                  {message && <p className="text-xs text-green-600 font-semibold">{message}</p>}
-                  {error && <p className="text-xs text-red-600 font-semibold">{error}</p>}
-                </div>
-              </>
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div>
+                          <p className="font-semibold text-gray-900 text-sm">
+                            {ticket.ticket_codigo}
+                          </p>
+                          <p className="text-xs text-gray-500">{ticket.email_contacto}</p>
+                        </div>
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${estadoInfo.color}`}
+                        >
+                          <EstadoIcon className="w-3 h-3" />
+                          {estadoInfo.label}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-700 font-medium mb-1 line-clamp-1">
+                        {ticket.asunto}
+                      </p>
+                      {lastMessage && (
+                        <p className="text-xs text-gray-500 line-clamp-2">
+                          {lastMessage.autor_tipo === 'admin' ? '✓ ' : ''}
+                          {lastMessage.mensaje}
+                        </p>
+                      )}
+                      <p className="text-xs text-gray-400 mt-1">
+                        {new Date(ticket.created_at).toLocaleDateString('es-CO', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      </p>
+                    </button>
+                  )
+                })}
+              </div>
             )}
           </div>
-        </div>
+        </aside>
+
+        {/* Chat Area */}
+        <main
+          className={`flex-1 flex flex-col bg-gray-50 ${
+            !showMobileChat ? 'hidden md:flex' : 'flex'
+          }`}
+        >
+          {selectedTicket ? (
+            <>
+              {/* Chat Header */}
+              <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleBackToList}
+                    className="md:hidden text-gray-600 hover:text-gray-900"
+                  >
+                    <ChevronLeft className="w-6 h-6" />
+                  </button>
+                  <div>
+                    <p className="font-semibold text-gray-900">
+                      {selectedTicket.ticket_codigo}
+                    </p>
+                    <p className="text-xs text-gray-500">{selectedTicket.email_contacto}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {isClosed && (
+                    <span className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium flex items-center gap-1">
+                      <Lock className="w-3 h-3" />
+                      Cerrado
+                    </span>
+                  )}
+                  {!isClosed && (
+                    <button
+                      onClick={handleCloseTicket}
+                      className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-medium hover:bg-red-700 transition-colors flex items-center gap-1"
+                    >
+                      <Lock className="w-3 h-3" />
+                      Cerrar Ticket
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Mensajes */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {/* Asunto como primer mensaje */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                  <p className="text-xs font-semibold text-blue-900 mb-1">Asunto del Ticket</p>
+                  <p className="text-sm text-blue-800">{selectedTicket.asunto}</p>
+                </div>
+
+                {ticketMensajes.map((msg) => (
+                  <ChatBubble
+                    key={msg.id}
+                    autorTipo={msg.autor_tipo}
+                    mensaje={msg.mensaje}
+                    timestamp={msg.created_at}
+                    nombreAdmin={msg.autor_tipo === 'admin' ? 'Admin FOCADES' : null}
+                  />
+                ))}
+                <div ref={chatEndRef} />
+              </div>
+
+              {/* Input */}
+              {!isClosed && (
+                <div className="border-t border-gray-200 bg-white p-4">
+                  <ChatInput
+                    onSend={handleSendMessage}
+                    disabled={sending}
+                    placeholder="Escribe tu respuesta al beneficiario..."
+                  />
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center text-gray-400">
+                <User className="w-16 h-16 mx-auto mb-3" />
+                <p>Selecciona un ticket para ver la conversación</p>
+              </div>
+            </div>
+          )}
+        </main>
       </div>
     </div>
-  );
-};
-
-const MetricCard = ({ title, value, tone }) => (
-  <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{title}</p>
-    <div className={`mt-2 inline-flex items-center px-3 py-1 rounded-xl text-2xl font-black ${tone}`}>{value || 0}</div>
-  </div>
-);
-
-const InfoLine = ({ label, value }) => (
-  <div>
-    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{label}</p>
-    <p className="text-sm text-slate-700 mt-1 break-all">{value || 'No disponible'}</p>
-  </div>
-);
-
-export default TicketsAdmin;
+  )
+}

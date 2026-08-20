@@ -89,8 +89,10 @@ const BeneficiarioHistorial = () => {
     let mounted = true;
 
     const loadRows = async () => {
-      // Primero intentar obtener perfil desde localStorage (login con documento)
-      let profileData = null;
+      console.log('[BeneficiarioHistorial] Cargando historial...');
+      
+      // Obtener beneficiario_id desde localStorage
+      let beneficiarioId = null;
       try {
         const sessionStr = localStorage.getItem('focades:beneficiario-session');
         if (sessionStr) {
@@ -98,79 +100,80 @@ const BeneficiarioHistorial = () => {
           const sessionTime = new Date(documentSession.timestamp).getTime();
           const maxAge = 24 * 60 * 60 * 1000;
           
-          if (Date.now() - sessionTime <= maxAge && documentSession.profile) {
-            profileData = documentSession.profile;
+          if (Date.now() - sessionTime <= maxAge) {
+            beneficiarioId = documentSession.beneficiario_id;
+            console.log('[BeneficiarioHistorial] beneficiario_id desde localStorage:', beneficiarioId);
           }
         }
       } catch (error) {
-        console.error('Error leyendo sesión de localStorage:', error);
+        console.error('[BeneficiarioHistorial] Error leyendo sesión:', error);
       }
 
-      // Si no hay perfil en localStorage, intentar con Supabase Auth
-      if (!profileData) {
+      // Si no hay beneficiario_id, intentar con Supabase Auth
+      if (!beneficiarioId) {
         const { data: sessionData } = await supabase.auth.getSession();
         const userId = sessionData?.session?.user?.id;
         if (!userId) {
+          console.log('[BeneficiarioHistorial] No hay sesión activa');
           if (mounted) setLoading(false);
           return;
         }
 
         const { data: profile } = await supabase
           .from('portal_beneficiarios')
-          .select('*')
+          .select('id')
           .eq('auth_user_id', userId)
           .maybeSingle();
         
-        profileData = profile;
+        beneficiarioId = profile?.id;
       }
 
-      if (!profileData?.id) {
+      if (!beneficiarioId) {
+        console.log('[BeneficiarioHistorial] No se pudo obtener beneficiario_id');
         if (mounted) setLoading(false);
         return;
       }
 
-      const { data } = await supabase
-        .from('portal_actualizaciones')
-        .select('id,ventana_id,estado,semestre_actual,promedio_semestre_anterior,email,telefono,direccion,observacion_admin,revisado_at,created_at,updated_at')
-        .eq('beneficiario_id', profileData.id)
-        .order('created_at', { ascending: false })
-        .limit(50);
+      // Cargar historial usando Edge Function (bypasses RLS)
+      console.log('[BeneficiarioHistorial] Invocando Edge Function get-beneficiario-historial...');
+      const { data: result, error: invokeError } = await supabase.functions.invoke('get-beneficiario-historial', {
+        body: { beneficiario_id: beneficiarioId },
+      });
 
-      const safeRows = Array.isArray(data) ? data : [];
-      const updateIds = safeRows.map((item) => item.id).filter(Boolean);
-      const ventanaIds = Array.from(new Set(safeRows.map((item) => item.ventana_id).filter(Boolean)));
-
-      let groupedDocs = {};
-      if (updateIds.length > 0) {
-        const { data: docsData } = await supabase
-          .from('portal_actualizacion_documentos')
-          .select('id,actualizacion_id,tipo_documento,nombre_original,mime_type,size_bytes,storage_path,created_at')
-          .in('actualizacion_id', updateIds)
-          .order('created_at', { ascending: false });
-
-        groupedDocs = (docsData || []).reduce((acc, doc) => {
-          const key = doc.actualizacion_id;
-          if (!acc[key]) acc[key] = [];
-          acc[key].push(doc);
-          return acc;
-        }, {});
+      if (invokeError) {
+        console.error('[BeneficiarioHistorial] Error invocando Edge Function:', invokeError);
+        if (mounted) setLoading(false);
+        return;
       }
 
-      let map = {};
-      if (ventanaIds.length > 0) {
-        const { data: windowsData } = await supabase
-          .from('portal_ventanas_actualizacion')
-          .select('id,nombre,fecha_inicio,fecha_fin')
-          .in('id', ventanaIds);
-
-        map = (windowsData || []).reduce((acc, item) => {
-          acc[item.id] = item;
-          return acc;
-        }, {});
+      if (!result?.ok) {
+        console.error('[BeneficiarioHistorial] Error en respuesta:', result);
+        if (mounted) setLoading(false);
+        return;
       }
+
+      console.log('[BeneficiarioHistorial] Historial cargado:', {
+        actualizaciones: result.actualizaciones?.length || 0,
+        documentos: result.documentos?.length || 0,
+        ventanas: result.ventanas?.length || 0,
+      });
+
+      // Agrupar documentos por actualización
+      const groupedDocs = (result.documentos || []).reduce((acc, doc) => {
+        const key = doc.actualizacion_id;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(doc);
+        return acc;
+      }, {});
+
+      // Mapear ventanas por ID
+      const map = (result.ventanas || []).reduce((acc, item) => {
+        acc[item.id] = item;
+        return acc;
+      }, {});
 
       if (!mounted) return;
-      setRows(safeRows);
+      setRows(result.actualizaciones || []);
       setDocsByUpdate(groupedDocs);
       setWindowsMap(map);
       setLoading(false);

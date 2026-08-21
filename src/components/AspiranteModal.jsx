@@ -589,8 +589,8 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4">
-      <div className={`bg-slate-50 w-full max-w-6xl rounded-[2.5rem] shadow-2xl overflow-hidden transition-all duration-500 transform ${animate ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md py-12 px-6">
+      <div className={`bg-slate-50 w-full max-w-6xl max-h-[90vh] rounded-[2.5rem] shadow-2xl overflow-hidden transition-all duration-500 transform ${animate ? 'scale-100 opacity-100' : 'scale-95 opacity-0'} flex flex-col`}>
         
         {/* HEADER */}
         <header className="bg-white px-10 py-10 border-b border-slate-100 flex justify-between items-start">
@@ -671,7 +671,7 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
         </header>
 
         {/* CONTENIDO BENTO GRID */}
-        <div className="p-10 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
+        <div className="p-10 space-y-8 flex-1 overflow-y-auto custom-scrollbar">
           
           <div className="grid grid-cols-12 gap-6">
             

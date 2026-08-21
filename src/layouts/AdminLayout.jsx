@@ -50,6 +50,8 @@ const AdminLayout = () => {
   const navigate = useNavigate();
   const [pendingTickets, setPendingTickets] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [recentTickets, setRecentTickets] = useState([]);
   const pageMeta = getPageMeta(location.pathname);
   const todayLabel = new Intl.DateTimeFormat('es-CO', { dateStyle: 'full' }).format(new Date());
 
@@ -66,11 +68,16 @@ const AdminLayout = () => {
     let mounted = true;
 
     const loadTicketBadge = async () => {
-      const result = await invokeAdminTickets({ action: 'stats' });
+      const result = await invokeAdminTickets({ action: 'list', limit: 5 });
       if (!mounted) return;
 
       if (result.ok) {
-        setPendingTickets(Number(result.data?.stats?.pendientes || 0));
+        const tickets = result.data?.tickets || [];
+        const stats = result.data?.stats || {};
+        setPendingTickets(Number(stats.pendientes || 0));
+        // Filtrar solo tickets pendientes (recibido, en_revision)
+        const pending = tickets.filter(t => t.estado === 'recibido' || t.estado === 'en_revision');
+        setRecentTickets(pending.slice(0, 5));
       }
     };
 
@@ -170,14 +177,117 @@ const AdminLayout = () => {
                 <Search size={15} className="text-slate-400" />
                 Navegación administrativa
               </div>
-              <div className="relative w-11 h-11 rounded-2xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-700">
-                <Bell size={18} />
-              {pendingTickets > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center">
-                  {pendingTickets > 99 ? '99+' : pendingTickets}
-                  </span>
-              )}
+              
+              {/* Botón de notificaciones con dropdown */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setNotificationsOpen(!notificationsOpen)}
+                  className="relative w-11 h-11 rounded-2xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-700 hover:bg-sky-100 transition-colors"
+                  title="Ver notificaciones"
+                >
+                  <Bell size={18} />
+                  {pendingTickets > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center">
+                      {pendingTickets > 99 ? '99+' : pendingTickets}
+                    </span>
+                  )}
+                </button>
+
+                {/* Dropdown de notificaciones */}
+                {notificationsOpen && (
+                  <>
+                    {/* Overlay para cerrar al hacer clic fuera */}
+                    <div 
+                      className="fixed inset-0 z-40" 
+                      onClick={() => setNotificationsOpen(false)}
+                    />
+                    
+                    {/* Panel de notificaciones */}
+                    <div className="absolute right-0 top-full mt-2 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden">
+                      <div className="bg-gradient-to-r from-sky-50 to-blue-50 px-5 py-4 border-b border-slate-200">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Bell size={18} className="text-sky-700" />
+                            <h3 className="font-bold text-slate-800">Notificaciones</h3>
+                          </div>
+                          {pendingTickets > 0 && (
+                            <span className="px-2.5 py-1 rounded-full bg-red-500 text-white text-xs font-bold">
+                              {pendingTickets}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="max-h-96 overflow-y-auto">
+                        {recentTickets.length === 0 ? (
+                          <div className="px-5 py-8 text-center">
+                            <Bell size={32} className="mx-auto text-slate-300 mb-3" />
+                            <p className="text-sm text-slate-500">No hay notificaciones pendientes</p>
+                          </div>
+                        ) : (
+                          <div className="divide-y divide-slate-100">
+                            {recentTickets.map((ticket) => (
+                              <button
+                                key={ticket.id}
+                                onClick={() => {
+                                  setNotificationsOpen(false);
+                                  navigate('/admin/tickets');
+                                }}
+                                className="w-full px-5 py-3.5 hover:bg-slate-50 transition-colors text-left"
+                              >
+                                <div className="flex items-start gap-3">
+                                  <div className="mt-0.5 p-2 rounded-lg bg-amber-50 text-amber-600">
+                                    <LifeBuoy size={16} />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold text-slate-800 truncate">
+                                      {ticket.asunto || 'Sin asunto'}
+                                    </p>
+                                    <p className="text-xs text-slate-500 mt-0.5">
+                                      {ticket.codigo} • {ticket.email_contacto}
+                                    </p>
+                                    <p className="text-xs text-slate-400 mt-1">
+                                      {new Date(ticket.created_at).toLocaleDateString('es-CO', {
+                                        day: 'numeric',
+                                        month: 'short',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })}
+                                    </p>
+                                  </div>
+                                  <span className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase ${
+                                    ticket.estado === 'recibido' 
+                                      ? 'bg-blue-100 text-blue-700' 
+                                      : 'bg-amber-100 text-amber-700'
+                                  }`}>
+                                    {ticket.estado === 'recibido' ? 'Nuevo' : 'En revisión'}
+                                  </span>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {pendingTickets > 0 && (
+                        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50">
+                          <button
+                            onClick={() => {
+                              setNotificationsOpen(false);
+                              navigate('/admin/tickets');
+                            }}
+                            className="w-full px-4 py-2 rounded-lg bg-secondary text-white text-sm font-bold hover:bg-secondary/90 transition-colors"
+                          >
+                            Ver todos los tickets ({pendingTickets})
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
+
               <div className="hidden md:flex flex-col items-end">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Sesión</p>
                 <span className="admin-chip-strong">Administrador</span>

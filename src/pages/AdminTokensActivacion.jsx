@@ -112,13 +112,25 @@ export default function AdminTokensActivacion() {
 
       // Copiar link al portapapeles automáticamente
       const activationLink = data.activation_link;
+      const emailSent = data.email_sent;
       await navigator.clipboard.writeText(activationLink);
 
       await showSuccessAlert({
-        title: '¡Token Regenerado!',
+        title: emailSent ? '✅ Token y Email Enviados!' : '⚠️ Token Generado',
         html: `
           <div class="text-left">
             <p class="mb-3">Token generado exitosamente para <strong>${beneficiario.nombre_completo}</strong></p>
+            ${emailSent 
+              ? `<div class="bg-green-50 p-3 rounded-lg border border-green-200 mb-3">
+                   <p class="text-sm text-green-700">📧 <strong>Email enviado a:</strong> ${beneficiario.email}</p>
+                   <p class="text-xs text-green-600 mt-1">El beneficiario recibirá el link de activación en su correo</p>
+                 </div>`
+              : `<div class="bg-orange-50 p-3 rounded-lg border border-orange-200 mb-3">
+                   <p class="text-sm text-orange-700">⚠️ <strong>Email no enviado</strong></p>
+                   <p class="text-xs text-orange-600 mt-1">${data.email_error || 'Error al enviar email'}</p>
+                   <p class="text-xs text-slate-600 mt-2">Comparte el link manualmente:</p>
+                 </div>`
+            }
             <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 mb-3">
               <p class="text-xs text-slate-600 mb-1">Link de activación:</p>
               <p class="text-sm font-mono break-all text-primary">${activationLink}</p>

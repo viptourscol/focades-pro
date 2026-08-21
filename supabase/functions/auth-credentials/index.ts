@@ -601,15 +601,48 @@ Deno.serve(async (req) => {
         )
       }
 
-      // 4. TODO: Enviar email con nuevo link
+      // 4. Enviar email con nuevo link
       const activationLink = `https://focades-pro.vercel.app/beneficiario/completar-onboarding?token=${setupToken}`
       console.log(`🔄 Token regenerado para ${beneficiario.nombre_completo}`)
       console.log(`   Link: ${activationLink}`)
 
+      // Intentar enviar email automáticamente
+      let emailSent = false
+      let emailError = null
+
+      try {
+        const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-setup-emails`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+          },
+          body: JSON.stringify({
+            method: 'send-setup-email',
+            beneficiario_id: beneficiario.id,
+          }),
+        })
+
+        const emailData = await emailResponse.json()
+        
+        if (emailData.ok) {
+          emailSent = true
+          console.log('✅ Email enviado automáticamente')
+        } else {
+          emailError = emailData.error || 'Error desconocido'
+          console.warn('⚠️ No se pudo enviar email:', emailError)
+        }
+      } catch (err) {
+        emailError = err.message
+        console.error('❌ Error al intentar enviar email:', err)
+      }
+
       return new Response(
         JSON.stringify({
           ok: true,
-          message: 'Token de activación regenerado exitosamente',
+          message: emailSent 
+            ? 'Token regenerado y email enviado exitosamente' 
+            : 'Token regenerado. Email no enviado - comparte el link manualmente',
           beneficiario: {
             id: beneficiario.id,
             nombre_completo: beneficiario.nombre_completo,
@@ -619,7 +652,11 @@ Deno.serve(async (req) => {
           setup_token: setupToken,
           activation_link: activationLink,
           expires_at: setupExpiresAt,
-          note: 'Copia el link de activación y envíaselo al beneficiario por email o WhatsApp',
+          email_sent: emailSent,
+          email_error: emailError,
+          note: emailSent 
+            ? 'Email enviado al beneficiario con el link de activación' 
+            : 'Copia el link de activación y envíaselo al beneficiario por email o WhatsApp',
         }),
         { status: 200, headers: corsHeaders }
       )

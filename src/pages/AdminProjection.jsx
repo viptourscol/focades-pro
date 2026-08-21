@@ -353,34 +353,40 @@ const AdminProjection = () => {
       </section>
 
       <section className="grid grid-cols-1 xl:grid-cols-[1.25fr_0.75fr] gap-6 min-w-0">
-        <div className="min-w-0 rounded-[2rem] border border-slate-200 bg-white p-5 md:p-6 shadow-sm">
-          <h2 className="text-sm font-black uppercase tracking-[0.22em] text-slate-700">Parametros de simulacion</h2>
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="min-w-0 rounded-3xl border border-slate-200 bg-white p-6 md:p-8 shadow-lg">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <Calculator className="text-primary" size={20} />
+            </div>
+            <h2 className="text-base font-bold text-slate-900">Parámetros de Simulación</h2>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             <ProjectionInput label="SMLV vigente" value={projectionConfig.smlv} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, smlv: numberOrZero(value) }))} />
-            <ProjectionInput label="Anos a proyectar" value={projectionConfig.yearsToProject} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, yearsToProject: Math.max(1, Math.round(numberOrZero(value))) }))} />
-            <ProjectionInput label="Convocatorias por ano" value={projectionConfig.convocatoriasPerYear} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, convocatoriasPerYear: Math.max(1, Math.round(numberOrZero(value))) }))} />
-            <ProjectionInput label="Sueno por convocatoria" value={projectionConfig.suenoPerConvocatoria} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, suenoPerConvocatoria: Math.max(0, Math.round(numberOrZero(value))) }))} />
-            <ProjectionInput label="Merito por convocatoria" value={projectionConfig.meritoPerConvocatoria} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, meritoPerConvocatoria: Math.max(0, Math.round(numberOrZero(value))) }))} />
-            <ProjectionInput label="Pagos por ano" value={projectionConfig.paymentsPerYear} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, paymentsPerYear: Math.max(1, Math.round(numberOrZero(value))) }))} />
-            <ProjectionInput label="Desercion anual (%)" value={roundTo(projectionConfig.desertionRate * 100, 2)} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, desertionRate: normalizeRateInput(value) }))} />
-            <ProjectionInput label="Graduacion anual (%)" value={roundTo(projectionConfig.graduationRate * 100, 2)} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, graduationRate: normalizeRateInput(value) }))} />
+            <ProjectionInput label="Años a proyectar" value={projectionConfig.yearsToProject} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, yearsToProject: Math.max(1, Math.round(numberOrZero(value))) }))} />
+            <ProjectionInput label="Convocatorias por año" value={projectionConfig.convocatoriasPerYear} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, convocatoriasPerYear: Math.max(1, Math.round(numberOrZero(value))) }))} />
+            <ProjectionInput label="Sueño por convocatoria" value={projectionConfig.suenoPerConvocatoria} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, suenoPerConvocatoria: Math.max(0, Math.round(numberOrZero(value))) }))} />
+            <ProjectionInput label="Mérito por convocatoria" value={projectionConfig.meritoPerConvocatoria} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, meritoPerConvocatoria: Math.max(0, Math.round(numberOrZero(value))) }))} />
+            <ProjectionInput label="Pagos por año" value={projectionConfig.paymentsPerYear} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, paymentsPerYear: Math.max(1, Math.round(numberOrZero(value))) }))} />
+            <ProjectionInput label="Deserción anual (%)" value={roundTo(projectionConfig.desertionRate * 100, 2)} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, desertionRate: normalizeRateInput(value) }))} />
+            <ProjectionInput label="Graduación anual (%)" value={roundTo(projectionConfig.graduationRate * 100, 2)} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, graduationRate: normalizeRateInput(value) }))} />
           </div>
 
-          <div className="mt-5 grid grid-cols-1 gap-4">
-            <div className="rounded-[1.2rem] border border-slate-200 bg-slate-50 p-4">
-              <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Topes maximos de pagos por nivel</p>
-              <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-                <ProjectionInput label="Tecnico" value={projectionConfig.maxPagosTecnico} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, maxPagosTecnico: Math.max(1, Math.round(numberOrZero(value))) }))} />
-                <ProjectionInput label="Tecnologo" value={projectionConfig.maxPagosTecnologo} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, maxPagosTecnologo: Math.max(1, Math.round(numberOrZero(value))) }))} />
+          <div className="mt-6 grid grid-cols-1 gap-5">
+            <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5 shadow-sm">
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-4">Topes Máximos de Pagos por Nivel</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <ProjectionInput label="Técnico" value={projectionConfig.maxPagosTecnico} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, maxPagosTecnico: Math.max(1, Math.round(numberOrZero(value))) }))} />
+                <ProjectionInput label="Tecnólogo" value={projectionConfig.maxPagosTecnologo} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, maxPagosTecnologo: Math.max(1, Math.round(numberOrZero(value))) }))} />
                 <ProjectionInput label="Profesional" value={projectionConfig.maxPagosProfesional} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, maxPagosProfesional: Math.max(1, Math.round(numberOrZero(value))) }))} />
               </div>
             </div>
 
-            <div className="rounded-[1.2rem] border border-slate-200 bg-slate-50 p-4">
-              <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Distribucion de cohortes por nivel</p>
-              <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-                <ProjectionInput label="Tecnico (%)" value={projectionConfig.shareTecnico} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, shareTecnico: clamp(numberOrZero(value), 0, 100) }))} />
-                <ProjectionInput label="Tecnologo (%)" value={projectionConfig.shareTecnologo} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, shareTecnologo: clamp(numberOrZero(value), 0, 100) }))} />
+            <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5 shadow-sm">
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-4">Distribución de Cohortes por Nivel</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <ProjectionInput label="Técnico (%)" value={projectionConfig.shareTecnico} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, shareTecnico: clamp(numberOrZero(value), 0, 100) }))} />
+                <ProjectionInput label="Tecnólogo (%)" value={projectionConfig.shareTecnologo} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, shareTecnologo: clamp(numberOrZero(value), 0, 100) }))} />
                 <ProjectionInput label="Profesional (%)" value={projectionConfig.shareProfesional} onChange={(value) => setProjectionConfig((prev) => ({ ...prev, shareProfesional: clamp(numberOrZero(value), 0, 100) }))} />
               </div>
             </div>
@@ -484,14 +490,19 @@ const AdminProjection = () => {
 
 function ProjectionInput({ label, value, onChange }) {
   return (
-    <label className="block rounded-[1rem] border border-slate-200 bg-white px-3 py-3">
-      <span className="block text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{label}</span>
-      <input
-        type="number"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="mt-2 w-full bg-transparent text-sm font-bold text-slate-900 outline-none"
-      />
+    <label className="group block cursor-pointer">
+      <div className="relative rounded-xl border-2 border-slate-200 bg-gradient-to-br from-white to-slate-50/30 px-4 py-3.5 transition-all duration-200 hover:border-primary/40 hover:shadow-md focus-within:border-primary focus-within:shadow-lg focus-within:ring-4 focus-within:ring-primary/10">
+        <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2 transition-colors group-focus-within:text-primary">
+          {label}
+        </span>
+        <input
+          type="number"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="w-full bg-transparent text-lg font-bold text-slate-900 outline-none placeholder:text-slate-300 transition-colors"
+          placeholder="0"
+        />
+      </div>
     </label>
   );
 }

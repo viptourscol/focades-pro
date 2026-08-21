@@ -1,6 +1,6 @@
 # Configuración de Envío de Emails - Sistema de Tokens
 
-## ⚠️ Problema Resuelto
+## Problema Resuelto
 
 **Problema:** Al regenerar tokens desde AdminTokensActivacion, el sistema generaba el token pero NO enviaba el email al beneficiario.
 
@@ -8,7 +8,7 @@
 
 ---
 
-## 🔧 Configuración Requerida
+## Configuración Requerida
 
 ### 1. Variable de Entorno: RESEND_API_KEY
 
@@ -36,7 +36,7 @@ Para que los emails se envíen automáticamente, debes configurar la API Key de 
 
 ---
 
-## 📧 Cómo Funciona Ahora
+## Funcionamiento
 
 ### Flujo Automático:
 
@@ -45,12 +45,12 @@ Para que los emails se envíen automáticamente, debes configurar la API Key de 
 3. **Automáticamente llama a** `send-setup-emails`
 4. **Resend envía el email** al beneficiario
 5. Admin ve confirmación:
-   - ✅ "Token y Email Enviados!" (si funcionó)
-   - ⚠️ "Token Generado" + error (si falló el email)
+   - "Token y Email Enviados" (si funcionó)
+   - "Token Generado" + error (si falló el email)
 
 ### Email Enviado:
 
-- **Asunto:** 🔐 Activa tu Acceso - Portal FOCADES
+- **Asunto:** Activa tu Acceso - Portal FOCADES
 - **Remitente:** Notificaciones FOCADES <notificaciones@focades.info>
 - **Contenido:** HTML responsive con:
   - Botón de activación
@@ -60,7 +60,7 @@ Para que los emails se envíen automáticamente, debes configurar la API Key de 
 
 ---
 
-## 🧪 Pruebas
+## Pruebas
 
 ### Opción 1: Desde el Panel Admin
 
@@ -97,7 +97,7 @@ Respuesta esperada:
 
 ---
 
-## 🔍 Logs y Debugging
+## Logs y Debugging
 
 ### Ver logs de Edge Functions:
 
@@ -118,7 +118,7 @@ LIMIT 10;
 
 ---
 
-## 🛠️ Troubleshooting
+## Troubleshooting
 
 ### Email no llega:
 
@@ -136,7 +136,7 @@ LIMIT 10;
 3. **Ver logs en tiempo real:**
    - Regenera token
    - Inmediatamente ejecuta: `supabase functions logs auth-credentials --linked`
-   - Busca líneas: `📧 Enviando email a:` o `❌ Error`
+   - Busca líneas: `[EMAIL] Enviando email a:` o `[EMAIL] Error`
 
 4. **Email en carpeta de spam:**
    - Pide al beneficiario revisar spam/correo no deseado
@@ -161,7 +161,7 @@ Si el admin ve "Email no enviado":
 
 ---
 
-## 📝 Archivos Modificados
+## Archivos Modificados
 
 - **Edge Function:** `supabase/functions/auth-credentials/index.ts`
   - Integración con `send-setup-emails`
@@ -175,7 +175,7 @@ Si el admin ve "Email no enviado":
 
 ---
 
-## 📞 Soporte
+## Soporte
 
 Si los emails siguen sin llegar después de configurar RESEND_API_KEY:
 

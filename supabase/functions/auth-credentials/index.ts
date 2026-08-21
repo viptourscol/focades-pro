@@ -627,14 +627,14 @@ Deno.serve(async (req) => {
         
         if (emailData.ok) {
           emailSent = true
-          console.log('✅ Email enviado automáticamente')
+          console.log('[EMAIL] Email enviado automáticamente')
         } else {
           emailError = emailData.error || 'Error desconocido'
-          console.warn('⚠️ No se pudo enviar email:', emailError)
+          console.warn('[EMAIL] No se pudo enviar email:', emailError)
         }
       } catch (err) {
         emailError = err.message
-        console.error('❌ Error al intentar enviar email:', err)
+        console.error('[EMAIL] Error al intentar enviar email:', err)
       }
 
       return new Response(

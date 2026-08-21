@@ -204,7 +204,7 @@ const AdminLayout = () => {
                     />
                     
                     {/* Panel de notificaciones */}
-                    <div className="absolute right-0 top-full mt-2 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 z-[9999] overflow-hidden">
+                    <div className="fixed top-20 right-4 md:right-8 lg:right-10 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 z-[9999] overflow-hidden">
                       <div className="bg-gradient-to-r from-sky-50 to-blue-50 px-5 py-4 border-b border-slate-200">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">

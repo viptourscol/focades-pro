@@ -593,10 +593,10 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
       <div className={`bg-slate-50 w-full max-w-6xl max-h-[90vh] rounded-[2.5rem] shadow-2xl overflow-hidden transition-all duration-500 transform ${animate ? 'scale-100 opacity-100' : 'scale-95 opacity-0'} flex flex-col`}>
         
         {/* HEADER */}
-        <header className="bg-white px-10 py-10 border-b border-slate-100 flex justify-between items-start">
-          <div className="flex-1 space-y-4">
+        <header className="bg-white px-10 py-6 border-b border-slate-100 flex justify-between items-start">
+          <div className="flex-1 space-y-2.5">
             {/* Badge y RAD */}
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2.5 flex-wrap">
               <span className="inline-flex items-center gap-2 bg-secondary/10 text-secondary text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1.5 rounded-lg">
                 <FileText size={12} />
                 Expediente Digital
@@ -618,10 +618,10 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
             </div>
 
             {/* Título */}
-            <h2 className="text-3xl font-black text-slate-800 tracking-tight leading-tight">{nombreCompleto}</h2>
+            <h2 className="text-2xl font-black text-slate-800 tracking-tight leading-tight">{nombreCompleto}</h2>
 
             {/* Sección de revisor */}
-            <div className="flex flex-col md:flex-row md:items-center gap-4 pt-2 border-t border-slate-100">
+            <div className="flex flex-col md:flex-row md:items-center gap-3 pt-1.5 border-t border-slate-100">
               {revisorAsignado && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-slate-500">Revisor:</span>
@@ -663,10 +663,10 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
           {/* Botón cerrar */}
           <button 
             onClick={onClose} 
-            className="p-3 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 transition-all" 
+            className="p-2.5 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 transition-all" 
             title="Cerrar expediente"
           >
-            <X size={28}/>
+            <X size={24}/>
           </button>
         </header>
 

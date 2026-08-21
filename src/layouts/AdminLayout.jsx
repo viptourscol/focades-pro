@@ -199,12 +199,12 @@ const AdminLayout = () => {
                   <>
                     {/* Overlay para cerrar al hacer clic fuera */}
                     <div 
-                      className="fixed inset-0 z-40" 
+                      className="fixed inset-0 z-[70]" 
                       onClick={() => setNotificationsOpen(false)}
                     />
                     
                     {/* Panel de notificaciones */}
-                    <div className="absolute right-0 top-full mt-2 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden">
+                    <div className="absolute right-0 top-full mt-2 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 z-[80] overflow-hidden">
                       <div className="bg-gradient-to-r from-sky-50 to-blue-50 px-5 py-4 border-b border-slate-200">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">

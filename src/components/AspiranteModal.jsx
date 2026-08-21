@@ -6,7 +6,8 @@ import {
   X, Copy, Cpu, User, Home, 
   GraduationCap, FileText, CheckCircle, 
   Briefcase, ShieldAlert, Heart, Eye,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, UserCheck,
+  AlertCircle, RefreshCw
 } from 'lucide-react';
 
 const DOCUMENT_LABELS = {
@@ -593,59 +594,100 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
       <div className={`bg-slate-50 w-full max-w-6xl rounded-[2.5rem] shadow-2xl overflow-hidden transition-all duration-500 transform ${animate ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
         
         {/* HEADER */}
-        <header className="bg-white px-10 py-8 border-b border-slate-100 flex justify-between items-center">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-                          {revisorAsignado && (
-                            <span className="bg-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-lg ml-2">Admin revisor asignado: {revisorAsignado}</span>
-                          )}
-                        {/* Asignar revisor solo para admins */}
-                        {isAdmin && (
-                          <div className="mt-6">
-                            <h4 className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2">Asignar/Reasignar revisor</h4>
-                            <div className="flex flex-col md:flex-row gap-2 items-start md:items-center">
-                              <select
-                                value={assignmentDraft?.[aspirante.id] || ''}
-                                onChange={e => setAssignmentDraft(prev => ({ ...prev, [aspirante.id]: e.target.value }))}
-                                className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm min-w-[180px]"
-                              >
-                                <option value="">Seleccionar revisor...</option>
-                                {adminUsers.map(admin => (
-                                  <option key={admin.user_id} value={admin.user_id}>
-                                    {admin.nombre_completo || (admin.user_id.slice(0, 8) + '...' + admin.user_id.slice(-4))}
-                                  </option>
-                                ))}
-                              </select>
-                              <button
-                                type="button"
-                                onClick={() => assignReviewer(aspirante.id)}
-                                disabled={assigningId === aspirante.id || !(assignmentDraft?.[aspirante.id])}
-                                className="px-4 py-2 rounded-xl text-xs font-bold bg-secondary text-white disabled:opacity-50"
-                              >
-                                {assigningId === aspirante.id ? 'Asignando...' : 'Asignar revisor'}
-                              </button>
-                            </div>
-                          </div>
-                        )}
-              <span className="bg-secondary/10 text-secondary text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-lg">Expediente Digital</span>
+        <header className="bg-white px-10 py-8 border-b border-slate-100 flex justify-between items-start">
+          <div className="flex-1 space-y-4">
+            
+            {/* Línea 1: Metadatos del expediente */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="inline-flex items-center gap-2 bg-secondary/10 text-secondary text-[10px] font-black uppercase tracking-[0.2em] px-3 py-1.5 rounded-lg">
+                <FileText size={12} />
+                Expediente Digital
+              </span>
               <span className="text-slate-300">|</span>
               <span className="text-slate-500 font-mono text-xs font-bold">RAD: {aspirante.radicado}</span>
               <button
                 type="button"
                 onClick={handleCopyRadicado}
-                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all duration-200 ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border transition-all duration-200 ${
                   radicadoCopied
                     ? 'bg-green-100 text-green-700 border-green-200 scale-95'
                     : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200 hover:scale-105'
                 }`}
-                title="Copiar radicado"
+                title="Copiar radicado al portapapeles"
               >
-                <Copy size={12} /> {radicadoCopied ? 'Copiado' : 'Copiar'}
+                <Copy size={12} /> 
+                {radicadoCopied ? 'Copiado' : 'Copiar'}
               </button>
             </div>
-            <h2 className="text-3xl font-black text-slate-800 tracking-tight">{nombreCompleto}</h2>
+
+            {/* Línea 2: Nombre del aspirante */}
+            <h2 className="text-3xl font-black text-slate-800 tracking-tight leading-tight">{nombreCompleto}</h2>
+
+            {/* Línea 3: Admin revisor asignado y controles */}
+            {isAdmin && (
+              <div className="flex flex-col md:flex-row md:items-center gap-4 pt-2 border-t border-slate-100">
+                
+                {/* Badge del revisor actual */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-500">Revisor:</span>
+                  {revisorAsignado ? (
+                    <span className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg">
+                      <User size={12} />
+                      {revisorAsignado}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-600 text-xs font-bold px-3 py-1.5 rounded-lg">
+                      <AlertCircle size={12} />
+                      Sin asignar
+                    </span>
+                  )}
+                </div>
+
+                {/* Selector y botón de asignación */}
+                <div className="flex items-center gap-2">
+                  <select
+                    value={assignmentDraft?.[aspirante.id] || ''}
+                    onChange={e => setAssignmentDraft(prev => ({ ...prev, [aspirante.id]: e.target.value }))}
+                    className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium min-w-[180px] focus:outline-none focus:ring-2 focus:ring-secondary/20 focus:border-secondary"
+                  >
+                    <option value="">Seleccionar revisor...</option>
+                    {adminUsers.map(admin => (
+                      <option key={admin.user_id} value={admin.user_id}>
+                        {admin.nombre_completo || (admin.user_id.slice(0, 8) + '...' + admin.user_id.slice(-4))}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => assignReviewer(aspirante.id)}
+                    disabled={assigningId === aspirante.id || !(assignmentDraft?.[aspirante.id])}
+                    className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold bg-secondary text-white hover:bg-secondary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    {assigningId === aspirante.id ? (
+                      <>
+                        <RefreshCw size={12} className="animate-spin" />
+                        Asignando...
+                      </>
+                    ) : (
+                      <>
+                        <UserCheck size={12} />
+                        {revisorAsignado ? 'Reasignar' : 'Asignar'}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-          <button onClick={onClose} className="p-3 hover:bg-slate-100 rounded-2xl text-slate-400 transition-all"><X size={28}/></button>
+
+          {/* Botón cerrar */}
+          <button 
+            onClick={onClose} 
+            className="p-3 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 transition-all"
+            title="Cerrar expediente"
+          >
+            <X size={28} />
+          </button>
         </header>
 
         {/* CONTENIDO BENTO GRID */}

@@ -21,6 +21,7 @@ begin
 end;
 $$;
 
+drop trigger if exists set_portal_faq_updated_at on public.portal_faq;
 create trigger set_portal_faq_updated_at
   before update on public.portal_faq
   for each row execute procedure public.set_updated_at_portal_faq();
@@ -29,6 +30,7 @@ create trigger set_portal_faq_updated_at
 alter table public.portal_faq enable row level security;
 
 -- Lectura pública: solo preguntas activas
+drop policy if exists "faq_anon_select" on public.portal_faq;
 create policy "faq_anon_select"
   on public.portal_faq
   for select
@@ -36,6 +38,7 @@ create policy "faq_anon_select"
   using (is_active = true);
 
 -- Escritura admin
+drop policy if exists "faq_admin_write" on public.portal_faq;
 create policy "faq_admin_write"
   on public.portal_faq
   for all
@@ -44,7 +47,9 @@ create policy "faq_admin_write"
   with check (exists (select 1 from public.portal_admin_users a where a.user_id = auth.uid()));
 
 -- ── SEED: preguntas frecuentes iniciales ──────────────────────
-insert into public.portal_faq (sort_order, question, answer) values
+-- Solo insertar si la tabla está vacía
+insert into public.portal_faq (sort_order, question, answer)
+select * from (values
 (1,  '¿Qué es el Fondo Educativo para el Apoyo de la Educación Superior (FOCADES)?',
      'FOCADES es un programa del Municipio de Montelíbano que otorga créditos educativos condonables a jóvenes de escasos recursos económicos para financiar estudios técnicos, tecnológicos o profesionales en instituciones reconocidas por el SNIES.'),
 (2,  '¿Cuáles son las modalidades de apoyo que ofrece FOCADES?',
@@ -79,4 +84,6 @@ Sueños y PAET UNAL: Debes matricular el semestre inmediato a la convocatoria.')
 (13, '¿Hay seguimiento académico para los beneficiarios?',
      'Sí. Debes presentar certificados de notas y matrícula cada semestre para renovar el apoyo.'),
 (14, '¿Qué pasa si me transfiero a una institución fuera del SNIES?',
-     'Pierdes el beneficio automáticamente, ya que FOCADES solo aplica para instituciones reconocidas por el SNIES.');
+     'Pierdes el beneficio automáticamente, ya que FOCADES solo aplica para instituciones reconocidas por el SNIES.')
+) as v(sort_order, question, answer)
+where not exists (select 1 from public.portal_faq limit 1);

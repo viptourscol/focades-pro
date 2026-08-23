@@ -4,6 +4,7 @@
 
 -- Eliminar política anterior que requiere auth.uid()
 DROP POLICY IF EXISTS beneficiarios_upload_onboarding_docs ON public.portal_beneficiario_documentos_historicos;
+DROP POLICY IF EXISTS beneficiarios_upload_onboarding_docs_public ON public.portal_beneficiario_documentos_historicos;
 
 -- Crear nueva política que permite INSERT para cualquier beneficiario válido durante onboarding
 -- Esto es seguro porque solo pueden insertar para IDs que existen en portal_beneficiarios
@@ -21,6 +22,7 @@ CREATE POLICY beneficiarios_upload_onboarding_docs_public
 
 -- También permitir que beneficiarios lean sus propios documentos (sin auth.uid())
 DROP POLICY IF EXISTS beneficiarios_read_own_docs ON public.portal_beneficiario_documentos_historicos;
+DROP POLICY IF EXISTS beneficiarios_read_own_docs_public ON public.portal_beneficiario_documentos_historicos;
 
 CREATE POLICY beneficiarios_read_own_docs_public
   ON public.portal_beneficiario_documentos_historicos

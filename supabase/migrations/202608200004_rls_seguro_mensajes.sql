@@ -10,6 +10,9 @@ ALTER TABLE public.portal_ticket_mensajes ENABLE ROW LEVEL SECURITY;
 -- 2. Eliminar policies antiguas restrictivas
 DROP POLICY IF EXISTS admin_view_all_mensajes ON public.portal_ticket_mensajes;
 DROP POLICY IF EXISTS admin_insert_mensajes ON public.portal_ticket_mensajes;
+DROP POLICY IF EXISTS "Admins pueden ver todos los mensajes" ON public.portal_ticket_mensajes;
+DROP POLICY IF EXISTS "Admins pueden actualizar mensajes" ON public.portal_ticket_mensajes;
+DROP POLICY IF EXISTS "Super admins pueden eliminar mensajes" ON public.portal_ticket_mensajes;
 
 -- 3. Policy para SELECT: Solo admins autenticados pueden ver mensajes
 CREATE POLICY "Admins pueden ver todos los mensajes"

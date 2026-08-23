@@ -2,8 +2,8 @@
 -- Table to track all emails sent to beneficiaries
 
 CREATE TABLE IF NOT EXISTS portal_beneficiarios_email_log (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  beneficiario_id uuid NOT NULL REFERENCES portal_beneficiarios(id) ON DELETE CASCADE,
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  beneficiario_id bigint NOT NULL REFERENCES portal_beneficiarios(id) ON DELETE CASCADE,
   email_type text NOT NULL CHECK (email_type IN ('setup-activation', 'password-reset', 'notification', 'bulk-message')),
   recipient_email text NOT NULL,
   status text NOT NULL CHECK (status IN ('queued', 'sent', 'failed', 'bounced', 'complained')),

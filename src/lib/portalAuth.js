@@ -146,3 +146,25 @@ export const resolvePortalAccess = async ({ attemptClaim = true } = {}) => {
     reason: adminRow?.user_id ? '' : 'NOT_LINKED',
   };
 };
+
+/**
+ * Cierre de sesión de beneficiario por timeout
+ * Limpia la sesión guardada en localStorage y redirige al login
+ */
+export const logoutBeneficiaryDueToTimeout = () => {
+  try {
+    // Limpiar sesión de beneficiario
+    localStorage.removeItem('focades:beneficiario-session');
+    sessionStorage.removeItem(PORTAL_AUTH_ERROR_STORAGE_KEY);
+    
+    // Guardar razón de logout
+    sessionStorage.setItem('focades:logout-reason', 'session-expired');
+  } catch (error) {
+    console.error('Error limpiando sesión de beneficiario por timeout:', error);
+  }
+
+  // Redirigir a login
+  if (typeof window !== 'undefined') {
+    window.location.href = '/login?reason=session-expired';
+  }
+};

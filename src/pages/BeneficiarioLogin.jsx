@@ -44,6 +44,16 @@ const BeneficiarioLogin = () => {
       const currentUrl = new URL(window.location.href);
       const authCode = String(currentUrl.searchParams.get('code') || '').trim();
       const authError = String(currentUrl.searchParams.get('error_description') || currentUrl.searchParams.get('error') || '').trim();
+      const logoutReason = String(currentUrl.searchParams.get('reason') || '').trim();
+
+      // Mostrar mensaje si la sesión expiró por inactividad
+      if (logoutReason === 'session-expired') {
+        window.history.replaceState({}, document.title, '/beneficiario/login');
+        await showErrorAlert({
+          title: 'Sesión expirada',
+          text: 'Tu sesión ha expirado por inactividad. Por favor, inicia sesión nuevamente.',
+        });
+      }
 
       if (authError) {
         window.history.replaceState({}, document.title, '/beneficiario/login');

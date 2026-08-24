@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Bell, ChevronLeft, ChevronRight, ClipboardList, FileClock, GraduationCap, Home, LifeBuoy, LogOut, Menu, UserCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { resolvePortalAccess } from '../lib/portalAuth';
+import { resolvePortalAccess, logoutBeneficiaryDueToTimeout } from '../lib/portalAuth';
+import { useSessionTimeout } from '../lib/hooks/useSessionTimeout';
+import { SessionTimeoutWarning } from '../components/SessionTimeoutWarning';
 
 const navItems = [
   { to: '/beneficiario', label: 'Inicio', icon: Home },
@@ -19,6 +21,13 @@ const BeneficiarioLayout = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileName, setProfileName] = useState('Beneficiario');
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  // Hook para detectar inactividad (30 minutos = 1800 segundos para beneficiarios)
+  const sessionTimeout = useSessionTimeout(
+    1800, // 30 minutos en segundos
+    () => logoutBeneficiaryDueToTimeout(), // Callback cuando sesión expira
+    true // Habilitado
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -242,6 +251,14 @@ const BeneficiarioLayout = () => {
           aria-label="Cerrar menú"
         />
       )}
+
+      {/* Modal de advertencia de sesión por expirar */}
+      <SessionTimeoutWarning
+        isVisible={sessionTimeout.isWarning}
+        timeRemaining={sessionTimeout.timeRemaining}
+        onExtend={sessionTimeout.extendSession}
+        onLogout={() => navigate('/login')}
+      />
     </div>
   );
 };

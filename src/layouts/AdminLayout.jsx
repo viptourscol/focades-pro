@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, Settings, LogOut, Bell, LifeBuoy, IdCard, ClipboardList, Menu, X, BarChart3, Calculator, FileText, CalendarClock, ShieldCheck, Search, ArrowUpRight, UploadCloud, UserPlus, HandCoins, FolderOpen, Database, ChevronDown, ChevronRight, Megaphone, HelpCircle, Zap, KeyRound } from 'lucide-react';
 import { invokeAdminTickets } from '../lib/adminTickets';
-import { supabase } from '../lib/supabase';
+import { supabase, logoutDueToTimeout } from '../lib/supabase';
+import { useSessionTimeout } from '../lib/hooks/useSessionTimeout';
+import { SessionTimeoutWarning } from '../components/SessionTimeoutWarning';
 
 const NAV_ITEMS = [
   { to: '/admin', label: 'Dashboard', icon: <LayoutDashboard size={20} />, match: (path) => path === '/admin' },
@@ -54,6 +56,13 @@ const AdminLayout = () => {
   const [recentTickets, setRecentTickets] = useState([]);
   const pageMeta = getPageMeta(location.pathname);
   const todayLabel = new Intl.DateTimeFormat('es-CO', { dateStyle: 'full' }).format(new Date());
+
+  // Hook para detectar inactividad (2 horas = 7200 segundos para admin)
+  const sessionTimeout = useSessionTimeout(
+    7200, // 2 horas en segundos
+    () => logoutDueToTimeout(), // Callback cuando sesión expira
+    true // Habilitado
+  );
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -300,6 +309,14 @@ const AdminLayout = () => {
           <Outlet /> {/* AQUÍ SE CARGAN LAS PÁGINAS DEL ADMIN */}
         </section>
       </main>
+
+      {/* Modal de advertencia de sesión por expirar */}
+      <SessionTimeoutWarning
+        isVisible={sessionTimeout.isWarning}
+        timeRemaining={sessionTimeout.timeRemaining}
+        onExtend={sessionTimeout.extendSession}
+        onLogout={handleLogout}
+      />
     </div>
   );
 };

@@ -123,3 +123,22 @@ export const getSafeSession = async () => {
 		sessionRequestInFlight = null
 	}
 }
+
+/**
+ * Cierre de sesión debido a timeout por inactividad
+ * Limpia la sesión y redirige al usuario a la página de login
+ */
+export const logoutDueToTimeout = async () => {
+	try {
+		await clearLocalAuthSession()
+		// Guardar razón de logout para mostrar mensaje en login
+		sessionStorage.setItem('focades:logout-reason', 'session-expired')
+	} catch (error) {
+		console.error('Error limpiando sesión por timeout:', error)
+	}
+	
+	// Redirigir a login
+	if (typeof window !== 'undefined') {
+		window.location.href = '/login?reason=session-expired'
+	}
+}

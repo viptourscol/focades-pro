@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import SignaturePad from 'signature_pad';
 import { supabase } from '../lib/supabase';
 import {
@@ -2779,9 +2780,18 @@ const Registro = () => {
   if (activeView === 'landing') {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <header className="h-[72px] bg-white border-b border-border px-8 flex items-center gap-4">
-          <img src="https://raw.githubusercontent.com/focades-debug/mis-imagenes-apps-script/main/logofocades-solo.png" alt="FOCADES" className="h-10" />
-          <h1 className="text-primary font-bold text-lg">Portal de Inscripción para Aspirantes</h1>
+        <header className="h-[72px] bg-white border-b border-border px-8 flex items-center justify-between gap-4">
+          <Link to="/" className="flex items-center gap-4 hover:opacity-80 transition-opacity">
+            <img src="https://raw.githubusercontent.com/focades-debug/mis-imagenes-apps-script/main/logofocades-solo.png" alt="FOCADES" className="h-10" />
+            <h1 className="text-primary font-bold text-lg">Portal de Inscripción para Aspirantes</h1>
+          </Link>
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-primary transition-colors"
+          >
+            <ArrowLeft size={16} />
+            Volver al inicio
+          </Link>
         </header>
 
         <main className="flex-1 p-6 md:p-10">
@@ -3129,7 +3139,33 @@ const Registro = () => {
 
       <div className="max-w-6xl mx-auto bg-white border border-border rounded-2xl shadow-sm p-4 md:p-10 overflow-hidden">
         <div className="flex items-center justify-between mb-8">
-          <h2 className="text-2xl md:text-3xl font-extrabold text-primary">Formulario de Inscripción</h2>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => {
+                if (step > 0 && !submitLoading) {
+                  showConfirmAlert({
+                    title: '¿Volver a la landing?',
+                    text: 'Tu progreso se guardará como borrador. Podrás continuar después.',
+                    confirmButtonText: 'Sí, volver',
+                    cancelButtonText: 'Continuar aquí',
+                  }).then((confirmed) => {
+                    if (confirmed) {
+                      setActiveView('landing');
+                    }
+                  });
+                } else {
+                  setActiveView('landing');
+                }
+              }}
+              disabled={submitLoading}
+              className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Volver al inicio"
+            >
+              <ArrowLeft size={18} />
+              <span className="hidden sm:inline">Volver</span>
+            </button>
+            <h2 className="text-2xl md:text-3xl font-extrabold text-primary">Formulario de Inscripción</h2>
+          </div>
           {savingDraft && <span className="text-xs text-slate-500">Guardando borrador...</span>}
         </div>
 

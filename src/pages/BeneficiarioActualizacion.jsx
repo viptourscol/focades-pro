@@ -155,6 +155,7 @@ const BeneficiarioActualizacion = () => {
   const [windowInfo, setWindowInfo] = useState(null);
   const [config, setConfig] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [previousUpdate, setPreviousUpdate] = useState(null);
   const [form, setForm] = useState({
     email: '',
     telefono: '',
@@ -253,6 +254,26 @@ const BeneficiarioActualizacion = () => {
       setConfig(configData);
       setWindowInfo(ventanaData);
 
+      // Consultar si existe actualización previa en esta ventana
+      if (beneficiarioId && ventanaData?.id) {
+        try {
+          const { data: prevUpdate } = await supabase
+            .from('portal_actualizaciones')
+            .select('id, estado, created_at, observacion_admin')
+            .eq('beneficiario_id', beneficiarioId)
+            .eq('ventana_id', ventanaData.id)
+            .in('estado', ['en_revision', 'aprobada', 'rechazada'])
+            .order('created_at', { ascending: false })
+            .maybeSingle();
+          
+          if (prevUpdate) {
+            setPreviousUpdate(prevUpdate);
+          }
+        } catch (err) {
+          console.error('Error consultando actualización previa:', err);
+        }
+      }
+
       setForm({
         email: profileData?.email || '',
         telefono: profileData?.telefono || '',
@@ -304,8 +325,13 @@ const BeneficiarioActualizacion = () => {
   const canUpdate = useMemo(() => {
     if (!profile) return false;
     if (profile.estado_beneficiario !== 'activo') return false;
-    return Boolean(windowInfo);
-  }, [profile, windowInfo]);
+    if (!windowInfo) return false;
+    // No puede actualizar si ya existe envío en revisión o aprobado
+    if (previousUpdate && ['en_revision', 'aprobada'].includes(previousUpdate.estado)) {
+      return false;
+    }
+    return true;
+  }, [profile, windowInfo, previousUpdate]);
 
   const validateFile = (file, label) => {
     if (!file) {
@@ -442,6 +468,13 @@ const BeneficiarioActualizacion = () => {
 
       if (!result.ok) {
         console.error('❌ Error en respuesta:', result);
+        // Manejar errores específicos
+        if (result.code === 'DUPLICATE_SUBMISSION') {
+          const statusText = result.existing_status === 'aprobada' 
+            ? 'aprobada'
+            : 'siendo revisada';
+          throw new Error(`Ya enviaste una actualización para esta ventana que está ${statusText}. No se permite reenvío hasta que sea procesada.`);
+        }
         throw new Error(result.error || 'Error al procesar la actualización');
       }
 
@@ -637,7 +670,47 @@ const BeneficiarioActualizacion = () => {
           );
         })()}
 
-        {!canUpdate && (
+        {/* Banner de estado de actualización previa */}
+        {previousUpdate && previousUpdate.estado === 'en_revision' && (
+          <div className="mt-4 p-4 rounded-xl border border-blue-300 bg-blue-50 text-blue-900 flex items-start gap-3">
+            <div className="flex-shrink-0 mt-0.5">
+              <div className="flex items-center justify-center h-5 w-5 rounded-full bg-blue-200">
+                <Loader2 size={12} className="text-blue-600 animate-spin" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-sm">Actualización en revisión</p>
+              <p className="text-xs text-blue-800 mt-1">Tu actualización está siendo revisada por nuestro equipo. El proceso toma entre 5 a 7 días hábiles.</p>
+              <p className="text-xs text-blue-700 mt-2 opacity-75">Enviada: {new Date(previousUpdate.created_at).toLocaleDateString('es-CO')}</p>
+            </div>
+          </div>
+        )}
+
+        {previousUpdate && previousUpdate.estado === 'aprobada' && (
+          <div className="mt-4 p-4 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-900 flex items-start gap-3">
+            <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5 text-emerald-600" />
+            <div className="flex-1">
+              <p className="font-semibold text-sm">✓ Actualización aprobada</p>
+              <p className="text-xs text-emerald-800 mt-1">Tu actualización fue procesada y aprobada correctamente.</p>
+              <p className="text-xs text-emerald-700 mt-2 opacity-75">Aprobada: {new Date(previousUpdate.created_at).toLocaleDateString('es-CO')}</p>
+            </div>
+          </div>
+        )}
+
+        {previousUpdate && previousUpdate.estado === 'rechazada' && (
+          <div className="mt-4 p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 flex items-start gap-3">
+            <AlertCircle size={16} className="flex-shrink-0 mt-0.5 text-amber-600" />
+            <div className="flex-1">
+              <p className="font-semibold text-sm">⚠️ Actualización rechazada</p>
+              {previousUpdate.observacion_admin && (
+                <p className="text-xs mt-2 p-2 bg-amber-100 rounded border border-amber-200">{previousUpdate.observacion_admin}</p>
+              )}
+              <p className="text-xs text-amber-800 mt-2">Puedes enviar una nueva actualización para corregir los problemas.</p>
+            </div>
+          </div>
+        )}
+
+        {!canUpdate && !previousUpdate && (
           <div className="mt-4 p-3 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-sm flex items-start gap-2">
             <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
             <p>Solo beneficiarios activos con ventana vigente pueden enviar actualización. Puedes consultar tu historial en el menú lateral.</p>

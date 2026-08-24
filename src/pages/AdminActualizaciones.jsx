@@ -1074,6 +1074,8 @@ const AdminActualizaciones = () => {
   // Checkbox batch
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [batchLoading, setBatchLoading] = useState(false);
+  // Mostrar duplicados históricos
+  const [showDuplicates, setShowDuplicates] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -1121,10 +1123,37 @@ const AdminActualizaciones = () => {
     loadData();
   }, []);
 
+  // Identificar actualizaciones activas (más reciente por beneficiario+ventana en en_revision/aprobada)
+  const getActiveUpdateIds = (allRows) => {
+    const activeMap = new Map(); // key: "beneficiario_id:ventana_id", value: updateId
+    
+    allRows.forEach((update) => {
+      if (['en_revision', 'aprobada'].includes(update.estado)) {
+        const key = `${update.beneficiario_id}:${update.ventana_id}`;
+        const existing = allRows.find((u) => activeMap.get(key) === u.id);
+        
+        // Si no existe o este es más reciente, actualizar
+        if (!existing || new Date(update.created_at) > new Date(existing.created_at)) {
+          activeMap.set(key, update.id);
+        }
+      }
+    });
+    
+    return new Set(activeMap.values());
+  };
+
+  const activeUpdateIds = useMemo(() => getActiveUpdateIds(rows), [rows]);
+
   const filteredRows = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     return rows.filter((item) => {
       const b = beneficiariosMap[item.beneficiario_id];
+      
+      // Filtrar duplicados si no se muestran
+      if (!showDuplicates && ['en_revision', 'aprobada'].includes(item.estado)) {
+        if (!activeUpdateIds.has(item.id)) return false;
+      }
+      
       if (estadoFilter !== 'all' && item.estado !== estadoFilter) return false;
       if (ventanaFilter !== 'all' && String(item.ventana_id || '') !== ventanaFilter) return false;
       if (!query) return true;
@@ -1132,7 +1161,7 @@ const AdminActualizaciones = () => {
         .map((v) => String(v || '').toLowerCase())
         .some((v) => v.includes(query));
     });
-  }, [rows, searchTerm, estadoFilter, ventanaFilter, beneficiariosMap]);
+  }, [rows, searchTerm, estadoFilter, ventanaFilter, beneficiariosMap, showDuplicates, activeUpdateIds]);
 
   const sortedRows = useMemo(() => {
     const sorted = [...filteredRows].sort((a, b) => {
@@ -1373,6 +1402,18 @@ const AdminActualizaciones = () => {
             );
           })}
         </select>
+        <button
+          onClick={() => setShowDuplicates(!showDuplicates)}
+          className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold transition-all ${
+            showDuplicates
+              ? 'bg-blue-100 text-blue-700 border border-blue-200 hover:bg-blue-150'
+              : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
+          }`}
+          title={showDuplicates ? 'Ocultando duplicados históricos' : 'Mostrando solo actualizaciones activas'}
+        >
+          <Eye size={14} />
+          {showDuplicates ? 'Mostrar actualizaciones activas' : 'Mostrar todas (incluido histórico)'}
+        </button>
         <button
           onClick={loadData}
           disabled={loading}

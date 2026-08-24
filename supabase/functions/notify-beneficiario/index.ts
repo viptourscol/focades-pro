@@ -55,6 +55,9 @@ Deno.serve(async (req) => {
         <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
           <tr>
             <td style="background:#1e3a5f; padding:32px; text-align:center;">
+              <img src="https://raw.githubusercontent.com/focades-debug/mis-imagenes-apps-script/main/logo-focades-alcadia.png" 
+                   alt="Logo FOCADES" 
+                   style="max-width:200px; height:auto; margin:0 auto 16px auto; display:block;" />
               <h1 style="color:#ffffff; margin:0; font-size:22px;">FOCADES</h1>
               <p style="color:#a8c4e0; margin:8px 0 0 0; font-size:13px;">Fondo de Apoyo a la Educación Superior</p>
             </td>

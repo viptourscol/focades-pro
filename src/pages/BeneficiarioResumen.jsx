@@ -401,6 +401,27 @@ const BeneficiarioResumen = () => {
           </span>
         </div>
 
+        {/* Nota aclaratoria sobre migración de datos históricos */}
+        <div className="mt-4 rounded-xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 px-5 py-4 animate-fade-in">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 mt-0.5">
+              <svg className="w-5 h-5 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-amber-900 mb-1">Información en proceso de consolidación</p>
+              <p className="text-xs text-amber-800 leading-relaxed">
+                La Alcaldía de Montelíbano se encuentra en proceso de migración y consolidación de la información histórica del programa FOCADES. 
+                Los datos de derechos de pago y registros financieros mostrados en esta sección son <strong>estimaciones preliminares</strong> y 
+                pueden estar sujetos a ajustes conforme se completa la carga de información. Los datos definitivos serán actualizados 
+                progresivamente durante el desarrollo del portal. Para información oficial y validada, contacte directamente con la 
+                Secretaría de Educación.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {paymentRightsNotice ? (
           <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800 animate-fade-in">
             {paymentRightsNotice}

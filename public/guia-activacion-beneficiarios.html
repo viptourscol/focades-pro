@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Guía de Activación y Onboarding - FOCADES</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.6;
+      color: #10233f;
+      background: linear-gradient(180deg, #faf7f0 0%, #f2eadb 100%);
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 10px 40px rgba(16, 35, 63, 0.1);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #10233f 0%, #1d385f 100%);
+      color: white;
+      padding: 40px 30px;
+      text-align: center;
+    }
+
+    .header img {
+      max-width: 180px;
+      height: auto;
+      margin-bottom: 20px;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 10px;
+      letter-spacing: -0.5px;
+    }
+
+    .header p {
+      font-size: 16px;
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    .alert-urgent {
+      background: linear-gradient(135deg, #d32f2f 0%, #c62828 100%);
+      color: white;
+      padding: 25px 30px;
+      text-align: center;
+      border-bottom: 4px solid #b71c1c;
+    }
+
+    .alert-urgent h2 {
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .alert-urgent p {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .content {
+      padding: 40px 30px;
+    }
+
+    .section {
+      margin-bottom: 40px;
+    }
+
+    .section h2 {
+      font-size: 24px;
+      font-weight: 800;
+      color: #10233f;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 3px solid #bb7d26;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section h3 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1d385f;
+      margin-top: 25px;
+      margin-bottom: 15px;
+    }
+
+    .icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      background: #bb7d26;
+      color: white;
+      border-radius: 8px;
+      font-weight: 800;
+    }
+
+    .step-list {
+      list-style: none;
+      counter-reset: step-counter;
+    }
+
+    .step-list li {
+      counter-increment: step-counter;
+      position: relative;
+      padding-left: 50px;
+      margin-bottom: 25px;
+      padding-bottom: 25px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .step-list li:last-child {
+      border-bottom: none;
+    }
+
+    .step-list li::before {
+      content: counter(step-counter);
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #bb7d26 0%, #9f6821 100%);
+      color: white;
+      font-weight: 800;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      box-shadow: 0 4px 10px rgba(187, 125, 38, 0.3);
+    }
+
+    .step-list li strong {
+      display: block;
+      font-size: 16px;
+      font-weight: 700;
+      color: #10233f;
+      margin-bottom: 8px;
+    }
+
+    .step-list li p {
+      color: #4a5568;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .doc-list {
+      background: #f9fafb;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .doc-list ul {
+      list-style: none;
+    }
+
+    .doc-list li {
+      padding: 12px 15px;
+      margin-bottom: 10px;
+      background: white;
+      border-radius: 8px;
+      border-left: 4px solid #bb7d26;
+      display: flex;
+      align-items: start;
+      gap: 12px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    }
+
+    .doc-list li::before {
+      content: "✓";
+      font-weight: 800;
+      color: #0f6b4a;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .doc-list li strong {
+      color: #10233f;
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    .doc-list li span {
+      color: #6b7280;
+      font-size: 13px;
+    }
+
+    .warning-box {
+      background: #fff3cd;
+      border: 2px solid #ffc107;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 20px 0;
+      display: flex;
+      gap: 15px;
+      align-items: start;
+    }
+
+    .warning-box::before {
+      content: "⚠️";
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+
+    .warning-box p {
+      color: #856404;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .info-box {
+      background: #e3f2fd;
+      border: 2px solid #2196f3;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 20px 0;
+      display: flex;
+      gap: 15px;
+      align-items: start;
+    }
+
+    .info-box::before {
+      content: "ℹ️";
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+
+    .info-box p {
+      color: #0d47a1;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .success-box {
+      background: #e8f5e9;
+      border: 2px solid #4caf50;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 20px 0;
+      display: flex;
+      gap: 15px;
+      align-items: start;
+    }
+
+    .success-box::before {
+      content: "✅";
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+
+    .success-box p {
+      color: #1b5e20;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .contact-section {
+      background: linear-gradient(135deg, #10233f 0%, #1d385f 100%);
+      color: white;
+      padding: 30px;
+      border-radius: 15px;
+      margin-top: 30px;
+    }
+
+    .contact-section h2 {
+      color: white;
+      border-bottom-color: #bb7d26;
+      margin-bottom: 20px;
+    }
+
+    .contact-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .contact-card {
+      background: rgba(255, 255, 255, 0.1);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .contact-card h3 {
+      color: #bb7d26;
+      font-size: 16px;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .contact-card a {
+      display: inline-block;
+      color: white;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 18px;
+      padding: 12px 24px;
+      background: #25D366;
+      border-radius: 8px;
+      margin-top: 10px;
+      transition: all 0.3s ease;
+    }
+
+    .contact-card a:hover {
+      background: #20ba5a;
+      transform: translateY(-2px);
+    }
+
+    .ticket-steps {
+      background: #f3f4f6;
+      border-radius: 12px;
+      padding: 25px;
+      margin-top: 15px;
+    }
+
+    .ticket-steps ol {
+      list-style: none;
+      counter-reset: ticket-counter;
+    }
+
+    .ticket-steps li {
+      counter-increment: ticket-counter;
+      margin-bottom: 15px;
+      padding-left: 35px;
+      position: relative;
+      font-size: 14px;
+      color: #374151;
+    }
+
+    .ticket-steps li::before {
+      content: counter(ticket-counter);
+      position: absolute;
+      left: 0;
+      top: -2px;
+      width: 24px;
+      height: 24px;
+      background: #bb7d26;
+      color: white;
+      font-weight: 700;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+    }
+
+    .footer {
+      background: #f9fafb;
+      padding: 25px 30px;
+      text-align: center;
+      border-top: 3px solid #bb7d26;
+    }
+
+    .footer p {
+      color: #6b7280;
+      font-size: 13px;
+      margin-bottom: 5px;
+    }
+
+    .footer strong {
+      color: #10233f;
+      font-size: 14px;
+    }
+
+    @media print {
+      body {
+        background: white;
+      }
+      .container {
+        box-shadow: none;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        border-radius: 0;
+      }
+      .header, .content, .contact-section {
+        padding: 25px 20px;
+      }
+      .header h1 {
+        font-size: 22px;
+      }
+      .section h2 {
+        font-size: 20px;
+      }
+      .contact-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <img src="https://raw.githubusercontent.com/focades-debug/mis-imagenes-apps-script/main/logo-focades-alcadia.png" alt="Logo FOCADES">
+      <h1>Guía de Activación de Cuenta y Onboarding</h1>
+      <p>Programa de Becas FOCADES - Alcaldía de Montelíbano</p>
+    </div>
+
+    <!-- Alert Urgent -->
+    <div class="alert-urgent">
+      <h2>⏰ PERÍODO DE ACTIVACIÓN</h2>
+      <p>Del 25 de Agosto al 30 de Agosto de 2026</p>
+      <p>Hasta las 11:59 PM del último día</p>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <!-- Introducción -->
+      <div class="section">
+        <p style="font-size: 15px; color: #4a5568; line-height: 1.8;">
+          ¡Bienvenido/a al programa FOCADES! Has sido seleccionado/a como beneficiario/a y ahora debes completar dos pasos importantes: 
+          <strong>activar tu cuenta</strong> y <strong>completar tu perfil de beneficiario</strong> en la plataforma.
+        </p>
+        <div class="warning-box">
+          <p>
+            <strong>IMPORTANTE:</strong> Debes completar ambos procesos antes del <strong>30 de agosto a las 11:59 PM</strong>. 
+            Si no lo haces en este período, tu cuenta quedará inactiva y no podrás acceder a los beneficios del programa.
+          </p>
+        </div>
+      </div>
+
+      <!-- Paso 1: Activación de Cuenta -->
+      <div class="section">
+        <h2><span class="icon">1</span> Activación de Cuenta</h2>
+        <p style="margin-bottom: 20px;">Recibiste un correo electrónico con el asunto <strong>"Activación de tu cuenta FOCADES"</strong>. Sigue estos pasos:</p>
+        
+        <ol class="step-list">
+          <li>
+            <strong>Revisa tu correo electrónico</strong>
+            <p>
+              Busca el correo de <strong>no-reply@focades.info</strong> en tu bandeja de entrada. 
+              Si no lo encuentras, revisa la carpeta de <strong>Spam</strong> o <strong>Correo no deseado</strong>.
+            </p>
+          </li>
+          <li>
+            <strong>Haz clic en el enlace de activación</strong>
+            <p>
+              En el correo encontrarás un botón que dice <strong>"Activar mi Cuenta"</strong>. 
+              Haz clic en él. Te llevará a una página web del portal FOCADES.
+            </p>
+          </li>
+          <li>
+            <strong>Crea tu contraseña</strong>
+            <p>
+              En la página de activación, ingresa una contraseña segura. <br>
+              <strong>Requisitos:</strong> Mínimo 8 caracteres, debe incluir letras y números. <br>
+              Ejemplo: <code>MiFocades2026</code>
+            </p>
+          </li>
+          <li>
+            <strong>Confirma tu contraseña</strong>
+            <p>
+              Vuelve a escribir la misma contraseña en el segundo campo para confirmar que la recuerdas.
+            </p>
+          </li>
+          <li>
+            <strong>Haz clic en "Activar Cuenta"</strong>
+            <p>
+              Si todo está correcto, verás un mensaje de éxito. Tu cuenta ya está activa.
+            </p>
+          </li>
+        </ol>
+
+        <div class="success-box">
+          <p>
+            <strong>¡Cuenta activada exitosamente!</strong> Ahora puedes iniciar sesión con tu documento de identidad y la contraseña que acabas de crear.
+          </p>
+        </div>
+      </div>
+
+      <!-- Paso 2: Iniciar Sesión -->
+      <div class="section">
+        <h2><span class="icon">2</span> Iniciar Sesión en el Portal</h2>
+        <p style="margin-bottom: 20px;">Una vez activada tu cuenta, puedes ingresar al portal:</p>
+        
+        <ol class="step-list">
+          <li>
+            <strong>Ve a la página de inicio de sesión</strong>
+            <p>
+              Accede a: <a href="https://focades-pro.vercel.app/beneficiario/login" target="_blank" style="color: #2196f3; font-weight: 700;">https://focades-pro.vercel.app/beneficiario/login</a>
+            </p>
+          </li>
+          <li>
+            <strong>Selecciona el método "Documento + Contraseña"</strong>
+            <p>
+              En la página de login, verás dos opciones. Selecciona la que dice <strong>"Documento y Contraseña"</strong>.
+            </p>
+          </li>
+          <li>
+            <strong>Ingresa tus datos</strong>
+            <p>
+              <strong>Tipo de documento:</strong> Cédula de Ciudadanía (o el que corresponda) <br>
+              <strong>Número de documento:</strong> Tu número de identificación sin puntos ni espacios <br>
+              <strong>Contraseña:</strong> La que creaste en el paso de activación
+            </p>
+          </li>
+          <li>
+            <strong>Haz clic en "Iniciar Sesión"</strong>
+            <p>
+              Si los datos son correctos, serás redirigido al portal de beneficiarios.
+            </p>
+          </li>
+        </ol>
+
+        <div class="info-box">
+          <p>
+            <strong>Alternativa con Google:</strong> Si vinculaste tu cuenta de Google durante el registro, 
+            también puedes iniciar sesión con el botón <strong>"Continuar con Google"</strong>.
+          </p>
+        </div>
+      </div>
+
+      <!-- Paso 3: Completar Onboarding -->
+      <div class="section">
+        <h2><span class="icon">3</span> Completar tu Perfil de Beneficiario (Onboarding)</h2>
+        <p style="margin-bottom: 20px;">
+          Al iniciar sesión por primera vez, el sistema te pedirá completar tu información de beneficiario. 
+          Este proceso es <strong>obligatorio</strong> y solo se hace una vez.
+        </p>
+
+        <h3>📝 Información que debes proporcionar:</h3>
+        <ol class="step-list">
+          <li>
+            <strong>Datos personales básicos</strong>
+            <p>
+              Nombre completo, fecha de nacimiento, género, estado civil, dirección de residencia, 
+              teléfono de contacto, correo electrónico.
+            </p>
+          </li>
+          <li>
+            <strong>Información socioeconómica</strong>
+            <p>
+              Estrato socioeconómico, tipo de vivienda, número de personas en el hogar, 
+              si perteneces al SISBEN (grupo), si recibes subsidios (Familias en Acción, Jóvenes en Acción).
+            </p>
+          </li>
+          <li>
+            <strong>Información académica</strong>
+            <p>
+              Institución educativa donde estudias, programa académico, modalidad de estudio (técnico, tecnólogo, profesional), 
+              semestre que cursas actualmente, promedio académico.
+            </p>
+          </li>
+          <li>
+            <strong>Información del acudiente</strong>
+            <p>
+              Nombre completo del acudiente o responsable, parentesco, número de documento, teléfono de contacto.
+            </p>
+          </li>
+          <li>
+            <strong>Datos bancarios (si aplica)</strong>
+            <p>
+              Tipo de cuenta (ahorros/corriente), número de cuenta, entidad bancaria, titular de la cuenta 
+              (puede ser el beneficiario o el acudiente).
+            </p>
+          </li>
+        </ol>
+
+        <div class="warning-box">
+          <p>
+            <strong>Ten a la mano:</strong> Tu documento de identidad, certificado de matrícula vigente, 
+            y los datos bancarios para agilizar el proceso.
+          </p>
+        </div>
+
+        <h3>📋 Pasos para completar el onboarding:</h3>
+        <div class="ticket-steps">
+          <ol>
+            <li>Inicia sesión en el portal de beneficiarios</li>
+            <li>El sistema te mostrará automáticamente el formulario de onboarding</li>
+            <li>Completa cada sección del formulario con información precisa y actualizada</li>
+            <li>Verifica que todos los datos sean correctos antes de enviar</li>
+            <li>Haz clic en <strong>"Enviar información"</strong></li>
+            <li>Recibirás una confirmación de que tu perfil ha sido completado exitosamente</li>
+            <li>Ya puedes acceder a todas las funciones del portal</li>
+          </ol>
+        </div>
+
+        <div class="success-box">
+          <p>
+            <strong>¡Proceso completado!</strong> Una vez hayas enviado tu información de onboarding, 
+            podrás acceder al panel principal, consultar tu resumen de beneficios, enviar actualizaciones, 
+            y usar todas las funciones del portal.
+          </p>
+        </div>
+      </div>
+
+      <!-- Documentos Requeridos -->
+      <div class="section">
+        <h2><span class="icon">📄</span> Documentos Requeridos</h2>
+        <p style="margin-bottom: 20px;">
+          Durante el proceso de onboarding o en futuras actualizaciones, es posible que necesites tener a la mano los siguientes documentos:
+        </p>
+
+        <div class="doc-list">
+          <ul>
+            <li>
+              <div>
+                <strong>Documento de identidad</strong>
+                <span>Cédula de ciudadanía (ambas caras) o tarjeta de identidad</span>
+              </div>
+            </li>
+            <li>
+              <div>
+                <strong>Certificado de matrícula vigente</strong>
+                <span>Expedido por tu institución educativa para el semestre actual</span>
+              </div>
+            </li>
+            <li>
+              <div>
+                <strong>Certificado de notas del último semestre cursado</strong>
+                <span>Con promedio académico visible</span>
+              </div>
+            </li>
+            <li>
+              <div>
+                <strong>Certificado bancario o extracto</strong>
+                <span>Si vas a registrar o cambiar datos bancarios</span>
+              </div>
+            </li>
+            <li>
+              <div>
+                <strong>Certificación SISBEN (opcional)</strong>
+                <span>Si perteneces al sistema de identificación de potenciales beneficiarios</span>
+              </div>
+            </li>
+            <li>
+              <div>
+                <strong>Certificado de enfoque diferencial (opcional)</strong>
+                <span>Si eres víctima del conflicto, indígena, afrodescendiente, etc.</span>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="info-box">
+          <p>
+            <strong>Nota:</strong> No todos los documentos son obligatorios en el primer onboarding. 
+            El sistema te indicará cuáles son necesarios según tu caso particular. Puedes subir documentos adicionales más adelante.
+          </p>
+        </div>
+      </div>
+
+      <!-- Sistema de Soporte -->
+      <div class="section">
+        <h2><span class="icon">🎫</span> Sistema de Tickets de Soporte</h2>
+        <p style="margin-bottom: 20px;">
+          Si tienes problemas durante la activación, el inicio de sesión o el onboarding, puedes solicitar ayuda a través del sistema de tickets integrado en la plataforma.
+        </p>
+
+        <h3>¿Cómo usar el sistema de tickets?</h3>
+        <div class="ticket-steps">
+          <ol>
+            <li>
+              <strong>Accede al portal:</strong> Si puedes iniciar sesión, ve a tu panel de beneficiario
+            </li>
+            <li>
+              <strong>Busca la sección "Soporte":</strong> En el menú lateral encontrarás la opción <strong>"Tickets de Soporte"</strong>
+            </li>
+            <li>
+              <strong>Crea un nuevo ticket:</strong> Haz clic en el botón <strong>"Crear Nuevo Ticket"</strong>
+            </li>
+            <li>
+              <strong>Selecciona la categoría:</strong> 
+              <ul style="list-style: disc; margin-left: 25px; margin-top: 10px;">
+                <li><strong>Problemas de acceso:</strong> Si no puedes iniciar sesión</li>
+                <li><strong>Dudas sobre onboarding:</strong> Si tienes preguntas sobre cómo completar tu perfil</li>
+                <li><strong>Problemas técnicos:</strong> Si la plataforma no funciona correctamente</li>
+                <li><strong>Otros:</strong> Cualquier otra consulta</li>
+              </ul>
+            </li>
+            <li>
+              <strong>Describe tu problema:</strong> Explica detalladamente qué está pasando. Incluye capturas de pantalla si es posible
+            </li>
+            <li>
+              <strong>Envía el ticket:</strong> Haz clic en <strong>"Enviar Ticket"</strong>
+            </li>
+            <li>
+              <strong>Espera respuesta:</strong> El equipo de soporte revisará tu caso y te responderá en un máximo de 24 horas hábiles
+            </li>
+            <li>
+              <strong>Revisa actualizaciones:</strong> Recibirás notificaciones por correo y podrás ver las respuestas en la misma sección de tickets
+            </li>
+          </ol>
+        </div>
+
+        <div class="warning-box">
+          <p>
+            <strong>¿No puedes acceder al portal?</strong> Si no has podido activar tu cuenta o iniciar sesión, 
+            contacta directamente por WhatsApp a los números que aparecen abajo.
+          </p>
+        </div>
+      </div>
+
+      <!-- Contacto -->
+      <div class="contact-section">
+        <h2><span class="icon">📞</span> Contacto y Asistencia Inmediata</h2>
+        <p style="color: rgba(255,255,255,0.9); margin-bottom: 10px;">
+          Si tienes problemas urgentes durante el proceso de activación y onboarding, puedes comunicarte directamente con nosotros:
+        </p>
+
+        <div class="contact-grid">
+          <div class="contact-card">
+            <h3>📱 WhatsApp 1</h3>
+            <p style="color: rgba(255,255,255,0.8); font-size: 14px; margin-bottom: 10px;">Soporte técnico y consultas</p>
+            <a href="https://wa.me/573226961924?text=Hola,%20necesito%20ayuda%20con%20la%20activaci%C3%B3n%20de%20mi%20cuenta%20FOCADES" target="_blank">
+              3226961924
+            </a>
+          </div>
+          <div class="contact-card">
+            <h3>📱 WhatsApp 2</h3>
+            <p style="color: rgba(255,255,255,0.8); font-size: 14px; margin-bottom: 10px;">Asistencia administrativa</p>
+            <a href="https://wa.me/573126618811?text=Hola,%20necesito%20ayuda%20con%20la%20activaci%C3%B3n%20de%20mi%20cuenta%20FOCADES" target="_blank">
+              3126618811
+            </a>
+          </div>
+        </div>
+
+        <div class="info-box" style="margin-top: 25px;">
+          <p style="color: #0d47a1;">
+            <strong>Horario de atención:</strong> Lunes a viernes de 8:00 AM a 6:00 PM. Sábados de 9:00 AM a 1:00 PM. 
+            En caso de urgencia fuera de horario, deja tu mensaje y te responderemos a primera hora del siguiente día hábil.
+          </p>
+        </div>
+      </div>
+
+      <!-- Preguntas Frecuentes -->
+      <div class="section">
+        <h2><span class="icon">❓</span> Preguntas Frecuentes</h2>
+        
+        <h3>¿Qué pasa si no completo el proceso antes del 30 de agosto?</h3>
+        <p style="margin-bottom: 20px; color: #4a5568;">
+          Tu cuenta quedará inactiva y no podrás acceder a los beneficios del programa. Deberás comunicarte con la oficina de FOCADES 
+          para solicitar una reactivación manual, lo cual puede tomar tiempo adicional.
+        </p>
+
+        <h3>¿Puedo cambiar mi contraseña después?</h3>
+        <p style="margin-bottom: 20px; color: #4a5568;">
+          Sí. Una vez dentro del portal, puedes ir a la sección "Mi Perfil" y cambiar tu contraseña cuando quieras.
+        </p>
+
+        <h3>¿Qué hago si olvidé mi contraseña?</h3>
+        <p style="margin-bottom: 20px; color: #4a5568;">
+          En la página de inicio de sesión encontrarás un enlace que dice <strong>"¿Olvidaste tu contraseña?"</strong>. 
+          Haz clic ahí e ingresa tu número de documento. Recibirás un correo con instrucciones para crear una nueva contraseña.
+        </p>
+
+        <h3>¿Puedo completar el onboarding en varias sesiones?</h3>
+        <p style="margin-bottom: 20px; color: #4a5568;">
+          Sí. El sistema guarda automáticamente tu progreso. Puedes cerrar sesión y continuar más tarde desde donde quedaste.
+        </p>
+
+        <h3>¿Puedo editar mi información después de enviar el onboarding?</h3>
+        <p style="margin-bottom: 20px; color: #4a5568;">
+          Una vez completado el onboarding inicial, algunos datos quedarán bloqueados para modificación directa. 
+          Para cambios importantes deberás usar la función <strong>"Solicitar Actualización"</strong> que revisará un administrador.
+        </p>
+
+        <h3>No recibí el correo de activación, ¿qué hago?</h3>
+        <p style="margin-bottom: 20px; color: #4a5568;">
+          Primero revisa tu carpeta de Spam. Si no está ahí, contacta inmediatamente por WhatsApp a los números proporcionados 
+          con tu nombre completo y documento de identidad para que te reenvíen el correo.
+        </p>
+      </div>
+
+      <!-- Recordatorio Final -->
+      <div class="alert-urgent">
+        <h2>⏰ RECORDATORIO FINAL</h2>
+        <p style="margin-bottom: 10px;">Fecha límite: <strong>30 de Agosto de 2026 - 11:59 PM</strong></p>
+        <p>Asegúrate de completar AMBOS procesos: Activación + Onboarding</p>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <p><strong>Programa FOCADES - Fondo de Capacitación y Desarrollo Sostenible</strong></p>
+      <p>Alcaldía Municipal de Montelíbano - Córdoba</p>
+      <p style="margin-top: 10px; font-size: 12px;">Portal: https://focades-pro.vercel.app</p>
+      <p style="font-size: 12px;">Correo: soporte@focades.info</p>
+    </div>
+  </div>
+</body>
+</html>

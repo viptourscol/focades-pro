@@ -456,6 +456,22 @@ const BeneficiarioActualizacion = () => {
 
       console.log('📥 Respuesta recibida:', { result, invokeError });
 
+      // Manejar error 409 (Conflict) - Duplicado
+      if (invokeError && invokeError.status === 409) {
+        try {
+          const errorBody = JSON.parse(invokeError.message || '{}');
+          if (errorBody.code === 'DUPLICATE_SUBMISSION') {
+            const statusText = errorBody.existing_status === 'aprobada' 
+              ? 'aprobada'
+              : 'siendo revisada';
+            throw new Error(`Ya enviaste una actualización para esta ventana que está ${statusText}. No se permite reenvío hasta que sea procesada.`);
+          }
+        } catch (parseErr) {
+          // Si no se puede parsear, usar el mensaje genérico
+          throw new Error('Ya existe una actualización pendiente para esta ventana.');
+        }
+      }
+
       if (invokeError) {
         console.error('❌ Error de invocación:', invokeError);
         throw new Error(invokeError.message || 'Error al comunicarse con el servidor');

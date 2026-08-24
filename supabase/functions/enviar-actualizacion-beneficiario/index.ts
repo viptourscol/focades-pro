@@ -66,46 +66,54 @@ Deno.serve(async (req) => {
     }
 
     // Validar que no exista actualización duplicada en la misma ventana
-    const { data: existingUpdate, error: checkError } = await supabase
-      .from('portal_actualizaciones')
-      .select('id, estado, created_at')
-      .eq('beneficiario_id', beneficiario_id)
-      .eq('ventana_id', ventana_id)
-      .in('estado', ['en_revision', 'aprobada'])
-      .maybeSingle()
+    try {
+      // Consultar sin filtro de estado primero, luego filtrar en código
+      const { data: existingUpdates, error: checkError } = await supabase
+        .from('portal_actualizaciones')
+        .select('id, estado, created_at')
+        .eq('beneficiario_id', beneficiario_id)
+        .eq('ventana_id', ventana_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
 
-    if (checkError && checkError.code !== 'PGRST116') {
-      console.error('❌ Error verificando actualizaciones previas:', checkError)
+      if (checkError) {
+        console.error('❌ Error verificando actualizaciones previas:', checkError)
+        throw checkError
+      }
+
+      // Verificar si existe actualización activa
+      const existingUpdate = existingUpdates?.[0]
+      if (existingUpdate && ['en_revision', 'aprobada'].includes(existingUpdate.estado)) {
+        const statusMessage = existingUpdate.estado === 'aprobada'
+          ? 'Tu actualización ya fue aprobada. No se permite reenvío.'
+          : 'Ya enviaste una actualización para esta ventana. Espera la revisión (5-7 días hábiles).'
+        
+        console.log(`⚠️  Intento de envío duplicado para beneficiario ${beneficiario_id} en ventana ${ventana_id}`)
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error: 'Actualización duplicada',
+            message: statusMessage,
+            code: 'DUPLICATE_SUBMISSION',
+            existing_update_id: existingUpdate.id,
+            existing_status: existingUpdate.estado,
+            created_at: existingUpdate.created_at,
+          }),
+          {
+            status: 409,
+            headers: {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': '*',
+            },
+          }
+        )
+      }
+    } catch (err) {
+      console.error('❌ Error inesperado en validación de duplicados:', err)
       return new Response(
         JSON.stringify({ ok: false, error: 'Error al verificar estado' }),
         {
           status: 500,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-        }
-      )
-    }
-
-    if (existingUpdate) {
-      const statusMessage = existingUpdate.estado === 'aprobada'
-        ? 'Tu actualización ya fue aprobada. No se permite reenvío.'
-        : 'Ya enviaste una actualización para esta ventana. Espera la revisión (5-7 días hábiles).'
-      
-      console.log(`⚠️  Intento de envío duplicado para beneficiario ${beneficiario_id} en ventana ${ventana_id}`)
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: 'Actualización duplicada',
-          message: statusMessage,
-          code: 'DUPLICATE_SUBMISSION',
-          existing_update_id: existingUpdate.id,
-          existing_status: existingUpdate.estado,
-          created_at: existingUpdate.created_at,
-        }),
-        {
-          status: 409,
           headers: {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',

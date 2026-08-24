@@ -37,6 +37,8 @@ import BeneficiarioOnboarding from './pages/BeneficiarioOnboarding';
 import Landing from './pages/Landing';
 import AdminGeneradorTokens from './pages/AdminGeneradorTokens';
 import AdminTokensActivacion from './pages/AdminTokensActivacion';
+import Requisitos from './pages/Requisitos';
+import GuiaInscripcion from './pages/GuiaInscripcion';
 import { supabase } from './lib/supabase';
 import { resolvePortalAccess, setPortalAuthErrorMessage } from './lib/portalAuth';
 const AdminAnalytics = lazy(() => import('./pages/AdminAnalytics'));
@@ -237,6 +239,8 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/registro" element={<Registro />} />
+        <Route path="/requisitos" element={<Requisitos />} />
+        <Route path="/guia-inscripcion" element={<GuiaInscripcion />} />
         <Route path="/verificar-certificado" element={<VerificarCertificado />} />
         <Route path="/beneficiario/login" element={<BeneficiarioLogin />} />
         <Route path="/beneficiario/auth-setup" element={<BeneficiarioAuthSetup />} />

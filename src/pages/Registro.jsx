@@ -2826,8 +2826,18 @@ const Registro = () => {
             <section className="bg-white border border-border rounded-2xl p-6 shadow-sm">
               <h3 className="text-primary font-bold mb-4">Documentos de Interés</h3>
               <div className="grid gap-3">
-                <DocCard icon={<ClipboardCheck size={16} className="text-secondary" />} title="Requisitos por modalidad" subtitle="Circular oficial" />
-                <DocCard icon={<FileText size={16} className="text-secondary" />} title="Guía de inscripción" subtitle="Paso a paso" />
+                <DocCard 
+                  icon={<ClipboardCheck size={16} className="text-secondary" />} 
+                  title="Requisitos por modalidad" 
+                  subtitle="Circular oficial" 
+                  to="/requisitos"
+                />
+                <DocCard 
+                  icon={<FileText size={16} className="text-secondary" />} 
+                  title="Guía de inscripción" 
+                  subtitle="Paso a paso" 
+                  to="/guia-inscripcion"
+                />
               </div>
             </section>
 
@@ -3603,12 +3613,15 @@ const Registro = () => {
   );
 };
 
-const DocCard = ({ icon, title, subtitle }) => (
-  <div className="border border-border rounded-xl p-4 hover:bg-slate-50 transition-all">
-    <div className="mb-2">{icon}</div>
-    <p className="font-bold text-primary text-sm">{title}</p>
+const DocCard = ({ icon, title, subtitle, to }) => (
+  <Link 
+    to={to}
+    className="block border border-border rounded-xl p-4 hover:bg-slate-50 hover:shadow-md hover:-translate-y-0.5 hover:border-primary/30 transition-all group"
+  >
+    <div className="mb-2 group-hover:scale-110 transition-transform">{icon}</div>
+    <p className="font-bold text-primary text-sm group-hover:text-secondary transition-colors">{title}</p>
     <p className="text-xs text-slate-500">{subtitle}</p>
-  </div>
+  </Link>
 );
 
 const StepDot = ({ number, label, done, current, isLast }) => {

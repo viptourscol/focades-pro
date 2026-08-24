@@ -50,84 +50,154 @@ async function sendSetupEmail(beneficiarioId: string, beneficiarioData: any, set
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Activa tu Cuenta - Portal FOCADES</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; color: #333; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: linear-gradient(135deg, #0D2C54 0%, #081e3a 100%); color: white; padding: 30px; border-radius: 8px 8px 0 0; text-align: center; }
-    .header h1 { margin: 0; font-size: 24px; }
-    .body { background: #f5f7fa; padding: 30px; border-radius: 0 0 8px 8px; }
-    .button { display: inline-block; background: #1A5A96; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; font-weight: bold; }
-    .button:hover { background: #0D2C54; }
-    .info-box { background: #e3f2fd; border-left: 4px solid #1A5A96; padding: 15px; margin: 20px 0; border-radius: 4px; }
-    .footer { font-size: 12px; color: #666; text-align: center; margin-top: 30px; }
-    .step { margin: 15px 0; padding: 10px; background: white; border-left: 3px solid #F9A03F; }
-    .step-number { display: inline-block; background: #F9A03F; color: #0D2C54; width: 28px; height: 28px; border-radius: 50%; text-align: center; line-height: 28px; margin-right: 10px; font-weight: bold; }
-  </style>
 </head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>🔐 Activa tu Cuenta</h1>
-      <p>Portal de Beneficiarios FOCADES</p>
-    </div>
-    
-    <div class="body">
-      <p>¡Hola <strong>${beneficiarioData.nombre_completo || 'Beneficiario'}</strong>!</p>
-      
-      <p>Bienvenido al Portal de Beneficiarios FOCADES. Tu cuenta ha sido creada y está lista para activarse.</p>
-      
-      <div class="info-box">
-        <strong>⏰ Importante:</strong> Este link expira en <strong>24 horas</strong>. Actívalo cuanto antes.
-      </div>
-      
-      <p style="text-align: center;">
-        <a href="${setupLink}" class="button">→ ACTIVAR MI CUENTA AHORA</a>
-      </p>
-      
-      <h3>¿Qué viene después?</h3>
-      
-      <div class="step">
-        <span class="step-number">1</span>
-        <strong>Verifica tu documento</strong>
-        <p>Ingresa tu número de documento y correo electrónico</p>
-      </div>
-      
-      <div class="step">
-        <span class="step-number">2</span>
-        <strong>Crea tu contraseña</strong>
-        <p>Establecerá una contraseña segura (mínimo 8 caracteres)</p>
-      </div>
-      
-      <div class="step">
-        <span class="step-number">3</span>
-        <strong>Completa tu perfil</strong>
-        <p>Datos personales, académicos y bancarios (importante para pagos)</p>
-      </div>
-      
-      <div class="info-box">
-        <strong>💡 Consejo:</strong> Proceso rápido (10 minutos). Tendrás acceso inmediato al portal.
-      </div>
-      
-      <h3>¿Necesitas ayuda?</h3>
-      <p>
-        📧 Email: <strong>notificaciones@focades.info</strong><br>
-        📞 Teléfono: <strong>+57 300 000 0000</strong><br>
-        🕐 Horario: Lunes a Viernes, 8:00 AM - 5:00 PM
-      </p>
-      
-      <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
-      
-      <p style="font-size: 13px; color: #666;">
-        ℹ️ <strong>Información de seguridad:</strong><br>
-        Este es un email automático de FOCADES. No responda a este mensaje.<br>
-        Si no solicitaste esta cuenta, por favor contacta a soporte.
-      </p>
-    </div>
-  </div>
-  
-  <div class="footer">
-    <p>&copy; 2026 FOCADES. Todos los derechos reservados.</p>
-  </div>
+<body style="font-family: Arial, sans-serif; background:#f4f4f4; margin:0; padding:0;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+          
+          <!-- Header con logo -->
+          <tr>
+            <td style="background:#1e3a5f; padding:32px; text-align:center;">
+              <img src="https://raw.githubusercontent.com/focades-debug/mis-imagenes-apps-script/main/logo-focades-alcadia.png" 
+                   alt="Logo FOCADES" 
+                   style="max-width:200px; height:auto; margin:0 auto 16px auto; display:block;" />
+              <h1 style="color:#ffffff; margin:0; font-size:22px;">FOCADES</h1>
+              <p style="color:#a8c4e0; margin:8px 0 0 0; font-size:13px;">Portal de Beneficiarios</p>
+            </td>
+          </tr>
+          
+          <!-- Cuerpo del mensaje -->
+          <tr>
+            <td style="padding:36px;">
+              <h2 style="color:#1e3a5f; margin:0 0 16px 0;">¡Hola, ${beneficiarioData.nombre_completo || 'Beneficiario'}!</h2>
+              <p style="color:#444; line-height:1.7; margin:0 0 16px 0;">
+                Bienvenido al <strong>Portal de Beneficiarios FOCADES</strong>. Tu cuenta ha sido creada exitosamente 
+                y está lista para activarse.
+              </p>
+              
+              <!-- Aviso importante -->
+              <div style="background:#fff3cd; border-left:4px solid #f9a03f; padding:16px; border-radius:6px; margin:0 0 24px 0;">
+                <p style="margin:0; color:#856404; font-size:14px;">
+                  <strong>▸ Importante:</strong> Este link de activación expira en <strong>24 horas</strong>. 
+                  Te recomendamos completar el proceso cuanto antes.
+                </p>
+              </div>
+              
+              <!-- Botón de activación -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;">
+                <tr>
+                  <td align="center">
+                    <a href="${setupLink}" 
+                       style="display:inline-block; background:#1e3a5f; color:#ffffff; text-decoration:none; padding:14px 32px; border-radius:8px; font-weight:bold; font-size:15px;">
+                      → Activar mi cuenta ahora
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="color:#666; font-size:13px; text-align:center; margin:0 0 32px 0;">
+                O copia este enlace en tu navegador:<br>
+                <span style="color:#1e3a5f; word-break:break-all; font-size:11px;">${setupLink}</span>
+              </p>
+              
+              <!-- Pasos siguientes -->
+              <h3 style="color:#1e3a5f; margin:24px 0 16px 0; font-size:18px;">¿Qué viene después?</h3>
+              
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;">
+                <tr>
+                  <td style="background:#f8f9fa; border-left:3px solid #f9a03f; padding:16px; margin:8px 0;">
+                    <p style="margin:0 0 8px 0; color:#1e3a5f; font-weight:bold;">
+                      <span style="display:inline-block; background:#f9a03f; color:#ffffff; width:24px; height:24px; border-radius:50%; text-align:center; line-height:24px; margin-right:8px; font-size:13px;">1</span>
+                      Verifica tu documento
+                    </p>
+                    <p style="margin:0; color:#666; font-size:13px; padding-left:32px;">
+                      Ingresa tu número de documento y correo electrónico
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;">
+                <tr>
+                  <td style="background:#f8f9fa; border-left:3px solid #f9a03f; padding:16px; margin:8px 0;">
+                    <p style="margin:0 0 8px 0; color:#1e3a5f; font-weight:bold;">
+                      <span style="display:inline-block; background:#f9a03f; color:#ffffff; width:24px; height:24px; border-radius:50%; text-align:center; line-height:24px; margin-right:8px; font-size:13px;">2</span>
+                      Crea tu contraseña
+                    </p>
+                    <p style="margin:0; color:#666; font-size:13px; padding-left:32px;">
+                      Establece una contraseña segura (mínimo 8 caracteres)
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;">
+                <tr>
+                  <td style="background:#f8f9fa; border-left:3px solid #f9a03f; padding:16px; margin:8px 0;">
+                    <p style="margin:0 0 8px 0; color:#1e3a5f; font-weight:bold;">
+                      <span style="display:inline-block; background:#f9a03f; color:#ffffff; width:24px; height:24px; border-radius:50%; text-align:center; line-height:24px; margin-right:8px; font-size:13px;">3</span>
+                      Completa tu perfil
+                    </p>
+                    <p style="margin:0; color:#666; font-size:13px; padding-left:32px;">
+                      Datos personales, académicos y bancarios (importante para pagos)
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              
+              <!-- Consejo -->
+              <div style="background:#e8f4fd; border-left:4px solid #1e3a5f; padding:16px; border-radius:6px; margin:0 0 24px 0;">
+                <p style="margin:0; color:#1e3a5f; font-size:14px;">
+                  <strong>▸ Consejo:</strong> El proceso es rápido (aproximadamente 10 minutos). 
+                  Una vez completado, tendrás acceso inmediato a tu portal.
+                </p>
+              </div>
+              
+              <!-- Ayuda -->
+              <h3 style="color:#1e3a5f; margin:24px 0 16px 0; font-size:18px;">¿Necesitas ayuda?</h3>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding:8px 0; color:#666; font-size:14px;">
+                    <strong style="color:#1e3a5f;">▸ Email:</strong> notificaciones@focades.info
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 0; color:#666; font-size:14px;">
+                    <strong style="color:#1e3a5f;">▸ Teléfono:</strong> +57 300 000 0000
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 0; color:#666; font-size:14px;">
+                    <strong style="color:#1e3a5f;">▸ Horario:</strong> Lunes a Viernes, 8:00 AM - 5:00 PM
+                  </td>
+                </tr>
+              </table>
+              
+              <hr style="border:none; border-top:1px solid #e9ecef; margin:30px 0;">
+              
+              <!-- Nota de seguridad -->
+              <p style="color:#888; font-size:12px; line-height:1.6; margin:0;">
+                <strong style="color:#666;">Información de seguridad:</strong><br>
+                Este es un email automático de FOCADES. No responda a este mensaje.<br>
+                Si no solicitaste esta cuenta, por favor contacta a soporte.
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background:#f8f9fa; padding:20px; text-align:center; border-top:1px solid #e9ecef;">
+              <p style="color:#999; font-size:12px; margin:0;">
+                © ${new Date().getFullYear()} Alcaldía de Montelíbano — Secretaría de Educación
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>
   `.trim()

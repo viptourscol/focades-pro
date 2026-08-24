@@ -293,3 +293,12 @@
   0%   { opacity: 0; transform: translateY(22px); }
   100% { opacity: 1; transform: translateY(0); }
 }
+
+/* SweetAlert2 high z-index for error alerts (above loading modals) */
+.swal-high-z-index {
+  z-index: 99999 !important;
+}
+
+.swal-high-z-index .swal2-container {
+  z-index: 99999 !important;
+}

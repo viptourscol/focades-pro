@@ -18,6 +18,9 @@ export const showErrorAlert = ({ title = 'Ocurrió un error', text = '' } = {}) 
     title,
     text,
     confirmButtonColor: '#d8342f',
+    customClass: {
+      container: 'swal-high-z-index',
+    },
   });
 
 export const showInfoAlert = ({ title = 'Información', text = '' } = {}) =>

@@ -464,6 +464,11 @@ const BeneficiarioActualizacion = () => {
         
         // Si es 409 Conflict, intentar leer el body
         if (httpStatus === 409) {
+          // Cerrar modal de loading ANTES de mostrar error
+          setSaving(false);
+          // Dar tiempo a React para actualizar el DOM
+          await new Promise(resolve => setTimeout(resolve, 50));
+          
           try {
             // Clonar el Response para poder leerlo (solo se puede leer una vez)
             const responseClone = invokeError.context.clone();

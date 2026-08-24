@@ -51,8 +51,7 @@ const AdminBeneficiarios = () => {
       const { data } = await supabase
         .from('portal_beneficiarios')
         .select('id,nombre_completo,email,n_documento,estado_beneficiario,semestre_actual,auth_user_id,updated_at,created_at,deleted_at,deletion_reason,convocatoria_nombre,modalidad_beca')
-        .order('updated_at', { ascending: false })
-        .limit(300);
+        .order('updated_at', { ascending: false });
       setRows(Array.isArray(data) ? data : []);
     } catch {
       setRows([]);

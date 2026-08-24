@@ -457,33 +457,33 @@ const BeneficiarioActualizacion = () => {
       console.log('📥 Respuesta recibida:', { result, invokeError });
 
       if (invokeError) {
-        console.error('❌ Error de invocación completo:', invokeError);
-        console.log('📊 Propiedades del error:', {
-          status: invokeError.status,
-          context: invokeError.context,
-          message: invokeError.message,
-          keys: Object.keys(invokeError)
-        });
+        console.error('❌ Error de invocación:', invokeError);
         
-        // Intentar obtener el body del error como JSON
-        let errorBody = null;
-        try {
-          // El error message puede contener el JSON del body
-          errorBody = JSON.parse(invokeError.message || '{}');
-          console.log('📋 Error body parseado:', errorBody);
-        } catch (e) {
-          console.log('⚠️ No se pudo parsear error body');
+        // El status HTTP está en context (Response object)
+        const httpStatus = invokeError.context?.status;
+        
+        // Si es 409 Conflict, intentar leer el body
+        if (httpStatus === 409) {
+          try {
+            // Clonar el Response para poder leerlo (solo se puede leer una vez)
+            const responseClone = invokeError.context.clone();
+            const errorBody = await responseClone.json();
+            
+            console.log('📋 Error body 409:', errorBody);
+            
+            if (errorBody.code === 'DUPLICATE_SUBMISSION') {
+              const statusText = errorBody.existing_status === 'aprobada' 
+                ? 'aprobada'
+                : 'siendo revisada';
+              throw new Error(`Ya enviaste una actualización para esta ventana que está ${statusText}. No se permite reenvío hasta que sea procesada.`);
+            }
+          } catch (e) {
+            console.log('⚠️ Error al parsear body 409:', e);
+            throw new Error('Ya existe una actualización pendiente para esta ventana.');
+          }
         }
 
-        // Verificar si es error 409 (Conflict) - Duplicado
-        if (errorBody && errorBody.code === 'DUPLICATE_SUBMISSION') {
-          const statusText = errorBody.existing_status === 'aprobada' 
-            ? 'aprobada'
-            : 'siendo revisada';
-          throw new Error(`Ya enviaste una actualización para esta ventana que está ${statusText}. No se permite reenvío hasta que sea procesada.`);
-        }
-
-        // Error genérico
+        // Error genérico para otros casos
         throw new Error(invokeError.message || 'Error al comunicarse con el servidor');
       }
 

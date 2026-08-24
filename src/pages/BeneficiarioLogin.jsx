@@ -121,9 +121,16 @@ const BeneficiarioLogin = () => {
 
   const handleGoogleLogin = async () => {
     setLoginLoading(true);
+    
+    // Determinar la URL de redirección correcta
+    const isProduction = window.location.hostname !== 'localhost';
+    const redirectUrl = isProduction 
+      ? 'https://focades-pro.vercel.app/beneficiario/login'
+      : `${window.location.origin}/beneficiario/login`;
+    
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/beneficiario/login` },
+      options: { redirectTo: redirectUrl },
     });
     if (error) {
       await showErrorAlert({

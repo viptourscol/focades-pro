@@ -84,11 +84,17 @@ const AdminLogin = () => {
   const handleGoogleLogin = async () => {
     setLoading(true);
 
+    // Determinar la URL de redirección correcta
+    const isProduction = window.location.hostname !== 'localhost';
+    const redirectUrl = isProduction 
+      ? 'https://focades-pro.vercel.app/admin/login'
+      : `${window.location.origin}/admin/login`;
+
     // Inicia sesión con Google mediante OAuth
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/admin/login`,
+        redirectTo: redirectUrl,
       },
     });
 

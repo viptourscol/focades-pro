@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
   Area,
   AreaChart,
@@ -19,7 +19,12 @@ import {
   GraduationCap,
   ShieldCheck,
   Users,
+  ToggleLeft,
+  ToggleRight,
+  TrendingUp,
+  AlertCircle,
 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 const LEVEL_ORDER = ['tecnico', 'tecnologo', 'profesional'];
 const LEVEL_LABELS = {
@@ -31,9 +36,12 @@ const MODALITY_LABELS = {
   sueno: 'Sueno Educativo',
   merito: 'Merito Educativo',
 };
-const MODALITY_MULTIPLIERS = {
-  sueno: 1,
-  merito: 3.5,
+
+// Función para obtener el multiplicador de costo según configuración
+const getModalityCost = (modality, config) => {
+  if (modality === 'sueno') return numberOrZero(config.costSueno) || 1;
+  if (modality === 'merito') return numberOrZero(config.costMerito) || 3.5;
+  return 1;
 };
 
 const DEFAULT_PROJECTION = {
@@ -51,6 +59,11 @@ const DEFAULT_PROJECTION = {
   shareTecnico: 30,
   shareTecnologo: 30,
   shareProfesional: 40,
+  // Nuevos campos para configuración avanzada
+  includeCurrentBeneficiaries: false,
+  costSueno: 1.0,
+  costMerito: 3.5,
+  smlvIncrementRate: 0.12,
 };
 
 const numberOrZero = (value) => {
@@ -119,8 +132,146 @@ const distributeCohort = (total, shares) => {
   }, {});
 };
 
+// Normaliza el nivel de formación a tecnico/tecnologo/profesional
+const normalizeBeneficiarioLevel = (value) => {
+  if (!value) return null;
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized.includes('tecnol')) return 'tecnologo';
+  if (normalized.includes('tecnic')) return 'tecnico';
+  if (normalized.includes('universi') || normalized.includes('pregrado') || normalized.includes('profesional')) return 'profesional';
+  return null;
+};
+
+// Calcula el tope de pagos según el nivel
+const paymentCapForLevel = (level) => {
+  const normalized = normalizeBeneficiarioLevel(level);
+  if (normalized === 'tecnico') return 4;
+  if (normalized === 'tecnologo') return 6;
+  if (normalized === 'profesional') return 10;
+  return null;
+};
+
+// Normaliza la modalidad de beca
+const normalizeModalidad = (value) => {
+  if (!value) return null;
+  const text = String(value).trim().toLowerCase();
+  if (text.includes('sueño') || text.includes('sueno')) return 'sueno';
+  if (text.includes('mérito') || text.includes('merito')) return 'merito';
+  return null;
+};
+
+// Calcula pagos restantes para un beneficiario
+const calculateRemainingPayments = (nivelFormacion, semestreIngreso, pagosEfectuados) => {
+  const tope = paymentCapForLevel(nivelFormacion);
+  if (!tope || !semestreIngreso) return 0;
+  
+  const semestreNum = Number(semestreIngreso);
+  if (!Number.isFinite(semestreNum) || semestreNum < 1) return 0;
+  
+  const derechoInicial = Math.max(0, tope - (semestreNum - 1));
+  const pagosRestantes = Math.max(0, derechoInicial - pagosEfectuados);
+  
+  return pagosRestantes;
+};
+
 const AdminProjection = () => {
   const [projectionConfig, setProjectionConfig] = useState(DEFAULT_PROJECTION);
+  const [currentBeneficiaries, setCurrentBeneficiaries] = useState([]);
+  const [loadingBeneficiaries, setLoadingBeneficiaries] = useState(false);
+  const [beneficiariesCount, setBeneficiariesCount] = useState(0);
+
+  // Cargar beneficiarios actuales cuando se activa el toggle
+  useEffect(() => {
+    if (projectionConfig.includeCurrentBeneficiaries) {
+      loadCurrentBeneficiaries();
+    } else {
+      setCurrentBeneficiaries([]);
+      setBeneficiariesCount(0);
+    }
+  }, [projectionConfig.includeCurrentBeneficiaries]);
+
+  const loadCurrentBeneficiaries = async () => {
+    setLoadingBeneficiaries(true);
+    try {
+      // Query beneficiarios con estados activos
+      const { data: beneficiarios, error: benError } = await supabase
+        .from('portal_beneficiarios')
+        .select('id, estado_beneficiario, modalidad_beca, nivel_formacion, semestre_ingreso')
+        .in('estado_beneficiario', ['activo', 'suspendido', 'retirado', 'condonado', 'egresado'])
+        .is('deleted_at', null);
+
+      if (benError) throw benError;
+
+      // Query pagos efectuados por beneficiario
+      const { data: pagos, error: pagosError } = await supabase
+        .from('portal_beneficiario_pagos')
+        .select('beneficiario_id, estado')
+        .eq('estado', 'efectuado');
+
+      if (pagosError) throw pagosError;
+
+      // Contar pagos por beneficiario
+      const pagosPorBeneficiario = {};
+      (pagos || []).forEach(pago => {
+        pagosPorBeneficiario[pago.beneficiario_id] = (pagosPorBeneficiario[pago.beneficiario_id] || 0) + 1;
+      });
+
+      // Procesar beneficiarios
+      const processed = (beneficiarios || [])
+        .map(b => {
+          const modalidad = normalizeModalidad(b.modalidad_beca);
+          const nivel = normalizeBeneficiarioLevel(b.nivel_formacion);
+          const pagosEfectuados = pagosPorBeneficiario[b.id] || 0;
+          const pagosRestantes = calculateRemainingPayments(b.nivel_formacion, b.semestre_ingreso, pagosEfectuados);
+
+          return {
+            id: b.id,
+            modalidad,
+            nivel,
+            pagosRestantes,
+            estado: b.estado_beneficiario,
+          };
+        })
+        .filter(b => b.modalidad && b.nivel && b.pagosRestantes > 0); // Solo beneficiarios válidos con pagos restantes
+
+      setCurrentBeneficiaries(processed);
+      setBeneficiariesCount(processed.length);
+    } catch (error) {
+      console.error('Error cargando beneficiarios actuales:', error);
+      setCurrentBeneficiaries([]);
+      setBeneficiariesCount(0);
+    } finally {
+      setLoadingBeneficiaries(false);
+    }
+  };
+
+  const prepareCurrentBeneficiariesCohorts = () => {
+    const grouped = {};
+
+    currentBeneficiaries.forEach(b => {
+      const key = `${b.modalidad}-${b.nivel}`;
+      if (!grouped[key]) {
+        grouped[key] = {
+          modalidad: b.modalidad,
+          nivel: b.nivel,
+          count: 0,
+          totalPayments: 0,
+        };
+      }
+      grouped[key].count += 1;
+      grouped[key].totalPayments += b.pagosRestantes;
+    });
+
+    return Object.values(grouped).map(g => ({
+      cohortYear: 0, // Indicador de cohorte actual
+      level: g.nivel,
+      modality: g.modalidad,
+      active: g.count,
+      paymentsUsed: 0,
+      // Calculamos pagos promedio restantes por beneficiario
+      avgRemainingPayments: g.count > 0 ? g.totalPayments / g.count : 0,
+    }));
+  };
 
   const projection = useMemo(() => {
     const sharesRaw = {
@@ -144,7 +295,8 @@ const AdminProjection = () => {
     const paymentsPerYear = Math.max(1, Math.round(numberOrZero(projectionConfig.paymentsPerYear)));
     const yearsToProject = Math.max(1, Math.round(numberOrZero(projectionConfig.yearsToProject)));
     const convocatoriasPerYear = Math.max(1, Math.round(numberOrZero(projectionConfig.convocatoriasPerYear)));
-    const smlv = Math.max(0, numberOrZero(projectionConfig.smlv));
+    const baseSmlv = Math.max(0, numberOrZero(projectionConfig.smlv));
+    const smlvIncrementRate = Math.max(0, Math.min(0.5, numberOrZero(projectionConfig.smlvIncrementRate))); // Max 50%
     const desertionRate = clamp(numberOrZero(projectionConfig.desertionRate), 0, 1);
     const graduationRate = clamp(numberOrZero(projectionConfig.graduationRate), 0, 1);
 
@@ -152,7 +304,16 @@ const AdminProjection = () => {
     const detailRows = [];
     const cohorts = [];
 
+    // Insertar cohortes de beneficiarios actuales si está activado
+    if (projectionConfig.includeCurrentBeneficiaries) {
+      const currentCohorts = prepareCurrentBeneficiariesCohorts();
+      cohorts.push(...currentCohorts);
+    }
+
     for (let yearIndex = 1; yearIndex <= yearsToProject; yearIndex += 1) {
+      // Calcular SMLV para este año (incremento compuesto)
+      const yearSmlv = baseSmlv * Math.pow(1 + smlvIncrementRate, yearIndex - 1);
+
       const suenoEntrants = convocatoriasPerYear * Math.max(0, Math.round(numberOrZero(projectionConfig.suenoPerConvocatoria)));
       const meritoEntrants = convocatoriasPerYear * Math.max(0, Math.round(numberOrZero(projectionConfig.meritoPerConvocatoria)));
       const distributedSueno = distributeCohort(suenoEntrants, shares);
@@ -192,7 +353,10 @@ const AdminProjection = () => {
 
         const availablePayments = Math.min(paymentsPerYear, maxPagos[cohort.level] - cohort.paymentsUsed);
         const annualPayments = activeStart * availablePayments;
-        const annualCost = annualPayments * MODALITY_MULTIPLIERS[cohort.modality] * smlv;
+        
+        // Usar costo configurable en lugar de MODALITY_MULTIPLIERS fijo
+        const modalityCost = getModalityCost(cohort.modality, projectionConfig);
+        const annualCost = annualPayments * modalityCost * yearSmlv;
 
         cohort.paymentsUsed += availablePayments;
         yearPayments += annualPayments;
@@ -223,7 +387,7 @@ const AdminProjection = () => {
 
         detailRows.push({
           year: yearIndex,
-          cohort: `Cohorte ${cohort.cohortYear}`,
+          cohort: cohort.cohortYear === 0 ? 'Actuales' : `Cohorte ${cohort.cohortYear}`,
           modality: MODALITY_LABELS[cohort.modality],
           level: LEVEL_LABELS[cohort.level],
           activeStart,
@@ -234,6 +398,7 @@ const AdminProjection = () => {
           activeEnd,
           paymentsUsed: cohort.paymentsUsed,
           maxPayments: maxPagos[cohort.level],
+          smlvYear: yearSmlv,
         });
       });
 
@@ -248,6 +413,7 @@ const AdminProjection = () => {
         graduations: roundTo(yearGraduations, 2),
         suenoCost: roundTo(yearSuenoCost, 2),
         meritoCost: roundTo(yearMeritoCost, 2),
+        smlvYear: roundTo(yearSmlv, 0),
       });
     }
 
@@ -276,13 +442,26 @@ const AdminProjection = () => {
             Math.max(0, Math.round(numberOrZero(projectionConfig.meritoPerConvocatoria)))),
       },
     };
-  }, [projectionConfig]);
+  }, [projectionConfig, currentBeneficiaries]);
 
   const exportProjection = () => {
+    const configMetadata = [
+      ['=== CONFIGURACIÓN USADA ==='],
+      ['SMLV base', projectionConfig.smlv],
+      ['Incremento anual SMLV', `${roundTo(projectionConfig.smlvIncrementRate * 100, 1)}%`],
+      ['Costo Sueño (SMLV)', projectionConfig.costSueno],
+      ['Costo Mérito (SMLV)', projectionConfig.costMerito],
+      ['Beneficiarios actuales incluidos', projectionConfig.includeCurrentBeneficiaries ? 'Sí' : 'No'],
+      ['Cantidad beneficiarios actuales', beneficiariesCount],
+      [''],
+    ];
+
     const rows = [
-      ['Año', 'Activos inicio', 'Activos cierre', 'Pagos', 'Deserciones', 'Graduaciones', 'Costo Sueño', 'Costo Mérito', 'Costo total'],
+      ...configMetadata,
+      ['Año', 'SMLV Año', 'Activos inicio', 'Activos cierre', 'Pagos', 'Deserciones', 'Graduaciones', 'Costo Sueño', 'Costo Mérito', 'Costo total'],
       ...projection.annualRows.map((row) => [
         row.year,
+        row.smlvYear,
         row.activeStart,
         row.activeEnd,
         row.payments,
@@ -298,12 +477,13 @@ const AdminProjection = () => {
 
   const exportProjectionDetail = () => {
     const rows = [
-      ['Año', 'Cohorte', 'Modalidad', 'Nivel', 'Activos inicio', 'Pagos anuales', 'Costo anual', 'Deserciones', 'Graduaciones', 'Activos cierre', 'Pagos usados', 'Max pagos'],
+      ['Año', 'Cohorte', 'Modalidad', 'Nivel', 'SMLV Año', 'Activos inicio', 'Pagos anuales', 'Costo anual', 'Deserciones', 'Graduaciones', 'Activos cierre', 'Pagos usados', 'Max pagos'],
       ...projection.detailRows.map((row) => [
         row.year,
         row.cohort,
         row.modality,
         row.level,
+        row.smlvYear,
         row.activeStart,
         row.annualPayments,
         row.annualCost,
@@ -347,6 +527,128 @@ const AdminProjection = () => {
               className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
             >
               <Download size={16} /> Exportar detalle
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Sección de Configuración Avanzada */}
+      <section className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 shadow-sm rounded-[2rem] p-6 md:p-8">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 bg-blue-600/10 rounded-lg">
+            <TrendingUp className="text-blue-600" size={20} />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">Configuración Avanzada</h2>
+            <p className="text-sm text-slate-600">Ajusta costos por modalidad, incremento del SMLV e incluye beneficiarios actuales</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Costos por modalidad */}
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-4">Costos por Modalidad (SMLV)</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Sueño Educativo</label>
+                <input
+                  type="number"
+                  min="0.1"
+                  max="10"
+                  step="0.1"
+                  value={projectionConfig.costSueno}
+                  onChange={(e) => setProjectionConfig(prev => ({ ...prev, costSueno: Math.max(0.1, Math.min(10, numberOrZero(e.target.value))) }))}
+                  className="w-full px-4 py-2.5 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-lg font-bold"
+                />
+                <p className="text-xs text-slate-500 mt-1">SMLV por pago</p>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Mérito Educativo</label>
+                <input
+                  type="number"
+                  min="0.1"
+                  max="10"
+                  step="0.1"
+                  value={projectionConfig.costMerito}
+                  onChange={(e) => setProjectionConfig(prev => ({ ...prev, costMerito: Math.max(0.1, Math.min(10, numberOrZero(e.target.value))) }))}
+                  className="w-full px-4 py-2.5 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-lg font-bold"
+                />
+                <p className="text-xs text-slate-500 mt-1">SMLV por pago</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Incremento SMLV */}
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-4">Incremento Anual del SMLV</p>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Porcentaje de incremento</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  min="0"
+                  max="50"
+                  step="1"
+                  value={roundTo(projectionConfig.smlvIncrementRate * 100, 1)}
+                  onChange={(e) => setProjectionConfig(prev => ({ ...prev, smlvIncrementRate: Math.max(0, Math.min(0.5, numberOrZero(e.target.value) / 100)) }))}
+                  className="flex-1 px-4 py-2.5 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-lg font-bold"
+                />
+                <span className="text-2xl font-bold text-slate-700">%</span>
+              </div>
+              <p className="text-xs text-slate-500 mt-2">Incremento compuesto año tras año (promedio histórico: 12%)</p>
+              {projectionConfig.smlvIncrementRate > 0.20 && (
+                <div className="mt-3 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <AlertCircle className="text-amber-600 flex-shrink-0 mt-0.5" size={16} />
+                  <p className="text-xs text-amber-800">
+                    <strong>Advertencia:</strong> Un incremento mayor al 20% anual es poco realista para proyecciones a largo plazo.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Toggle de beneficiarios actuales */}
+        <div className="mt-6 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-emerald-100 rounded-lg">
+                <Users className="text-emerald-700" size={20} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Incluir Beneficiarios Actuales</h3>
+                <p className="text-xs text-slate-600 mt-1">
+                  Integra beneficiarios existentes en la base de datos con sus pagos restantes en la proyección.
+                  {projectionConfig.includeCurrentBeneficiaries && beneficiariesCount > 0 && (
+                    <span className="block mt-2 text-emerald-700 font-semibold">
+                      ✓ {beneficiariesCount} beneficiarios activos incluidos
+                    </span>
+                  )}
+                  {projectionConfig.includeCurrentBeneficiaries && loadingBeneficiaries && (
+                    <span className="block mt-2 text-blue-600 font-semibold">Cargando beneficiarios...</span>
+                  )}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setProjectionConfig(prev => ({ ...prev, includeCurrentBeneficiaries: !prev.includeCurrentBeneficiaries }))}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold transition-all ${
+                projectionConfig.includeCurrentBeneficiaries
+                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
+                  : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+              }`}
+            >
+              {projectionConfig.includeCurrentBeneficiaries ? (
+                <>
+                  <ToggleRight size={20} />
+                  Activado
+                </>
+              ) : (
+                <>
+                  <ToggleLeft size={20} />
+                  Desactivado
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -402,19 +704,29 @@ const AdminProjection = () => {
 
           <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 space-y-3">
             <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Reglas activas</p>
-            <p>Sueno Educativo paga 1 SMLV por desembolso y Merito Educativo paga 3.5 SMLV.</p>
             <p>
-              Topes activos: Tecnico {projection.maxPagos.tecnico}, Tecnologo {projection.maxPagos.tecnologo}, Profesional {projection.maxPagos.profesional}.
+              <strong>Costos:</strong> Sueño Educativo paga {projectionConfig.costSueno} SMLV y Mérito Educativo paga {projectionConfig.costMerito} SMLV por desembolso.
             </p>
             <p>
-              Distribucion normalizada: Tecnico {roundTo(projection.shares.tecnico, 1)}%, Tecnologo {roundTo(projection.shares.tecnologo, 1)}%, Profesional {roundTo(projection.shares.profesional, 1)}%.
+              <strong>SMLV:</strong> Se proyecta un incremento anual del {roundTo(projectionConfig.smlvIncrementRate * 100, 1)}% compuesto.
             </p>
+            <p>
+              <strong>Topes:</strong> Técnico {projection.maxPagos.tecnico}, Tecnólogo {projection.maxPagos.tecnologo}, Profesional {projection.maxPagos.profesional} pagos.
+            </p>
+            <p>
+              <strong>Distribución:</strong> Técnico {roundTo(projection.shares.tecnico, 1)}%, Tecnólogo {roundTo(projection.shares.tecnologo, 1)}%, Profesional {roundTo(projection.shares.profesional, 1)}%.
+            </p>
+            {projectionConfig.includeCurrentBeneficiaries && beneficiariesCount > 0 && (
+              <p>
+                <strong>Beneficiarios actuales:</strong> {beneficiariesCount} incluidos en la proyección.
+              </p>
+            )}
             <button
               type="button"
               onClick={() => setProjectionConfig(DEFAULT_PROJECTION)}
               className="w-full mt-1 inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100"
             >
-              Restablecer parametros
+              Restablecer parámetros
             </button>
           </div>
         </div>

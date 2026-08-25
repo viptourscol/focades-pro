@@ -335,12 +335,12 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
   if (!isOpen || !beneficiario) return null;
 
   const tabs = [
-    { id: 'personal', label: 'Datos Personales', icon: User },
+    { id: 'personal', label: 'Personal', icon: User },
     { id: 'socioeconomico', label: 'Socioeconómico', icon: Shield },
     { id: 'familiar', label: 'Familiar', icon: User },
-    { id: 'secundaria', label: 'Formación Secundaria', icon: GraduationCap },
-    { id: 'academico', label: 'Educación Superior', icon: GraduationCap },
-    { id: 'bancario', label: 'Datos Bancarios', icon: CreditCard },
+    { id: 'secundaria', label: 'Secundaria', icon: GraduationCap },
+    { id: 'academico', label: 'Académico', icon: GraduationCap },
+    { id: 'bancario', label: 'Bancario', icon: CreditCard },
     { id: 'estado', label: 'Estado', icon: Shield },
     { id: 'documentos', label: 'Documentos', icon: FileText },
   ];
@@ -485,32 +485,34 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 px-6 pt-4 border-b border-slate-200">
-          {tabs.map(tab => {
-            const Icon = tab.icon;
-            const isDocTab = tab.id === 'documentos';
-            const docCount = isDocTab ? documents.length : 0;
-            
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-3 font-semibold rounded-t-xl transition-all whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
-                    : 'text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <Icon size={18} />
-                <span className="text-sm">{tab.label}</span>
-                {isDocTab && docCount > 0 && (
-                  <span className="ml-1 px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded-full">
-                    {docCount}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        <div className="overflow-x-auto border-b border-slate-200 hide-scrollbar">
+          <div className="flex gap-2 px-6 pt-4 min-w-max">
+            {tabs.map(tab => {
+              const Icon = tab.icon;
+              const isDocTab = tab.id === 'documentos';
+              const docCount = isDocTab ? documents.length : 0;
+              
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-3 font-semibold rounded-t-xl transition-all whitespace-nowrap ${
+                    activeTab === tab.id
+                      ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
+                      : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <Icon size={18} />
+                  <span className="text-sm">{tab.label}</span>
+                  {isDocTab && docCount > 0 && (
+                    <span className="ml-1 px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded-full">
+                      {docCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Content */}
@@ -1102,10 +1104,10 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
                     {documents.map((doc) => (
                       <div key={doc.id} className="border-2 border-slate-200 rounded-xl p-4 hover:border-blue-300 hover:bg-blue-50/30 transition-all">
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                          <div className="flex-1">
+                          <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-2">
                               <FileText size={20} className="text-blue-600 flex-shrink-0" />
-                              <p className="font-bold text-slate-900 text-base">
+                              <p className="font-bold text-slate-900 text-base truncate">
                                 {doc.nombre_original || doc.tipo_documento || 'Documento sin nombre'}
                               </p>
                             </div>
@@ -1115,7 +1117,7 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
                                   ? 'bg-purple-100 text-purple-700 border border-purple-200' 
                                   : 'bg-blue-100 text-blue-700 border border-blue-200'
                               }`}>
-                                {doc.source === 'historico' ? '📄 Onboarding/Histórico' : '🔄 Actualización Semestral'}
+                                {doc.source === 'historico' ? 'Onboarding/Histórico' : 'Actualización Semestral'}
                               </span>
                               {doc.tipo_documento && (
                                 <span className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded-lg font-semibold border border-slate-200">
@@ -1123,7 +1125,7 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
                                 </span>
                               )}
                               <span className="text-slate-600 font-medium">
-                                📅 {formatDateTime(doc.created_at)}
+                                {formatDateTime(doc.created_at)}
                               </span>
                             </div>
                           </div>
@@ -1131,7 +1133,7 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
                           {doc.url_documento && (
                             <button
                               onClick={() => handleOpenDocument(doc)}
-                              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl text-sm font-bold hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg"
+                              className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-md hover:shadow-lg flex-shrink-0"
                             >
                               <Eye size={18} />
                               Ver Documento

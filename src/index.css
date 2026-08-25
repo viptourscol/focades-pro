@@ -332,3 +332,13 @@
   animation: slide-up 0.5s ease-out;
   animation-fill-mode: backwards;
 }
+
+/* Ocultar scrollbar pero mantener funcionalidad */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}

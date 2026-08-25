@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import { Suspense, lazy, useEffect, useState } from 'react';
 import Aspirantes from './pages/Aspirantes';
 import AdminBeneficiarios from './pages/AdminBeneficiarios';
+import AdminBeneficiariosAutorizados from './pages/AdminBeneficiariosAutorizados';
 import AdminImportBeneficiarios from './pages/AdminImportBeneficiarios';
 import AdminBeneficiarioDetalle from './pages/AdminBeneficiarioDetalle';
 import AdminActualizaciones from './pages/AdminActualizaciones';
@@ -304,6 +305,7 @@ function App() {
             }
           />
           <Route path="beneficiarios" element={<AdminBeneficiarios />} />
+          <Route path="beneficiarios/autorizados" element={<AdminBeneficiariosAutorizados />} />
           <Route path="beneficiarios/importar" element={<AdminImportBeneficiarios />} />
           <Route path="beneficiarios/:beneficiarioId" element={<AdminBeneficiarioDetalle />} />
           <Route path="generador-tokens" element={<AdminGeneradorTokens />} />

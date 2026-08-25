@@ -171,11 +171,15 @@ const normalizeModalidad = (value) => {
 
 // Calcula pagos restantes para un beneficiario
 // nivelFormacion debe ser el nivel ya normalizado (tecnico/tecnologo/profesional)
-const calculateRemainingPayments = (nivelFormacion, semestreIngreso, pagosEfectuados) => {
+// Usa semestre_ingreso o semestre_actual como fallback (igual que SQL)
+const calculateRemainingPayments = (nivelFormacion, semestreIngreso, semestreActual, pagosEfectuados) => {
   const tope = paymentCapForLevel(nivelFormacion);
-  if (!tope || !semestreIngreso) return 0;
+  if (!tope) return 0;
   
-  const semestreNum = Number(semestreIngreso);
+  // Usar semestre_ingreso, o semestre_actual si está vacío, o asumir 1
+  const semestreBase = semestreIngreso || semestreActual || 1;
+  const semestreNum = Number(semestreBase);
+  
   if (!Number.isFinite(semestreNum) || semestreNum < 1) return 0;
   
   const derechoInicial = Math.max(0, tope - (semestreNum - 1));
@@ -206,7 +210,7 @@ const AdminProjection = () => {
       // Query beneficiarios con estados activos
       const { data: beneficiarios, error: benError } = await supabase
         .from('portal_beneficiarios')
-        .select('id, estado_beneficiario, modalidad_beca, nivel_formacion, tipo_educacion, semestre_ingreso')
+        .select('id, estado_beneficiario, modalidad_beca, nivel_formacion, tipo_educacion, semestre_ingreso, semestre_actual')
         .in('estado_beneficiario', ['activo', 'suspendido', 'retirado', 'condonado', 'egresado'])
         .is('deleted_at', null);
 
@@ -235,8 +239,8 @@ const AdminProjection = () => {
         const modalidad = normalizeModalidad(b.modalidad_beca);
         const nivel = normalizeBeneficiarioLevel(b.nivel_formacion, b.tipo_educacion);
         const pagosEfectuados = pagosPorBeneficiario[b.id] || 0;
-        // Usar el nivel normalizado para calcular pagos restantes
-        const pagosRestantes = nivel ? calculateRemainingPayments(nivel, b.semestre_ingreso, pagosEfectuados) : 0;
+        // Usar el nivel normalizado y semestre_ingreso (con fallback a semestre_actual)
+        const pagosRestantes = nivel ? calculateRemainingPayments(nivel, b.semestre_ingreso, b.semestre_actual, pagosEfectuados) : 0;
 
         return {
           id: b.id,
@@ -249,6 +253,7 @@ const AdminProjection = () => {
             nivel_formacion: b.nivel_formacion,
             tipo_educacion: b.tipo_educacion,
             semestre_ingreso: b.semestre_ingreso,
+            semestre_actual: b.semestre_actual,
           },
         };
       });
@@ -257,11 +262,23 @@ const AdminProjection = () => {
       console.log('🔍 Valores RAW nivel_formacion:', beneficiarios.slice(0, 10).map(b => b.nivel_formacion));
       console.log('🔍 Valores RAW tipo_educacion:', beneficiarios.slice(0, 10).map(b => b.tipo_educacion));
       console.log('🔍 Valores RAW semestre_ingreso:', beneficiarios.slice(0, 10).map(b => b.semestre_ingreso));
+      console.log('🔍 Valores RAW semestre_actual:', beneficiarios.slice(0, 10).map(b => b.semestre_actual));
+      console.log('🔍 Semestre efectivo (ingreso || actual || 1):', beneficiarios.slice(0, 10).map(b => b.semestre_ingreso || b.semestre_actual || 1));
 
       // Filtrar solo válidos
       const processed = allProcessed.filter(b => b.modalidad && b.nivel && b.pagosRestantes > 0);
 
       console.log('✅ Beneficiarios válidos con pagos restantes:', processed.length);
+      if (processed.length > 0) {
+        console.log('🎯 Muestra de primeros 3 válidos:', processed.slice(0, 3));
+      } else {
+        console.log('⚠️ Razones de filtrado (primeros 5):');
+        allProcessed.slice(0, 5).forEach((b, i) => {
+          console.log(`  [${i}] modalidad:${b.modalidad} nivel:${b.nivel} pagosRestantes:${b.pagosRestantes} → ${
+            !b.modalidad ? 'SIN_MODALIDAD' : !b.nivel ? 'SIN_NIVEL' : !b.pagosRestantes ? 'SIN_PAGOS_RESTANTES' : 'OK'
+          }`);
+        });
+      }
       console.log('🎯 Distribución por modalidad:', {
         sueno: processed.filter(b => b.modalidad === 'sueno').length,
         merito: processed.filter(b => b.modalidad === 'merito').length,

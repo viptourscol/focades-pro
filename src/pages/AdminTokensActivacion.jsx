@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { RefreshCw, Send, Copy, Check, AlertCircle, Clock, CheckCircle2, XCircle, Search } from 'lucide-react';
+import { RefreshCw, Send, Copy, Check, AlertCircle, Clock, CheckCircle2, XCircle, Search, Mail, MailX, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { showSuccessAlert, showErrorAlert, showConfirmAlert } from '../lib/alerts';
 
@@ -11,6 +11,14 @@ export default function AdminTokensActivacion() {
   const [regenerating, setRegenerating] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Estados para reenvío masivo
+  const [showPendingEmails, setShowPendingEmails] = useState(false);
+  const [pendingEmails, setPendingEmails] = useState([]);
+  const [loadingPending, setLoadingPending] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [sendingEmails, setSendingEmails] = useState(false);
+  const [sendProgress, setSendProgress] = useState({ current: 0, total: 0 });
 
   useEffect(() => {
     loadBeneficiarios();
@@ -162,6 +170,207 @@ export default function AdminTokensActivacion() {
     }
   };
 
+  const loadPendingEmails = async () => {
+    setLoadingPending(true);
+    try {
+      // Obtener beneficiarios con tokens válidos
+      const { data: credentials, error: credsError } = await supabase
+        .from('portal_auth_credentials')
+        .select(`
+          beneficiario_id,
+          setup_token,
+          setup_token_expires_at,
+          setup_completed_at,
+          portal_beneficiarios (
+            id,
+            nombre_completo,
+            email,
+            n_documento
+          )
+        `)
+        .not('setup_token', 'is', null)
+        .gt('setup_token_expires_at', new Date().toISOString())
+        .is('setup_completed_at', null);
+
+      if (credsError) throw credsError;
+
+      const validBeneficiarios = credentials
+        .filter(c => c.portal_beneficiarios)
+        .map(c => ({
+          id: c.beneficiario_id,
+          ...c.portal_beneficiarios,
+          token_expires_at: c.setup_token_expires_at,
+        }));
+
+      if (validBeneficiarios.length === 0) {
+        setPendingEmails([]);
+        return;
+      }
+
+      // Obtener logs de emails enviados
+      const { data: emailLogs, error: logsError } = await supabase
+        .from('portal_beneficiarios_email_log')
+        .select('beneficiario_id, status, sent_at')
+        .in('beneficiario_id', validBeneficiarios.map(b => b.id))
+        .eq('email_type', 'setup-activation')
+        .order('sent_at', { ascending: false });
+
+      if (logsError) {
+        console.warn('Error obteniendo logs:', logsError);
+      }
+
+      // Crear mapa de últimos estados de email
+      const emailStatusMap = new Map();
+      if (emailLogs) {
+        emailLogs.forEach(log => {
+          if (!emailStatusMap.has(log.beneficiario_id)) {
+            emailStatusMap.set(log.beneficiario_id, {
+              status: log.status,
+              sent_at: log.sent_at,
+            });
+          }
+        });
+      }
+
+      // Filtrar solo los que NO tienen email enviado exitosamente
+      const pending = validBeneficiarios
+        .map(b => ({
+          ...b,
+          email_status: emailStatusMap.get(b.id)?.status || 'pendiente',
+          last_attempt: emailStatusMap.get(b.id)?.sent_at || null,
+        }))
+        .filter(b => b.email_status !== 'sent');
+
+      setPendingEmails(pending);
+    } catch (error) {
+      console.error('Error cargando emails pendientes:', error);
+      showErrorAlert({ title: 'Error', text: 'No se pudieron cargar los emails pendientes' });
+    } finally {
+      setLoadingPending(false);
+    }
+  };
+
+  const handleToggleSelection = (id) => {
+    const newSelection = new Set(selectedIds);
+    if (newSelection.has(id)) {
+      newSelection.delete(id);
+    } else {
+      newSelection.add(id);
+    }
+    setSelectedIds(newSelection);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === pendingEmails.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(pendingEmails.map(b => b.id)));
+    }
+  };
+
+  const handleSendPendingEmails = async () => {
+    if (selectedIds.size === 0) {
+      showErrorAlert({ title: 'Sin Selección', text: 'Selecciona al menos un beneficiario' });
+      return;
+    }
+
+    const confirmed = await showConfirmAlert({
+      title: '¿Enviar Emails de Activación?',
+      text: `Se enviarán ${selectedIds.size} emails de activación. Este proceso puede tomar varios minutos.`,
+      confirmButtonText: 'Sí, Enviar',
+      cancelButtonText: 'Cancelar',
+    });
+
+    if (!confirmed) return;
+
+    setSendingEmails(true);
+    setSendProgress({ current: 0, total: selectedIds.size });
+
+    const results = {
+      sent: 0,
+      failed: 0,
+      errors: [],
+    };
+
+    let current = 0;
+    for (const beneficiarioId of selectedIds) {
+      current++;
+      setSendProgress({ current, total: selectedIds.size });
+
+      try {
+        const { data, error } = await supabase.functions.invoke('send-setup-emails', {
+          body: {
+            method: 'send-setup-email',
+            beneficiario_id: beneficiarioId,
+          },
+        });
+
+        if (error || !data?.ok) {
+          results.failed++;
+          const beneficiario = pendingEmails.find(b => b.id === beneficiarioId);
+          results.errors.push({
+            nombre: beneficiario?.nombre_completo || 'Desconocido',
+            email: beneficiario?.email || 'N/A',
+            error: data?.error || error?.message || 'Error desconocido',
+          });
+        } else {
+          results.sent++;
+        }
+
+        // Delay de 200ms entre emails
+        await new Promise(resolve => setTimeout(resolve, 200));
+      } catch (err) {
+        results.failed++;
+        const beneficiario = pendingEmails.find(b => b.id === beneficiarioId);
+        results.errors.push({
+          nombre: beneficiario?.nombre_completo || 'Desconocido',
+          email: beneficiario?.email || 'N/A',
+          error: err.message || 'Error desconocido',
+        });
+      }
+    }
+
+    setSendingEmails(false);
+    setSelectedIds(new Set());
+
+    // Mostrar resultado
+    const errorsList = results.errors.length > 0
+      ? `<div class="mt-3 max-h-40 overflow-y-auto bg-red-50 p-3 rounded-lg border border-red-200">
+           <p class="text-sm font-semibold text-red-800 mb-2">Errores:</p>
+           <ul class="text-xs text-red-700 space-y-1">
+             ${results.errors.map(e => `<li><strong>${e.nombre}:</strong> ${e.error}</li>`).join('')}
+           </ul>
+         </div>`
+      : '';
+
+    await showSuccessAlert({
+      title: 'Envío Completado',
+      html: `
+        <div class="text-left">
+          <div class="grid grid-cols-2 gap-4 mb-4">
+            <div class="bg-green-50 p-3 rounded-lg border border-green-200">
+              <p class="text-xs text-green-600 mb-1">Enviados</p>
+              <p class="text-2xl font-bold text-green-700">${results.sent}</p>
+            </div>
+            <div class="bg-red-50 p-3 rounded-lg border border-red-200">
+              <p class="text-xs text-red-600 mb-1">Fallidos</p>
+              <p class="text-2xl font-bold text-red-700">${results.failed}</p>
+            </div>
+          </div>
+          ${errorsList}
+        </div>
+      `,
+    });
+
+    // Recargar lista
+    await loadPendingEmails();
+  };
+
+  const handleShowPendingEmails = async () => {
+    setShowPendingEmails(true);
+    await loadPendingEmails();
+  };
+
   const getEstadoBadge = (estado) => {
     switch (estado) {
       case 'activado':
@@ -225,19 +434,197 @@ export default function AdminTokensActivacion() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-primary">Tokens de Activación</h1>
           <p className="text-slate-600 mt-1">Gestiona los tokens de acceso para beneficiarios históricos</p>
         </div>
-        <button
-          onClick={loadBeneficiarios}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
-        >
-          <RefreshCw size={18} />
-          Actualizar
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleShowPendingEmails}
+            className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors font-semibold"
+          >
+            <Mail size={18} />
+            Emails Pendientes
+          </button>
+          <button
+            onClick={loadBeneficiarios}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+          >
+            <RefreshCw size={18} />
+            Actualizar
+          </button>
+        </div>
       </div>
+
+      {/* Modal de Emails Pendientes */}
+      {showPendingEmails && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header del Modal */}
+            <div className="p-6 border-b border-slate-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-primary">Reenviar Emails de Activación</h2>
+                  <p className="text-sm text-slate-600 mt-1">
+                    Beneficiarios con tokens válidos pero sin email enviado
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowPendingEmails(false);
+                    setSelectedIds(new Set());
+                  }}
+                  disabled={sendingEmails}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <XCircle size={28} />
+                </button>
+              </div>
+            </div>
+
+            {/* Contenido del Modal */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {loadingPending ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <Loader2 className="animate-spin mx-auto mb-4 text-primary" size={32} />
+                    <p className="text-slate-600">Cargando emails pendientes...</p>
+                  </div>
+                </div>
+              ) : pendingEmails.length === 0 ? (
+                <div className="text-center py-12">
+                  <CheckCircle2 className="mx-auto mb-4 text-green-500" size={48} />
+                  <h3 className="text-lg font-semibold text-slate-900 mb-2">¡Todo al día!</h3>
+                  <p className="text-slate-600">
+                    No hay beneficiarios con emails pendientes. Todos los tokens con email enviado exitosamente.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Controles de selección */}
+                  <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-200">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.size === pendingEmails.length && pendingEmails.length > 0}
+                        onChange={handleSelectAll}
+                        className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary"
+                      />
+                      <span className="text-sm font-semibold text-slate-700">
+                        {selectedIds.size > 0 
+                          ? `${selectedIds.size} seleccionado${selectedIds.size > 1 ? 's' : ''}`
+                          : 'Seleccionar todos'}
+                      </span>
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      Total: {pendingEmails.length} email{pendingEmails.length !== 1 ? 's' : ''} pendiente{pendingEmails.length !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+
+                  {/* Lista de beneficiarios */}
+                  <div className="space-y-2">
+                    {pendingEmails.map((beneficiario) => (
+                      <div
+                        key={beneficiario.id}
+                        className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                          selectedIds.has(beneficiario.id)
+                            ? 'border-primary bg-primary/5'
+                            : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                        onClick={() => !sendingEmails && handleToggleSelection(beneficiario.id)}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(beneficiario.id)}
+                          onChange={() => {}}
+                          disabled={sendingEmails}
+                          className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary"
+                        />
+                        <div className="flex-1">
+                          <div className="font-semibold text-slate-900">{beneficiario.nombre_completo}</div>
+                          <div className="text-sm text-slate-600 mt-1">{beneficiario.email}</div>
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold ${
+                              beneficiario.email_status === 'failed'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-amber-100 text-amber-700'
+                            }`}>
+                              {beneficiario.email_status === 'failed' ? (
+                                <>
+                                  <MailX size={12} />
+                                  Email fallido
+                                </>
+                              ) : (
+                                <>
+                                  <Clock size={12} />
+                                  Pendiente
+                                </>
+                              )}
+                            </span>
+                            {beneficiario.last_attempt && (
+                              <span className="text-xs text-slate-500">
+                                Último intento: {new Date(beneficiario.last_attempt).toLocaleString('es-CO')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Footer del Modal */}
+            {pendingEmails.length > 0 && (
+              <div className="p-6 border-t border-slate-200 bg-slate-50">
+                {sendingEmails ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-sm text-slate-700">
+                      <span>Enviando emails...</span>
+                      <span className="font-semibold">{sendProgress.current} / {sendProgress.total}</span>
+                    </div>
+                    <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+                      <div
+                        className="bg-primary h-full transition-all duration-300 rounded-full"
+                        style={{ width: `${(sendProgress.current / sendProgress.total) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm text-slate-600">
+                      {selectedIds.size > 0
+                        ? `${selectedIds.size} email${selectedIds.size > 1 ? 's' : ''} seleccionado${selectedIds.size > 1 ? 's' : ''}`
+                        : 'Selecciona beneficiarios para enviar'}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setShowPendingEmails(false);
+                          setSelectedIds(new Set());
+                        }}
+                        className="px-5 py-2.5 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors font-semibold"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={handleSendPendingEmails}
+                        disabled={selectedIds.size === 0}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Send size={18} />
+                        Enviar {selectedIds.size > 0 ? `(${selectedIds.size})` : ''}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, CalendarClock, CircleDollarSign, Edit2, FileText, LoaderCircle, Mail, MapPin, Phone, Save, ShieldAlert, Ticket } from 'lucide-react';
+import { ArrowLeft, CalendarClock, ChevronLeft, ChevronRight, CircleDollarSign, Edit2, FileText, LoaderCircle, Mail, MapPin, Phone, Printer, Save, ShieldAlert, Ticket, X } from 'lucide-react';
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from '../lib/alerts';
 import { invokeAdminTickets } from '../lib/adminTickets';
 import { getSafeSession, supabase } from '../lib/supabase';
@@ -179,6 +179,11 @@ const AdminBeneficiarioDetalle = () => {
   const [isEditingOnboarding, setIsEditingOnboarding] = useState(false);
   const [onboardingForm, setOnboardingForm] = useState({});
   const [hasOnboardingChanges, setHasOnboardingChanges] = useState(false);
+  const [selectedDoc, setSelectedDoc] = useState(null);
+  const [selectedDocUrl, setSelectedDocUrl] = useState('');
+  const [currentDocIndex, setCurrentDocIndex] = useState(-1);
+  const [docPreviewLoading, setDocPreviewLoading] = useState(false);
+  const [docPreviewError, setDocPreviewError] = useState('');
   const [loadedTabs, setLoadedTabs] = useState({ perfil: false, onboarding: false, actualizaciones: false, expediente: false, pagos: false, tickets: false, bitacora: false });
   const [loadingByTab, setLoadingByTab] = useState({ perfil: false, onboarding: false, actualizaciones: false, expediente: false, pagos: false, tickets: false, bitacora: false });
   const [expedienteDocs, setExpedienteDocs] = useState([]);
@@ -704,32 +709,114 @@ const AdminBeneficiarioDetalle = () => {
     }
   };
 
+  const resolveDocumentUrl = async (path) => {
+    if (/^https?:\/\//i.test(path)) {
+      return path;
+    }
+
+    // Limpiar el path: remover prefijo del bucket si existe
+    let cleanPath = path;
+    const bucketPrefix = 'soportes/';
+    if (cleanPath.startsWith(bucketPrefix)) {
+      cleanPath = cleanPath.substring(bucketPrefix.length);
+    }
+
+    const { data: signedData, error: signedError } = await supabase.storage
+      .from('soportes')
+      .createSignedUrl(cleanPath, 60 * 30);
+
+    if (!signedError && signedData?.signedUrl) {
+      return signedData.signedUrl;
+    }
+
+    const publicData = supabase.storage.from('soportes').getPublicUrl(cleanPath);
+    const publicUrl = String(publicData?.data?.publicUrl || '').trim();
+    if (publicUrl) return publicUrl;
+
+    throw new Error(signedError?.message || 'No se pudo obtener una URL para visualizar el documento.');
+  };
+
   const handleViewDocument = async (doc) => {
     if (!doc?.storage_path) return;
     
+    setSelectedDoc(doc);
+    setSelectedDocUrl('');
+    setDocPreviewError('');
+    setDocPreviewLoading(true);
+    
+    const idx = onboardingDocs.findIndex(d => d.id === doc.id);
+    setCurrentDocIndex(idx !== -1 ? idx : -1);
+
     try {
-      // Limpiar path
-      let cleanPath = doc.storage_path;
-      const bucketPrefix = 'soportes/';
-      if (cleanPath.startsWith(bucketPrefix)) {
-        cleanPath = cleanPath.substring(bucketPrefix.length);
-      }
-
-      // Obtener URL firmada
-      const { data: signedData, error: signedError } = await supabase.storage
-        .from('soportes')
-        .createSignedUrl(cleanPath, 60 * 30);
-
-      if (signedError || !signedData?.signedUrl) {
-        throw new Error(signedError?.message || 'No se pudo obtener una URL para visualizar el documento.');
-      }
-
-      // Abrir en nueva ventana
-      window.open(signedData.signedUrl, '_blank');
+      const url = await resolveDocumentUrl(doc.storage_path);
+      setSelectedDocUrl(url);
     } catch (error) {
-      await showErrorAlert({ title: 'Error', text: error.message || 'No se pudo abrir el documento.' });
+      setDocPreviewError(error?.message || 'No se pudo abrir el documento.');
+    } finally {
+      setDocPreviewLoading(false);
     }
   };
+
+  const goToPreviousDoc = async () => {
+    if (currentDocIndex <= 0) return;
+    const prevIndex = currentDocIndex - 1;
+    const prevDoc = onboardingDocs[prevIndex];
+    if (prevDoc) {
+      setCurrentDocIndex(prevIndex);
+      setSelectedDoc(prevDoc);
+      setSelectedDocUrl('');
+      setDocPreviewError('');
+      setDocPreviewLoading(true);
+
+      try {
+        const url = await resolveDocumentUrl(prevDoc.storage_path);
+        setSelectedDocUrl(url);
+      } catch (error) {
+        setDocPreviewError(error?.message || 'No se pudo abrir el documento.');
+      } finally {
+        setDocPreviewLoading(false);
+      }
+    }
+  };
+
+  const goToNextDoc = async () => {
+    if (currentDocIndex >= onboardingDocs.length - 1) return;
+    const nextIndex = currentDocIndex + 1;
+    const nextDoc = onboardingDocs[nextIndex];
+    if (nextDoc) {
+      setCurrentDocIndex(nextIndex);
+      setSelectedDoc(nextDoc);
+      setSelectedDocUrl('');
+      setDocPreviewError('');
+      setDocPreviewLoading(true);
+
+      try {
+        const url = await resolveDocumentUrl(nextDoc.storage_path);
+        setSelectedDocUrl(url);
+      } catch (error) {
+        setDocPreviewError(error?.message || 'No se pudo abrir el documento.');
+      } finally {
+        setDocPreviewLoading(false);
+      }
+    }
+  };
+
+  const closePreviewModal = () => {
+    setSelectedDoc(null);
+    setSelectedDocUrl('');
+    setDocPreviewError('');
+    setDocPreviewLoading(false);
+    setCurrentDocIndex(-1);
+  };
+
+  const handlePrintDocument = () => {
+    if (selectedDocUrl) {
+      window.open(selectedDocUrl, '_blank');
+    }
+  };
+
+  const looksLikePdf = (value) => /\.pdf(\?|$)/i.test(String(value || ''));
+  const looksLikeImage = (value) => /\.(png|jpg|jpeg|webp)(\?|$)/i.test(String(value || ''));
 
   const loadTabData = async (tab, profileOverride = null) => {
     if (tab === 'actualizaciones') await loadUpdatesData();
@@ -775,6 +862,27 @@ const AdminBeneficiarioDetalle = () => {
     if (loadedTabs[activeTab]) return;
     loadTabData(activeTab);
   }, [activeTab, loadedTabs]);
+
+  // Keyboard shortcuts para navegación de documentos
+  useEffect(() => {
+    if (!selectedDoc) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        goToPreviousDoc();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        goToNextDoc();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closePreviewModal();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedDoc, currentDocIndex, onboardingDocs]);
 
   const totalPagado = useMemo(() => {
     return payments
@@ -1892,6 +2000,94 @@ const AdminBeneficiarioDetalle = () => {
 
       {viewingDoc && (
         <DocViewerModal doc={viewingDoc} onClose={() => setViewingDoc(null)} />
+      )}
+
+      {/* Modal de visualización de documentos de onboarding */}
+      {selectedDoc && (
+        <div
+          className="fixed inset-0 z-[70] bg-slate-900/60 p-4 flex items-center justify-center"
+          onClick={closePreviewModal}
+        >
+          <div
+            className="w-full max-w-5xl max-h-[90vh] bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50">
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Visualización de documento</p>
+                <p className="text-sm font-bold text-slate-700 truncate">
+                  {selectedDoc.titulo || selectedDoc.tipo_documento || 'Documento'}
+                </p>
+                {onboardingDocs.length > 1 && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    {currentDocIndex + 1} de {onboardingDocs.length}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {onboardingDocs.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={goToPreviousDoc}
+                      disabled={currentDocIndex <= 0 || docPreviewLoading}
+                      className="p-2 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                      aria-label="Documento anterior"
+                      title="Anterior (←)"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={goToNextDoc}
+                      disabled={currentDocIndex >= onboardingDocs.length - 1 || docPreviewLoading}
+                      className="p-2 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                      aria-label="Documento siguiente"
+                      title="Siguiente (→)"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={handlePrintDocument}
+                  disabled={!selectedDocUrl}
+                  className="p-2 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                  aria-label="Imprimir documento"
+                  title="Imprimir"
+                >
+                  <Printer size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={closePreviewModal}
+                  className="p-2 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100"
+                  aria-label="Cerrar visualización"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-100 max-h-[80vh] overflow-auto">
+              {docPreviewLoading && <p className="text-sm text-slate-500">Cargando vista del documento...</p>}
+              {!docPreviewLoading && docPreviewError && <p className="text-sm text-red-600">{docPreviewError}</p>}
+
+              {!docPreviewLoading && !docPreviewError && selectedDocUrl && (
+                <div className="rounded-xl overflow-hidden border border-slate-200 bg-white">
+                  {looksLikeImage(selectedDocUrl) ? (
+                    <img src={selectedDocUrl} alt={selectedDoc.titulo || 'Documento'} className="w-full max-h-[74vh] object-contain bg-slate-50" />
+                  ) : looksLikePdf(selectedDocUrl) ? (
+                    <iframe title={selectedDoc.titulo || 'Documento'} src={selectedDocUrl} className="w-full h-[74vh]" />
+                  ) : (
+                    <iframe title={selectedDoc.titulo || 'Documento'} src={selectedDocUrl} className="w-full h-[74vh]" />
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

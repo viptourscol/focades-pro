@@ -35,7 +35,7 @@ const markRpcUnavailable = (rpcName) => {
 const BENEFICIARIO_STATES = ['activo', 'suspendido', 'retirado', 'condonado', 'egresado'];
 const UPDATE_STATUS_OPTIONS = ['en_revision', 'aprobada', 'rechazada'];
 const PAYMENT_STATUS_OPTIONS = ['programado', 'pendiente', 'efectuado', 'anulado'];
-const DETAIL_TABS = ['perfil', 'actualizaciones', 'expediente', 'pagos', 'tickets', 'bitacora'];
+const DETAIL_TABS = ['perfil', 'onboarding', 'actualizaciones', 'expediente', 'pagos', 'tickets', 'bitacora'];
 
 const formatDateTime = (value) => {
   if (!value) return 'No disponible';
@@ -166,6 +166,7 @@ const AdminBeneficiarioDetalle = () => {
   const [paymentRightsNotice, setPaymentRightsNotice] = useState('');
   const [tickets, setTickets] = useState([]);
   const [bitacoraRows, setBitacoraRows] = useState([]);
+  const [onboardingDocs, setOnboardingDocs] = useState([]);
   const [profileForm, setProfileForm] = useState({ email: '', telefono: '', direccion: '', semestre_actual: '' });
   const [statusDraft, setStatusDraft] = useState('activo');
   const [statusReason, setStatusReason] = useState('');
@@ -174,8 +175,8 @@ const AdminBeneficiarioDetalle = () => {
   const [editingPaymentId, setEditingPaymentId] = useState(null);
   const [viewingDoc, setViewingDoc] = useState(null);
   const [activeTab, setActiveTab] = useState('perfil');
-  const [loadedTabs, setLoadedTabs] = useState({ perfil: false, actualizaciones: false, expediente: false, pagos: false, tickets: false, bitacora: false });
-  const [loadingByTab, setLoadingByTab] = useState({ perfil: false, actualizaciones: false, expediente: false, pagos: false, tickets: false, bitacora: false });
+  const [loadedTabs, setLoadedTabs] = useState({ perfil: false, onboarding: false, actualizaciones: false, expediente: false, pagos: false, tickets: false, bitacora: false });
+  const [loadingByTab, setLoadingByTab] = useState({ perfil: false, onboarding: false, actualizaciones: false, expediente: false, pagos: false, tickets: false, bitacora: false });
   const [expedienteDocs, setExpedienteDocs] = useState([]);
   const [expedienteData, setExpedienteData] = useState(null);
   const [historicoDocs, setHistoricoDocs] = useState([]);
@@ -497,25 +498,50 @@ const AdminBeneficiarioDetalle = () => {
     }
   };
 
+  const loadOnboardingData = async (profileOverride = null) => {
+    setTabLoading('onboarding', true);
+    try {
+      const profile = profileOverride || beneficiario;
+      if (!profile?.id) {
+        setOnboardingDocs([]);
+        markTabLoaded('onboarding');
+        return;
+      }
+
+      const { data } = await supabase
+        .from('portal_beneficiario_documentos_historicos')
+        .select('*')
+        .eq('beneficiario_id', profile.id)
+        .order('created_at', { ascending: false });
+
+      setOnboardingDocs(Array.isArray(data) ? data : []);
+      markTabLoaded('onboarding');
+    } finally {
+      setTabLoading('onboarding', false);
+    }
+  };
+
   const loadTabData = async (tab, profileOverride = null) => {
     if (tab === 'actualizaciones') await loadUpdatesData();
     if (tab === 'expediente') await loadExpedienteData(profileOverride);
     if (tab === 'pagos') await loadPagosData();
     if (tab === 'tickets') await loadTicketsData(profileOverride);
     if (tab === 'bitacora') await loadBitacoraData(profileOverride);
+    if (tab === 'onboarding') await loadOnboardingData(profileOverride);
   };
 
   useEffect(() => {
     let mounted = true;
 
     const bootstrap = async () => {
-      setLoadedTabs({ perfil: false, actualizaciones: false, expediente: false, pagos: false, tickets: false, bitacora: false });
+      setLoadedTabs({ perfil: false, onboarding: false, actualizaciones: false, expediente: false, pagos: false, tickets: false, bitacora: false });
       setUpdates([]);
       setDocumentsByUpdate({});
       setPayments([]);
       setPaymentRights(null);
       setTickets([]);
       setBitacoraRows([]);
+      setOnboardingDocs([]);
       setExpedienteDocs([]);
       setExpedienteData(null);
       setActiveTab('perfil');
@@ -943,6 +969,77 @@ const AdminBeneficiarioDetalle = () => {
               </div>
             ))}
           </div>
+        )}
+      </section>
+      )}
+
+      {activeTab === 'onboarding' && (
+      <section className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
+        <SectionTitle title="Documentos del Onboarding" subtitle="Documentos históricos subidos durante el proceso de registro inicial del beneficiario." />
+        {loadingByTab.onboarding && <p className="text-sm text-slate-500">Cargando documentos de onboarding...</p>}
+        {!loadingByTab.onboarding && onboardingDocs.length === 0 ? (
+          <div className="text-center py-12">
+            <FileText size={56} className="mx-auto text-slate-300 mb-4" />
+            <h4 className="text-lg font-bold text-slate-700 mb-2">Sin documentos</h4>
+            <p className="text-slate-500">El beneficiario aún no tiene documentos de onboarding registrados</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm font-bold text-slate-700">
+                Total de documentos: <span className="text-secondary">{onboardingDocs.length}</span>
+              </p>
+            </div>
+            <div className="space-y-2">
+              {onboardingDocs.map((doc) => (
+                <div key={doc.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-2 border-slate-200 rounded-2xl px-4 py-3 hover:border-blue-300 hover:bg-blue-50/30 transition-all">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <FileText size={20} className="text-slate-700 flex-shrink-0" />
+                      <p className="font-bold text-slate-900 text-base truncate">
+                        {doc.titulo || doc.tipo_documento || 'Documento sin nombre'}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      {doc.tipo_documento && (
+                        <span className="bg-slate-700 text-white px-2.5 py-1 rounded-lg font-bold">
+                          {doc.tipo_documento.toUpperCase()}
+                        </span>
+                      )}
+                      {doc.descripcion && (
+                        <span className="bg-slate-50 text-slate-600 px-2.5 py-1 rounded-lg text-xs border border-slate-200">
+                          {doc.descripcion}
+                        </span>
+                      )}
+                      <span className="text-slate-600 font-medium">
+                        {formatDateTime(doc.created_at)}
+                      </span>
+                      {doc.fecha_documento && (
+                        <span className="text-slate-500">
+                          Fecha doc: {formatDate(doc.fecha_documento)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {doc.storage_path && (
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        // Intenta descargar el documento del storage
+                        const path = doc.storage_path.replace('soportes/', '')
+                        window.open(`/storage/download?path=${encodeURIComponent(path)}`, '_blank')
+                      }}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-md hover:shadow-lg flex-shrink-0"
+                    >
+                      <FileText size={18} />
+                      Ver Documento
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </section>
       )}

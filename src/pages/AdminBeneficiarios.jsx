@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Eye, CreditCard, RefreshCcw, Search, Trash2, Undo2, UserCircle2, Users } from 'lucide-react';
+import { Eye, CreditCard, RefreshCcw, Search, Trash2, Undo2, UserCircle2, Users, Key, CheckSquare, ClipboardCheck, TrendingUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { showConfirmAlert, showErrorAlert, showSuccessAlert, showWarningAlert } from '../lib/alerts';
 import BeneficiarioDetailModal from '../components/BeneficiarioDetailModal';
@@ -70,7 +70,10 @@ const AdminBeneficiarios = () => {
           nombre_banco, numero_cuenta, tipo_cuenta_bancaria,
           updated_at, created_at, deleted_at, deletion_reason, 
           convocatoria_nombre, origen_registro, onboarding_completado, inscripcion_id,
-          acepta_terminos_at, acepta_datos_at
+          acepta_terminos_at, acepta_datos_at,
+          portal_auth_credentials (
+            setup_completed_at
+          )
         `)
         .order('updated_at', { ascending: false });
       setRows(Array.isArray(data) ? data : []);
@@ -154,6 +157,26 @@ const AdminBeneficiarios = () => {
         if (item.auth_user_id) acc.vinculados += 1;
         if (item.estado_beneficiario === 'suspendido') acc.suspendidos += 1;
         if (item.deleted_at) acc.eliminados += 1;
+        
+        // Nuevas métricas
+        const tieneContrasena = item.portal_auth_credentials?.[0]?.setup_completed_at != null;
+        if (tieneContrasena) acc.conContrasena += 1;
+        if (item.onboarding_completado) acc.onboardingCompletado += 1;
+        
+        // Conteo de elegibles (activos + suspendidos)
+        const esElegible = item.estado_beneficiario === 'activo' || item.estado_beneficiario === 'suspendido';
+        if (esElegible) {
+          acc.totalElegibles += 1;
+          if (tieneContrasena && item.onboarding_completado) {
+            acc.elegiblesCompletados += 1;
+          }
+        }
+        
+        // Activos completados
+        if (item.estado_beneficiario === 'activo' && tieneContrasena && item.onboarding_completado) {
+          acc.activosCompletados += 1;
+        }
+        
         return acc;
       },
       {
@@ -162,6 +185,11 @@ const AdminBeneficiarios = () => {
         vinculados: 0,
         suspendidos: 0,
         eliminados: 0,
+        conContrasena: 0,
+        onboardingCompletado: 0,
+        activosCompletados: 0,
+        totalElegibles: 0,
+        elegiblesCompletados: 0,
       }
     );
   }, [rows]);
@@ -274,6 +302,8 @@ const AdminBeneficiarios = () => {
     { title: 'Vinculados', value: metrics.vinculados, icon: <CreditCard size={18} className="text-cyan-600" />, tone: 'bg-cyan-50' },
     { title: 'Suspendidos', value: metrics.suspendidos, icon: <Users size={18} className="text-amber-600" />, tone: 'bg-amber-50' },
     { title: 'Eliminados', value: metrics.eliminados, icon: <Trash2 size={18} className="text-rose-600" />, tone: 'bg-rose-50' },
+    { title: 'Con Contraseña', value: metrics.conContrasena, icon: <Key size={18} className="text-purple-600" />, tone: 'bg-purple-50' },
+    { title: 'Onboarding Completo', value: metrics.onboardingCompletado, icon: <ClipboardCheck size={18} className="text-teal-600" />, tone: 'bg-teal-50' },
   ];
 
   return (
@@ -285,7 +315,7 @@ const AdminBeneficiarios = () => {
         </p>
       </section>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-7 gap-3">
         {metricCards.map((metric, index) => (
           <MetricCard
             key={metric.title}
@@ -296,6 +326,67 @@ const AdminBeneficiarios = () => {
             delay={index * 60}
           />
         ))}
+      </div>
+
+      {/* Barras de Progreso */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 animate-slide-up" style={{ animationDelay: '120ms', animationFillMode: 'both' }}>
+        {/* Progreso de Beneficiarios Activos */}
+        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-5 shadow-sm border border-emerald-100">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2.5 bg-white rounded-xl shadow-sm">
+              <TrendingUp size={20} className="text-emerald-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-bold text-slate-800">Proceso Completo - Activos</h3>
+              <p className="text-xs text-slate-600 mt-0.5">Contraseña establecida + Onboarding completado</p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-semibold text-slate-700">
+                {metrics.activosCompletados} de {metrics.activos}
+              </span>
+              <span className="text-2xl font-black text-emerald-700">
+                {metrics.activos > 0 ? Math.round((metrics.activosCompletados / metrics.activos) * 100) : 0}%
+              </span>
+            </div>
+            <div className="w-full bg-white/70 rounded-full h-3 overflow-hidden shadow-inner">
+              <div
+                className="bg-gradient-to-r from-emerald-500 to-teal-500 h-full transition-all duration-500 rounded-full"
+                style={{ width: `${metrics.activos > 0 ? (metrics.activosCompletados / metrics.activos) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Progreso de Beneficiarios Elegibles (Activos + Suspendidos) */}
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-5 shadow-sm border border-blue-100">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2.5 bg-white rounded-xl shadow-sm">
+              <CheckSquare size={20} className="text-blue-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-bold text-slate-800">Proceso Completo - Elegibles</h3>
+              <p className="text-xs text-slate-600 mt-0.5">Activos + Suspendidos con proceso completado</p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-semibold text-slate-700">
+                {metrics.elegiblesCompletados} de {metrics.totalElegibles}
+              </span>
+              <span className="text-2xl font-black text-blue-700">
+                {metrics.totalElegibles > 0 ? Math.round((metrics.elegiblesCompletados / metrics.totalElegibles) * 100) : 0}%
+              </span>
+            </div>
+            <div className="w-full bg-white/70 rounded-full h-3 overflow-hidden shadow-inner">
+              <div
+                className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full transition-all duration-500 rounded-full"
+                style={{ width: `${metrics.totalElegibles > 0 ? (metrics.elegiblesCompletados / metrics.totalElegibles) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       <section className="admin-panel rounded-[30px] p-4 md:p-6 space-y-4 animate-slide-up" style={{ animationDelay: '80ms', animationFillMode: 'both' }}>

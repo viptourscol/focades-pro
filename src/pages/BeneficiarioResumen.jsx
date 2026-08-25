@@ -427,7 +427,15 @@ const BeneficiarioResumen = () => {
           }`}>
             <div className="flex items-start gap-2">
               <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-              <p>{paymentRights.motivoBloqueo}</p>
+              <div className="flex-1">
+                <p>{paymentRights.motivoBloqueo}</p>
+                {profile?.estado_beneficiario === 'suspendido' && profile?.razon_suspension && (
+                  <div className="mt-2 p-2 rounded bg-white border border-rose-200">
+                    <p className="text-xs font-semibold mb-1">Motivo de suspensión:</p>
+                    <p className="text-sm">{profile.razon_suspension}</p>
+                  </div>
+                )}
+              </div>
             </div>
             {profile?.estado_beneficiario === 'suspendido' && (
               <a

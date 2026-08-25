@@ -70,6 +70,7 @@ const BeneficiarioHome = () => {
   const [selectedNews, setSelectedNews] = useState(null);
   const [perfilIncompleto, setPerfilIncompleto] = useState(false);
   const [estadoBeneficiario, setEstadoBeneficiario] = useState(null);
+  const [razonSuspension, setRazonSuspension] = useState(null);
 
   useEffect(() => {
     if (location.hash !== '#centro-notificaciones') return;
@@ -97,7 +98,7 @@ const BeneficiarioHome = () => {
             // Consultar estado real desde la base de datos
             const { data: beneficiario, error: profileError } = await supabase
               .from('portal_beneficiarios')
-              .select('id, onboarding_completado, estado_beneficiario')
+              .select('id, onboarding_completado, estado_beneficiario, razon_suspension')
               .eq('id', beneficiarioId)
               .maybeSingle();
 
@@ -110,6 +111,7 @@ const BeneficiarioHome = () => {
               
               // Guardar estado para mostrar banners
               setEstadoBeneficiario(beneficiario.estado_beneficiario);
+              setRazonSuspension(beneficiario.razon_suspension);
               
               // Mostrar banner si el onboarding no está completado
               if (!beneficiario.onboarding_completado) {
@@ -185,7 +187,16 @@ const BeneficiarioHome = () => {
                 Tu estado es SUSPENDIDO
               </h3>
               <p className="text-sm text-rose-700 mt-1">
-                Actualmente <strong>no puedes enviar actualizaciones semestrales ni recibir nuevos pagos</strong>. Si tienes dudas sobre tu situación, por favor contacta a administración a través del sistema de tickets de soporte.
+                Actualmente <strong>no puedes enviar actualizaciones semestrales ni recibir nuevos pagos</strong>.
+              </p>
+              {razonSuspension && (
+                <div className="mt-2 p-3 rounded-lg bg-white border border-rose-200">
+                  <p className="text-xs font-semibold text-rose-800 mb-1">Motivo de suspensión:</p>
+                  <p className="text-sm text-rose-900">{razonSuspension}</p>
+                </div>
+              )}
+              <p className="text-sm text-rose-700 mt-2">
+                Si tienes dudas sobre tu situación, por favor contacta a administración a través del sistema de tickets de soporte.
               </p>
               <a
                 href="/beneficiario/tickets"

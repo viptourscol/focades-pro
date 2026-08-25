@@ -738,7 +738,14 @@ const BeneficiarioActualizacion = () => {
               {profile.estado_beneficiario === 'suspendido' ? (
                 <>
                   <p className="font-semibold mb-1">Tu estado actual es SUSPENDIDO</p>
-                  <p>No puedes enviar actualizaciones semestrales en este momento. Para resolver tu situación o solicitar información sobre tu estado, por favor contacta al equipo de administración a través del <a href="/beneficiario/tickets" className="underline font-semibold hover:text-rose-700">sistema de tickets</a>.</p>
+                  <p className="mb-2">No puedes enviar actualizaciones semestrales en este momento.</p>
+                  {profile.razon_suspension && (
+                    <div className="p-2 rounded bg-white border border-rose-200 mb-2">
+                      <p className="text-xs font-semibold mb-1">Motivo:</p>
+                      <p className="text-sm">{profile.razon_suspension}</p>
+                    </div>
+                  )}
+                  <p>Para resolver tu situación o solicitar información sobre tu estado, por favor contacta al equipo de administración a través del <a href="/beneficiario/tickets" className="underline font-semibold hover:text-rose-700">sistema de tickets</a>.</p>
                 </>
               ) : (
                 <p>Solo beneficiarios con estado <strong>ACTIVO</strong> y ventana de actualización vigente pueden enviar actualizaciones. Puedes consultar tu historial en el menú lateral.</p>

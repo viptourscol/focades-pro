@@ -193,7 +193,7 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
     setCurrentDocIndex(idx !== -1 ? idx : -1);
 
     try {
-      const url = await resolveDocumentUrl(doc.url_documento);
+      const url = await resolveDocumentUrl(doc.storage_path);
       setSelectedDocUrl(url);
     } catch (error) {
       setDocPreviewError(error?.message || 'No se pudo abrir el documento.');
@@ -214,7 +214,7 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
       setDocPreviewLoading(true);
 
       try {
-        const url = await resolveDocumentUrl(prevDoc.url_documento);
+        const url = await resolveDocumentUrl(prevDoc.storage_path);
         setSelectedDocUrl(url);
       } catch (error) {
         setDocPreviewError(error?.message || 'No se pudo abrir el documento.');
@@ -236,7 +236,7 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
       setDocPreviewLoading(true);
 
       try {
-        const url = await resolveDocumentUrl(nextDoc.url_documento);
+        const url = await resolveDocumentUrl(nextDoc.storage_path);
         setSelectedDocUrl(url);
       } catch (error) {
         setDocPreviewError(error?.message || 'No se pudo abrir el documento.');
@@ -1130,7 +1130,7 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
                             </div>
                           </div>
                           
-                          {doc.url_documento && (
+                          {doc.storage_path && (
                             <button
                               onClick={() => handleOpenDocument(doc)}
                               className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-md hover:shadow-lg flex-shrink-0"

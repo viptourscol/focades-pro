@@ -242,6 +242,8 @@ const AdminProjection = () => {
       });
 
       console.log('🔍 Muestra de primeros 3 beneficiarios procesados:', allProcessed.slice(0, 3));
+      console.log('🔍 Valores RAW de nivel_formacion:', beneficiarios.slice(0, 10).map(b => b.nivel_formacion));
+      console.log('🔍 Valores RAW de semestre_ingreso:', beneficiarios.slice(0, 10).map(b => b.semestre_ingreso));
 
       // Filtrar solo válidos
       const processed = allProcessed.filter(b => b.modalidad && b.nivel && b.pagosRestantes > 0);

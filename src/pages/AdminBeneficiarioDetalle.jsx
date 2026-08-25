@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, CalendarClock, CircleDollarSign, FileText, LoaderCircle, Mail, MapPin, Phone, Save, ShieldAlert, Ticket } from 'lucide-react';
+import { ArrowLeft, CalendarClock, CircleDollarSign, Edit2, FileText, LoaderCircle, Mail, MapPin, Phone, Save, ShieldAlert, Ticket } from 'lucide-react';
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from '../lib/alerts';
 import { invokeAdminTickets } from '../lib/adminTickets';
 import { getSafeSession, supabase } from '../lib/supabase';
@@ -176,6 +176,9 @@ const AdminBeneficiarioDetalle = () => {
   const [viewingDoc, setViewingDoc] = useState(null);
   const [activeTab, setActiveTab] = useState('perfil');
   const [onboardingSubTab, setOnboardingSubTab] = useState('personal');
+  const [isEditingOnboarding, setIsEditingOnboarding] = useState(false);
+  const [onboardingForm, setOnboardingForm] = useState({});
+  const [hasOnboardingChanges, setHasOnboardingChanges] = useState(false);
   const [loadedTabs, setLoadedTabs] = useState({ perfil: false, onboarding: false, actualizaciones: false, expediente: false, pagos: false, tickets: false, bitacora: false });
   const [loadingByTab, setLoadingByTab] = useState({ perfil: false, onboarding: false, actualizaciones: false, expediente: false, pagos: false, tickets: false, bitacora: false });
   const [expedienteDocs, setExpedienteDocs] = useState([]);
@@ -516,9 +519,215 @@ const AdminBeneficiarioDetalle = () => {
         .order('created_at', { ascending: false });
 
       setOnboardingDocs(Array.isArray(data) ? data : []);
+      
+      // Inicializar formulario de onboarding
+      setOnboardingForm({
+        nombre_completo: profile.nombre_completo || '',
+        n_documento: profile.n_documento || '',
+        tipo_documento: profile.tipo_documento || 'CC',
+        email: profile.email || '',
+        telefono: profile.telefono || '',
+        genero: profile.genero || '',
+        fecha_nacimiento: profile.fecha_nacimiento || '',
+        pais_nacimiento: profile.pais_nacimiento || 'COLOMBIA',
+        dpto_nacimiento: profile.dpto_nacimiento || '',
+        municipio_nacimiento: profile.municipio_nacimiento || '',
+        dpto_residencia: profile.dpto_residencia || '',
+        municipio_residencia: profile.municipio_residencia || '',
+        direccion_residencia: profile.direccion_residencia || '',
+        barrio_corregimiento: profile.barrio_corregimiento || '',
+        zona_residencia: profile.zona_residencia || '',
+        direccion: profile.direccion || '',
+        sisben_grupo: profile.sisben_grupo || '',
+        recibe_subsidio: profile.recibe_subsidio || '',
+        cual_subsidio: profile.cual_subsidio || '',
+        enfoque_diferencial: profile.enfoque_diferencial || 'NINGUNO',
+        labora_actualmente: profile.labora_actualmente || '',
+        nombre_padre: profile.nombre_padre || '',
+        documento_padre: profile.documento_padre || '',
+        ocupacion_padre: profile.ocupacion_padre || '',
+        ingresos_padre: profile.ingresos_padre || '',
+        nombre_madre: profile.nombre_madre || '',
+        documento_madre: profile.documento_madre || '',
+        ocupacion_madre: profile.ocupacion_madre || '',
+        ingresos_madre: profile.ingresos_madre || '',
+        titulo_obtenido: profile.titulo_obtenido || '',
+        ano_graduacion: profile.ano_graduacion || '',
+        establecimiento_educativo: profile.establecimiento_educativo || '',
+        puntaje_icfes: profile.puntaje_icfes || '',
+        programa_academico: profile.programa_academico || '',
+        nombre_universidad: profile.nombre_universidad || '',
+        institucion_superior: profile.institucion_superior || '',
+        dpto_institucion: profile.dpto_institucion || '',
+        municipio_institucion: profile.municipio_institucion || '',
+        ciudad_institucion: profile.ciudad_institucion || '',
+        tipo_educacion: profile.tipo_educacion || '',
+        modalidad_beca: profile.modalidad_beca || '',
+        semestre_actual: profile.semestre_actual || '',
+        semestre_ingreso: profile.semestre_ingreso || '',
+        modalidad: profile.modalidad || '',
+        promedio_anterior: profile.promedio_anterior || '',
+        año_convocatoria: profile.año_convocatoria || '',
+        nombre_banco: profile.nombre_banco || '',
+        tipo_cuenta_bancaria: profile.tipo_cuenta_bancaria || '',
+        numero_cuenta: profile.numero_cuenta || '',
+      });
+      setHasOnboardingChanges(false);
+      setIsEditingOnboarding(false);
       markTabLoaded('onboarding');
     } finally {
       setTabLoading('onboarding', false);
+    }
+  };
+
+  const handleOnboardingChange = (field, value) => {
+    setOnboardingForm(prev => ({ ...prev, [field]: value }));
+    setHasOnboardingChanges(true);
+  };
+
+  const handleCancelOnboardingEdit = () => {
+    // Restaurar valores originales
+    if (beneficiario) {
+      setOnboardingForm({
+        nombre_completo: beneficiario.nombre_completo || '',
+        n_documento: beneficiario.n_documento || '',
+        tipo_documento: beneficiario.tipo_documento || 'CC',
+        email: beneficiario.email || '',
+        telefono: beneficiario.telefono || '',
+        genero: beneficiario.genero || '',
+        fecha_nacimiento: beneficiario.fecha_nacimiento || '',
+        pais_nacimiento: beneficiario.pais_nacimiento || 'COLOMBIA',
+        dpto_nacimiento: beneficiario.dpto_nacimiento || '',
+        municipio_nacimiento: beneficiario.municipio_nacimiento || '',
+        dpto_residencia: beneficiario.dpto_residencia || '',
+        municipio_residencia: beneficiario.municipio_residencia || '',
+        direccion_residencia: beneficiario.direccion_residencia || '',
+        barrio_corregimiento: beneficiario.barrio_corregimiento || '',
+        zona_residencia: beneficiario.zona_residencia || '',
+        direccion: beneficiario.direccion || '',
+        sisben_grupo: beneficiario.sisben_grupo || '',
+        recibe_subsidio: beneficiario.recibe_subsidio || '',
+        cual_subsidio: beneficiario.cual_subsidio || '',
+        enfoque_diferencial: beneficiario.enfoque_diferencial || 'NINGUNO',
+        labora_actualmente: beneficiario.labora_actualmente || '',
+        nombre_padre: beneficiario.nombre_padre || '',
+        documento_padre: beneficiario.documento_padre || '',
+        ocupacion_padre: beneficiario.ocupacion_padre || '',
+        ingresos_padre: beneficiario.ingresos_padre || '',
+        nombre_madre: beneficiario.nombre_madre || '',
+        documento_madre: beneficiario.documento_madre || '',
+        ocupacion_madre: beneficiario.ocupacion_madre || '',
+        ingresos_madre: beneficiario.ingresos_madre || '',
+        titulo_obtenido: beneficiario.titulo_obtenido || '',
+        ano_graduacion: beneficiario.ano_graduacion || '',
+        establecimiento_educativo: beneficiario.establecimiento_educativo || '',
+        puntaje_icfes: beneficiario.puntaje_icfes || '',
+        programa_academico: beneficiario.programa_academico || '',
+        nombre_universidad: beneficiario.nombre_universidad || '',
+        institucion_superior: beneficiario.institucion_superior || '',
+        dpto_institucion: beneficiario.dpto_institucion || '',
+        municipio_institucion: beneficiario.municipio_institucion || '',
+        ciudad_institucion: beneficiario.ciudad_institucion || '',
+        tipo_educacion: beneficiario.tipo_educacion || '',
+        modalidad_beca: beneficiario.modalidad_beca || '',
+        semestre_actual: beneficiario.semestre_actual || '',
+        semestre_ingreso: beneficiario.semestre_ingreso || '',
+        modalidad: beneficiario.modalidad || '',
+        promedio_anterior: beneficiario.promedio_anterior || '',
+        año_convocatoria: beneficiario.año_convocatoria || '',
+        nombre_banco: beneficiario.nombre_banco || '',
+        tipo_cuenta_bancaria: beneficiario.tipo_cuenta_bancaria || '',
+        numero_cuenta: beneficiario.numero_cuenta || '',
+      });
+    }
+    setHasOnboardingChanges(false);
+    setIsEditingOnboarding(false);
+  };
+
+  const handleSaveOnboarding = async () => {
+    if (!hasOnboardingChanges) {
+      await showErrorAlert({ title: 'Sin cambios', text: 'No hay cambios para guardar' });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Calcular cambios
+      const changes = {};
+      Object.keys(onboardingForm).forEach(key => {
+        if (onboardingForm[key] !== (beneficiario[key] || '')) {
+          changes[key] = onboardingForm[key];
+        }
+      });
+
+      if (Object.keys(changes).length === 0) {
+        await showErrorAlert({ title: 'Sin cambios', text: 'No hay cambios para guardar' });
+        return;
+      }
+
+      // Actualizar beneficiario
+      const { error: updateError } = await supabase
+        .from('portal_beneficiarios')
+        .update({ ...changes, updated_at: new Date().toISOString() })
+        .eq('id', beneficiarioId);
+
+      if (updateError) throw updateError;
+
+      // Registrar en bitácora
+      const session = await getSafeSession();
+      const actorUserId = session?.user?.id || null;
+      const actorEmail = session?.user?.email || 'Sistema';
+
+      await supabase.from('portal_beneficiario_bitacora').insert({
+        beneficiario_id: beneficiarioId,
+        categoria: 'datos_personales',
+        tipo_evento: 'actualizacion_admin',
+        accion: 'update',
+        nota: `Actualización de datos de onboarding por ${actorEmail}. Campos: ${Object.keys(changes).join(', ')}`,
+        actor_user_id: actorUserId,
+      });
+
+      await showSuccessAlert({ title: 'Guardado exitoso', text: 'Los datos del onboarding se actualizaron correctamente' });
+      
+      // Recargar datos
+      const profile = await loadProfileData();
+      if (profile) {
+        await loadOnboardingData(profile);
+      }
+      
+      setIsEditingOnboarding(false);
+      setHasOnboardingChanges(false);
+    } catch (error) {
+      await showErrorAlert({ title: 'Error al guardar', text: error.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleViewDocument = async (doc) => {
+    if (!doc?.storage_path) return;
+    
+    try {
+      // Limpiar path
+      let cleanPath = doc.storage_path;
+      const bucketPrefix = 'soportes/';
+      if (cleanPath.startsWith(bucketPrefix)) {
+        cleanPath = cleanPath.substring(bucketPrefix.length);
+      }
+
+      // Obtener URL firmada
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from('soportes')
+        .createSignedUrl(cleanPath, 60 * 30);
+
+      if (signedError || !signedData?.signedUrl) {
+        throw new Error(signedError?.message || 'No se pudo obtener una URL para visualizar el documento.');
+      }
+
+      // Abrir en nueva ventana
+      window.open(signedData.signedUrl, '_blank');
+    } catch (error) {
+      await showErrorAlert({ title: 'Error', text: error.message || 'No se pudo abrir el documento.' });
     }
   };
 
@@ -1004,6 +1213,48 @@ const AdminBeneficiarioDetalle = () => {
           ))}
         </div>
 
+        {/* Botones de edición */}
+        {!loadingByTab.onboarding && beneficiario && onboardingSubTab !== 'estado' && onboardingSubTab !== 'documentos' && (
+          <div className="flex items-center justify-end gap-3 border-b border-slate-200 pb-4">
+            {!isEditingOnboarding ? (
+              <button
+                onClick={() => setIsEditingOnboarding(true)}
+                className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2"
+              >
+                <Edit2 size={18} />
+                Editar
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={handleCancelOnboardingEdit}
+                  disabled={loading}
+                  className="px-6 py-2.5 border-2 border-slate-200 rounded-xl font-semibold text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSaveOnboarding}
+                  disabled={loading || !hasOnboardingChanges}
+                  className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <LoaderCircle size={18} className="animate-spin" />
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={18} />
+                      Guardar Cambios
+                    </>
+                  )}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         {loadingByTab.onboarding && <p className="text-sm text-slate-500">Cargando información...</p>}
         
         {!loadingByTab.onboarding && beneficiario && (
@@ -1011,22 +1262,143 @@ const AdminBeneficiarioDetalle = () => {
             {/* Personal */}
             {onboardingSubTab === 'personal' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <DataField label="Nombre Completo" value={beneficiario.nombre_completo} />
-                <DataField label="Tipo de Documento" value={beneficiario.tipo_documento} />
-                <DataField label="Número de Documento" value={beneficiario.n_documento} />
-                <DataField label="Género" value={beneficiario.genero} />
-                <DataField label="Email" value={beneficiario.email} />
-                <DataField label="Teléfono" value={beneficiario.telefono} />
-                <DataField label="Fecha de Nacimiento" value={beneficiario.fecha_nacimiento ? formatDate(beneficiario.fecha_nacimiento) : null} />
-                <DataField label="País de Nacimiento" value={beneficiario.pais_nacimiento} />
-                <DataField label="Departamento de Nacimiento" value={beneficiario.dpto_nacimiento} />
-                <DataField label="Municipio de Nacimiento" value={beneficiario.municipio_nacimiento} />
-                <DataField label="Departamento de Residencia" value={beneficiario.dpto_residencia} />
-                <DataField label="Municipio de Residencia" value={beneficiario.municipio_residencia} />
-                <DataField label="Dirección de Residencia" value={beneficiario.direccion_residencia} className="md:col-span-2" />
-                <DataField label="Barrio/Corregimiento" value={beneficiario.barrio_corregimiento} />
-                <DataField label="Zona de Residencia" value={beneficiario.zona_residencia} />
-                <DataField label="Dirección" value={beneficiario.direccion} className="md:col-span-2" />
+                <DataField 
+                  label="Nombre Completo" 
+                  value={isEditingOnboarding ? onboardingForm.nombre_completo : beneficiario.nombre_completo} 
+                  field="nombre_completo"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Tipo de Documento" 
+                  value={isEditingOnboarding ? onboardingForm.tipo_documento : beneficiario.tipo_documento} 
+                  field="tipo_documento"
+                  type="select"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                  options={[
+                    { value: 'CC', label: 'Cédula de Ciudadanía' },
+                    { value: 'TI', label: 'Tarjeta de Identidad' },
+                    { value: 'CE', label: 'Cédula de Extranjería' },
+                    { value: 'PA', label: 'Pasaporte' }
+                  ]}
+                />
+                <DataField 
+                  label="Número de Documento" 
+                  value={isEditingOnboarding ? onboardingForm.n_documento : beneficiario.n_documento} 
+                  field="n_documento"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Género" 
+                  value={isEditingOnboarding ? onboardingForm.genero : beneficiario.genero} 
+                  field="genero"
+                  type="select"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                  options={[
+                    { value: '', label: 'Seleccionar...' },
+                    { value: 'MASCULINO', label: 'Masculino' },
+                    { value: 'FEMENINO', label: 'Femenino' },
+                    { value: 'OTRO', label: 'Otro' }
+                  ]}
+                />
+                <DataField 
+                  label="Email" 
+                  value={isEditingOnboarding ? onboardingForm.email : beneficiario.email} 
+                  field="email"
+                  type="email"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Teléfono" 
+                  value={isEditingOnboarding ? onboardingForm.telefono : beneficiario.telefono} 
+                  field="telefono"
+                  type="tel"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Fecha de Nacimiento" 
+                  value={isEditingOnboarding ? onboardingForm.fecha_nacimiento : (beneficiario.fecha_nacimiento ? formatDate(beneficiario.fecha_nacimiento) : null)} 
+                  field="fecha_nacimiento"
+                  type={isEditingOnboarding ? "date" : "text"}
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="País de Nacimiento" 
+                  value={isEditingOnboarding ? onboardingForm.pais_nacimiento : beneficiario.pais_nacimiento} 
+                  field="pais_nacimiento"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Departamento de Nacimiento" 
+                  value={isEditingOnboarding ? onboardingForm.dpto_nacimiento : beneficiario.dpto_nacimiento} 
+                  field="dpto_nacimiento"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Municipio de Nacimiento" 
+                  value={isEditingOnboarding ? onboardingForm.municipio_nacimiento : beneficiario.municipio_nacimiento} 
+                  field="municipio_nacimiento"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Departamento de Residencia" 
+                  value={isEditingOnboarding ? onboardingForm.dpto_residencia : beneficiario.dpto_residencia} 
+                  field="dpto_residencia"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Municipio de Residencia" 
+                  value={isEditingOnboarding ? onboardingForm.municipio_residencia : beneficiario.municipio_residencia} 
+                  field="municipio_residencia"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Dirección de Residencia" 
+                  value={isEditingOnboarding ? onboardingForm.direccion_residencia : beneficiario.direccion_residencia} 
+                  field="direccion_residencia"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                  className="md:col-span-2" 
+                />
+                <DataField 
+                  label="Barrio/Corregimiento" 
+                  value={isEditingOnboarding ? onboardingForm.barrio_corregimiento : beneficiario.barrio_corregimiento} 
+                  field="barrio_corregimiento"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Zona de Residencia" 
+                  value={isEditingOnboarding ? onboardingForm.zona_residencia : beneficiario.zona_residencia} 
+                  field="zona_residencia"
+                  type="select"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                  options={[
+                    { value: '', label: 'Seleccionar...' },
+                    { value: 'URBANA', label: 'Urbana' },
+                    { value: 'RURAL', label: 'Rural' }
+                  ]}
+                />
+                <DataField 
+                  label="Dirección" 
+                  value={isEditingOnboarding ? onboardingForm.direccion : beneficiario.direccion} 
+                  field="direccion"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                  className="md:col-span-2" 
+                />
               </div>
             )}
 
@@ -1206,10 +1578,7 @@ const AdminBeneficiarioDetalle = () => {
                           {doc.storage_path && (
                             <button 
                               type="button" 
-                              onClick={() => {
-                                const path = doc.storage_path.replace('soportes/', '')
-                                window.open(`/storage/download?path=${encodeURIComponent(path)}`, '_blank')
-                              }}
+                              onClick={() => handleViewDocument(doc)}
                               className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-md hover:shadow-lg flex-shrink-0"
                             >
                               <FileText size={18} />
@@ -1535,15 +1904,50 @@ const SectionTitle = ({ title, subtitle }) => (
   </div>
 );
 
-const DataField = ({ label, value, className = '' }) => {
+const DataField = ({ label, value, field, isEditing = false, type = 'text', options = null, onChange = null, disabled = false, placeholder = '', className = '' }) => {
   const displayValue = value || 'No especificado';
+  
+  if (!isEditing) {
+    return (
+      <div className={className}>
+        <label className="block text-sm font-semibold text-slate-700 mb-2">{label}</label>
+        <div className="px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-slate-900">
+          {displayValue}
+        </div>
+      </div>
+    );
+  }
+  
+  // Modo edición
+  if (type === 'select' && options) {
+    return (
+      <div className={className}>
+        <label className="block text-sm font-semibold text-slate-700 mb-2">{label}</label>
+        <select
+          value={value}
+          onChange={(e) => onChange && onChange(field, e.target.value)}
+          disabled={disabled}
+          className="w-full px-4 py-2.5 border-2 border-blue-300 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:bg-slate-100 disabled:cursor-not-allowed bg-white"
+        >
+          {options.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+    );
+  }
   
   return (
     <div className={className}>
       <label className="block text-sm font-semibold text-slate-700 mb-2">{label}</label>
-      <div className="px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-slate-900">
-        {displayValue}
-      </div>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange && onChange(field, e.target.value)}
+        disabled={disabled}
+        placeholder={placeholder}
+        className="w-full px-4 py-2.5 border-2 border-blue-300 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:bg-slate-100 disabled:cursor-not-allowed bg-white"
+      />
     </div>
   );
 };

@@ -118,47 +118,17 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
     
     setLoadingDocs(true);
     try {
-      // Cargar documentos de actualizaciones
-      const { data: updates } = await supabase
-        .from('portal_actualizaciones')
-        .select('id')
-        .eq('beneficiario_id', beneficiario.id);
+      // Cargar solo documentos históricos del onboarding
+      const { data: historicoDocs } = await supabase
+        .from('portal_beneficiario_documentos_historicos')
+        .select('*')
+        .eq('beneficiario_id', beneficiario.id)
+        .order('created_at', { ascending: false });
       
-      const updateIds = updates?.map(u => u.id) || [];
-      
-      const docsQueries = [];
-      
-      // Documentos de actualizaciones
-      if (updateIds.length > 0) {
-        docsQueries.push(
-          supabase
-            .from('portal_actualizacion_documentos')
-            .select('*, portal_actualizaciones!inner(ventana_id)')
-            .in('actualizacion_id', updateIds)
-            .order('created_at', { ascending: false })
-        );
-      } else {
-        docsQueries.push(Promise.resolve({ data: [] }));
-      }
-      
-      // Documentos históricos
-      docsQueries.push(
-        supabase
-          .from('portal_beneficiario_documentos_historicos')
-          .select('*')
-          .eq('beneficiario_id', beneficiario.id)
-          .order('created_at', { ascending: false })
-      );
-      
-      const [actualizacionDocs, historicoDocs] = await Promise.all(docsQueries);
-      
-      const allDocs = [
-        ...(actualizacionDocs.data || []).map(d => ({ ...d, source: 'actualizacion' })),
-        ...(historicoDocs.data || []).map(d => ({ ...d, source: 'historico' }))
-      ];
-      
-      setDocuments(allDocs);
-    } catch (error) {} finally {
+      setDocuments(historicoDocs || []);
+    } catch (error) {
+      setDocuments([]);
+    } finally {
       setLoadingDocs(false);
     }
   };
@@ -1069,14 +1039,14 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
           {activeTab === 'documentos' && (
             <div className="space-y-6">
               {/* Información sobre documentos */}
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
                 <div className="flex items-start gap-3">
-                  <FileText size={20} className="text-blue-600 mt-0.5 flex-shrink-0" />
-                  <div className="text-sm text-blue-900">
-                    <p className="font-semibold mb-1">Documentos del Beneficiario</p>
-                    <p className="text-blue-700">
-                      Aquí se muestran todos los documentos subidos por el beneficiario durante el proceso de onboarding 
-                      y actualizaciones semestrales, incluyendo: cédula, certificados académicos, soportes bancarios, etc.
+                  <FileText size={20} className="text-purple-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-purple-900">
+                    <p className="font-semibold mb-1">Documentos del Onboarding</p>
+                    <p className="text-purple-700">
+                      Aquí se muestran los documentos históricos subidos por el beneficiario durante el proceso de registro inicial (onboarding), 
+                      incluyendo: cédula, certificados académicos, soportes bancarios, constancias, etc.
                     </p>
                   </div>
                 </div>
@@ -1097,16 +1067,8 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
                 <>
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-bold text-slate-800">
-                      Total de documentos: {documents.length}
+                      Documentos de Onboarding: {documents.length}
                     </h3>
-                    <div className="flex gap-2 text-xs">
-                      <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full font-semibold">
-                        Históricos: {documents.filter(d => d.source === 'historico').length}
-                      </span>
-                      <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full font-semibold">
-                        Actualizaciones: {documents.filter(d => d.source === 'actualizacion').length}
-                      </span>
-                    </div>
                   </div>
                   
                   <div className="space-y-3">
@@ -1115,22 +1077,20 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-2">
-                              <FileText size={20} className="text-blue-600 flex-shrink-0" />
+                              <FileText size={20} className="text-purple-600 flex-shrink-0" />
                               <p className="font-bold text-slate-900 text-base truncate">
-                                {doc.nombre_original || doc.tipo_documento || 'Documento sin nombre'}
+                                {doc.titulo || doc.tipo_documento || 'Documento sin nombre'}
                               </p>
                             </div>
                             <div className="flex flex-wrap items-center gap-2 text-xs">
-                              <span className={`px-2.5 py-1 rounded-lg font-bold ${
-                                doc.source === 'historico' 
-                                  ? 'bg-purple-100 text-purple-700 border border-purple-200' 
-                                  : 'bg-blue-100 text-blue-700 border border-blue-200'
-                              }`}>
-                                {doc.source === 'historico' ? 'Onboarding/Histórico' : 'Actualización Semestral'}
-                              </span>
                               {doc.tipo_documento && (
-                                <span className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded-lg font-semibold border border-slate-200">
+                                <span className="bg-purple-100 text-purple-700 px-2.5 py-1 rounded-lg font-bold border border-purple-200">
                                   {doc.tipo_documento.toUpperCase()}
+                                </span>
+                              )}
+                              {doc.descripcion && (
+                                <span className="bg-slate-50 text-slate-600 px-2.5 py-1 rounded-lg text-xs border border-slate-200">
+                                  {doc.descripcion}
                                 </span>
                               )}
                               <span className="text-slate-600 font-medium">
@@ -1142,7 +1102,7 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
                           {doc.storage_path && (
                             <button
                               onClick={() => handleOpenDocument(doc)}
-                              className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-md hover:shadow-lg flex-shrink-0"
+                              className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 transition-all shadow-md hover:shadow-lg flex-shrink-0"
                             >
                               <Eye size={18} />
                               Ver Documento
@@ -1222,7 +1182,7 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
               <div className="flex-1 min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Visualización de documento</p>
                 <p className="text-sm font-bold text-slate-700 truncate">
-                  {selectedDoc.nombre_original || selectedDoc.tipo_documento || 'Documento'}
+                  {selectedDoc.titulo || selectedDoc.tipo_documento || 'Documento'}
                 </p>
                 {documents.length > 1 && (
                   <p className="text-xs text-slate-500 mt-1">
@@ -1283,11 +1243,11 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
               {!docPreviewLoading && !docPreviewError && selectedDocUrl && (
                 <div className="rounded-xl overflow-hidden border border-slate-200 bg-white">
                   {looksLikeImage(selectedDocUrl) ? (
-                    <img src={selectedDocUrl} alt={selectedDoc.nombre_original || 'Documento'} className="w-full max-h-[74vh] object-contain bg-slate-50" />
+                    <img src={selectedDocUrl} alt={selectedDoc.titulo || 'Documento'} className="w-full max-h-[74vh] object-contain bg-slate-50" />
                   ) : looksLikePdf(selectedDocUrl) ? (
-                    <iframe title={selectedDoc.nombre_original || 'Documento'} src={selectedDocUrl} className="w-full h-[74vh]" />
+                    <iframe title={selectedDoc.titulo || 'Documento'} src={selectedDocUrl} className="w-full h-[74vh]" />
                   ) : (
-                    <iframe title={selectedDoc.nombre_original || 'Documento'} src={selectedDocUrl} className="w-full h-[74vh]" />
+                    <iframe title={selectedDoc.titulo || 'Documento'} src={selectedDocUrl} className="w-full h-[74vh]" />
                   )}
                 </div>
               )}

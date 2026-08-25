@@ -57,12 +57,20 @@ const AdminBeneficiarios = () => {
         .from('portal_beneficiarios')
         .select(`
           id, nombre_completo, email, n_documento, tipo_documento, telefono, direccion, genero,
+          fecha_nacimiento, pais_nacimiento, dpto_nacimiento, municipio_nacimiento,
+          dpto_residencia, municipio_residencia, direccion_residencia, barrio_corregimiento, zona_residencia,
+          sisben_grupo, recibe_subsidio, cual_subsidio, enfoque_diferencial, labora_actualmente,
+          nombre_padre, documento_padre, ocupacion_padre, ingresos_padre,
+          nombre_madre, documento_madre, ocupacion_madre, ingresos_madre,
+          titulo_obtenido, ano_graduacion, establecimiento_educativo, puntaje_icfes,
           estado_beneficiario, semestre_actual, semestre_ingreso, auth_user_id, 
-          programa_academico, nombre_universidad, nombre_colegio, tipo_educacion, 
-          nivel_formacion, modalidad_beca, año_convocatoria,
+          programa_academico, nombre_universidad, institucion_superior, nombre_colegio, tipo_educacion, 
+          nivel_formacion, modalidad_beca, modalidad, año_convocatoria,
+          ciudad_institucion, dpto_institucion, municipio_institucion, promedio_anterior,
           nombre_banco, numero_cuenta, tipo_cuenta_bancaria,
           updated_at, created_at, deleted_at, deletion_reason, 
-          convocatoria_nombre, origen_registro, onboarding_completado, inscripcion_id
+          convocatoria_nombre, origen_registro, onboarding_completado, inscripcion_id,
+          acepta_terminos_at, acepta_datos_at
         `)
         .order('updated_at', { ascending: false });
       setRows(Array.isArray(data) ? data : []);

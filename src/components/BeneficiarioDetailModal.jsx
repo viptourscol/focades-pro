@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Save, User, GraduationCap, CreditCard, Shield, AlertCircle, FileText, Edit2, Check, Eye } from 'lucide-react';
+import { X, Save, User, GraduationCap, CreditCard, Shield, AlertCircle, FileText, Edit2, Check, Eye, ChevronLeft, ChevronRight, Printer, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { showSuccessAlert, showErrorAlert } from '../lib/alerts';
 
@@ -11,6 +11,11 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [documents, setDocuments] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
+  const [selectedDoc, setSelectedDoc] = useState(null);
+  const [selectedDocUrl, setSelectedDocUrl] = useState('');
+  const [currentDocIndex, setCurrentDocIndex] = useState(-1);
+  const [docPreviewLoading, setDocPreviewLoading] = useState(false);
+  const [docPreviewError, setDocPreviewError] = useState('');
 
   useEffect(() => {
     if (beneficiario) {
@@ -23,17 +28,55 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
         telefono: beneficiario.telefono || '',
         direccion: beneficiario.direccion || '',
         genero: beneficiario.genero || '',
+        fecha_nacimiento: beneficiario.fecha_nacimiento || '',
+        pais_nacimiento: beneficiario.pais_nacimiento || 'COLOMBIA',
+        dpto_nacimiento: beneficiario.dpto_nacimiento || '',
+        municipio_nacimiento: beneficiario.municipio_nacimiento || '',
+        dpto_residencia: beneficiario.dpto_residencia || '',
+        municipio_residencia: beneficiario.municipio_residencia || '',
+        direccion_residencia: beneficiario.direccion_residencia || '',
+        barrio_corregimiento: beneficiario.barrio_corregimiento || '',
+        zona_residencia: beneficiario.zona_residencia || '',
+        
+        // Información socioeconómica
+        sisben_grupo: beneficiario.sisben_grupo || '',
+        recibe_subsidio: beneficiario.recibe_subsidio || '',
+        cual_subsidio: beneficiario.cual_subsidio || '',
+        enfoque_diferencial: beneficiario.enfoque_diferencial || 'NINGUNO',
+        labora_actualmente: beneficiario.labora_actualmente || '',
+        
+        // Composición familiar
+        nombre_padre: beneficiario.nombre_padre || '',
+        documento_padre: beneficiario.documento_padre || '',
+        ocupacion_padre: beneficiario.ocupacion_padre || '',
+        ingresos_padre: beneficiario.ingresos_padre || '',
+        nombre_madre: beneficiario.nombre_madre || '',
+        documento_madre: beneficiario.documento_madre || '',
+        ocupacion_madre: beneficiario.ocupacion_madre || '',
+        ingresos_madre: beneficiario.ingresos_madre || '',
+        
+        // Formación secundaria
+        titulo_obtenido: beneficiario.titulo_obtenido || '',
+        ano_graduacion: beneficiario.ano_graduacion || '',
+        establecimiento_educativo: beneficiario.establecimiento_educativo || '',
+        puntaje_icfes: beneficiario.puntaje_icfes || '',
         
         // Datos académicos
         programa_academico: beneficiario.programa_academico || '',
         nombre_universidad: beneficiario.nombre_universidad || '',
+        institucion_superior: beneficiario.institucion_superior || '',
         nombre_colegio: beneficiario.nombre_colegio || '',
         tipo_educacion: beneficiario.tipo_educacion || '',
         nivel_formacion: beneficiario.nivel_formacion || '',
         modalidad_beca: beneficiario.modalidad_beca || '',
+        modalidad: beneficiario.modalidad || '',
         semestre_actual: beneficiario.semestre_actual || '',
         semestre_ingreso: beneficiario.semestre_ingreso || '',
         año_convocatoria: beneficiario.año_convocatoria || '',
+        ciudad_institucion: beneficiario.ciudad_institucion || '',
+        dpto_institucion: beneficiario.dpto_institucion || '',
+        municipio_institucion: beneficiario.municipio_institucion || '',
+        promedio_anterior: beneficiario.promedio_anterior || '',
         
         // Datos bancarios
         nombre_banco: beneficiario.nombre_banco || '',
@@ -48,6 +91,27 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
       loadDocuments();
     }
   }, [beneficiario]);
+
+  // Keyboard shortcuts para navegación de documentos
+  useEffect(() => {
+    if (!selectedDoc) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        goToPreviousDoc();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        goToNextDoc();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closePreviewModal();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedDoc, currentDocIndex, documents]);
 
   const loadDocuments = async () => {
     if (!beneficiario?.id) return;
@@ -100,6 +164,106 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
       setLoadingDocs(false);
     }
   };
+
+  const resolveDocumentUrl = async (path) => {
+    if (/^https?:\/\//i.test(path)) {
+      return path;
+    }
+
+    const { data: signedData, error: signedError } = await supabase.storage
+      .from('soportes')
+      .createSignedUrl(path, 60 * 30);
+
+    if (!signedError && signedData?.signedUrl) {
+      return signedData.signedUrl;
+    }
+
+    const publicData = supabase.storage.from('soportes').getPublicUrl(path);
+    const publicUrl = String(publicData?.data?.publicUrl || '').trim();
+    if (publicUrl) return publicUrl;
+
+    throw new Error(signedError?.message || 'No se pudo obtener una URL para visualizar el documento.');
+  };
+
+  const handleOpenDocument = async (doc) => {
+    setSelectedDoc(doc);
+    setSelectedDocUrl('');
+    setDocPreviewError('');
+    setDocPreviewLoading(true);
+    
+    const idx = documents.findIndex(d => d.id === doc.id);
+    setCurrentDocIndex(idx !== -1 ? idx : -1);
+
+    try {
+      const url = await resolveDocumentUrl(doc.url_documento);
+      setSelectedDocUrl(url);
+    } catch (error) {
+      setDocPreviewError(error?.message || 'No se pudo abrir el documento.');
+    } finally {
+      setDocPreviewLoading(false);
+    }
+  };
+
+  const goToPreviousDoc = async () => {
+    if (currentDocIndex <= 0) return;
+    const prevIndex = currentDocIndex - 1;
+    const prevDoc = documents[prevIndex];
+    if (prevDoc) {
+      setCurrentDocIndex(prevIndex);
+      setSelectedDoc(prevDoc);
+      setSelectedDocUrl('');
+      setDocPreviewError('');
+      setDocPreviewLoading(true);
+
+      try {
+        const url = await resolveDocumentUrl(prevDoc.url_documento);
+        setSelectedDocUrl(url);
+      } catch (error) {
+        setDocPreviewError(error?.message || 'No se pudo abrir el documento.');
+      } finally {
+        setDocPreviewLoading(false);
+      }
+    }
+  };
+
+  const goToNextDoc = async () => {
+    if (currentDocIndex >= documents.length - 1) return;
+    const nextIndex = currentDocIndex + 1;
+    const nextDoc = documents[nextIndex];
+    if (nextDoc) {
+      setCurrentDocIndex(nextIndex);
+      setSelectedDoc(nextDoc);
+      setSelectedDocUrl('');
+      setDocPreviewError('');
+      setDocPreviewLoading(true);
+
+      try {
+        const url = await resolveDocumentUrl(nextDoc.url_documento);
+        setSelectedDocUrl(url);
+      } catch (error) {
+        setDocPreviewError(error?.message || 'No se pudo abrir el documento.');
+      } finally {
+        setDocPreviewLoading(false);
+      }
+    }
+  };
+
+  const closePreviewModal = () => {
+    setSelectedDoc(null);
+    setSelectedDocUrl('');
+    setDocPreviewError('');
+    setDocPreviewLoading(false);
+    setCurrentDocIndex(-1);
+  };
+
+  const handlePrintDocument = () => {
+    if (selectedDocUrl) {
+      window.open(selectedDocUrl, '_blank');
+    }
+  };
+
+  const looksLikePdf = (value) => /\.pdf(\?|$)/i.test(String(value || ''));
+  const looksLikeImage = (value) => /\.(png|jpg|jpeg|webp)(\?|$)/i.test(String(value || ''));
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -176,9 +340,12 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
 
   const tabs = [
     { id: 'personal', label: 'Datos Personales', icon: User },
-    { id: 'academico', label: 'Datos Académicos', icon: GraduationCap },
+    { id: 'socioeconomico', label: 'Socioeconómico', icon: Shield },
+    { id: 'familiar', label: 'Familiar', icon: User },
+    { id: 'secundaria', label: 'Formación Secundaria', icon: GraduationCap },
+    { id: 'academico', label: 'Educación Superior', icon: GraduationCap },
     { id: 'bancario', label: 'Datos Bancarios', icon: CreditCard },
-    { id: 'estado', label: 'Estado y Vinculación', icon: Shield },
+    { id: 'estado', label: 'Estado', icon: Shield },
     { id: 'documentos', label: 'Documentos', icon: FileText },
   ];
 
@@ -400,6 +567,68 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
               />
 
               <Field
+                label="Fecha de Nacimiento"
+                type="date"
+                value={formData.fecha_nacimiento}
+                onChange={(e) => handleChange('fecha_nacimiento', e.target.value)}
+              />
+
+              <Field
+                label="País de Nacimiento"
+                value={formData.pais_nacimiento}
+                onChange={(e) => handleChange('pais_nacimiento', e.target.value)}
+              />
+
+              <Field
+                label="Departamento de Nacimiento"
+                value={formData.dpto_nacimiento}
+                onChange={(e) => handleChange('dpto_nacimiento', e.target.value)}
+              />
+
+              <Field
+                label="Municipio de Nacimiento"
+                value={formData.municipio_nacimiento}
+                onChange={(e) => handleChange('municipio_nacimiento', e.target.value)}
+              />
+
+              <Field
+                label="Departamento de Residencia"
+                value={formData.dpto_residencia}
+                onChange={(e) => handleChange('dpto_residencia', e.target.value)}
+              />
+
+              <Field
+                label="Municipio de Residencia"
+                value={formData.municipio_residencia}
+                onChange={(e) => handleChange('municipio_residencia', e.target.value)}
+              />
+
+              <Field
+                label="Dirección de Residencia"
+                value={formData.direccion_residencia}
+                onChange={(e) => handleChange('direccion_residencia', e.target.value)}
+                className="md:col-span-2"
+              />
+
+              <Field
+                label="Barrio/Corregimiento"
+                value={formData.barrio_corregimiento}
+                onChange={(e) => handleChange('barrio_corregimiento', e.target.value)}
+              />
+
+              <Field
+                label="Zona de Residencia"
+                type="select"
+                value={formData.zona_residencia}
+                onChange={(e) => handleChange('zona_residencia', e.target.value)}
+                options={[
+                  { value: '', label: 'Seleccionar...' },
+                  { value: 'URBANA', label: 'Urbana' },
+                  { value: 'RURAL', label: 'Rural' }
+                ]}
+              />
+
+              <Field
                 label="Dirección"
                 value={formData.direccion}
                 onChange={(e) => handleChange('direccion', e.target.value)}
@@ -408,7 +637,192 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
             </div>
           )}
 
-          {/* Datos Académicos */}
+          {/* Información Socioeconómica */}
+          {activeTab === 'socioeconomico' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Field
+                label="Grupo SISBEN"
+                type="select"
+                value={formData.sisben_grupo}
+                onChange={(e) => handleChange('sisben_grupo', e.target.value)}
+                options={[
+                  { value: '', label: 'Seleccionar...' },
+                  { value: 'A', label: 'Grupo A' },
+                  { value: 'B', label: 'Grupo B' },
+                  { value: 'C', label: 'Grupo C' },
+                  { value: 'D', label: 'Grupo D' },
+                  { value: 'NO_APLICA', label: 'No Aplica' }
+                ]}
+              />
+
+              <Field
+                label="¿Recibe Subsidio?"
+                type="select"
+                value={formData.recibe_subsidio}
+                onChange={(e) => handleChange('recibe_subsidio', e.target.value)}
+                options={[
+                  { value: '', label: 'Seleccionar...' },
+                  { value: 'SI', label: 'Sí' },
+                  { value: 'NO', label: 'No' }
+                ]}
+              />
+
+              {formData.recibe_subsidio === 'SI' && (
+                <Field
+                  label="¿Cuál Subsidio?"
+                  value={formData.cual_subsidio}
+                  onChange={(e) => handleChange('cual_subsidio', e.target.value)}
+                  className="md:col-span-2"
+                />
+              )}
+
+              <Field
+                label="Enfoque Diferencial"
+                type="select"
+                value={formData.enfoque_diferencial}
+                onChange={(e) => handleChange('enfoque_diferencial', e.target.value)}
+                options={[
+                  { value: 'NINGUNO', label: 'Ninguno' },
+                  { value: 'INDIGENA', label: 'Indígena' },
+                  { value: 'AFROCOLOMBIANO', label: 'Afrocolombiano' },
+                  { value: 'ROM', label: 'Rom (Gitano)' },
+                  { value: 'RAIZAL', label: 'Raizal' },
+                  { value: 'PALENQUERO', label: 'Palenquero' },
+                  { value: 'DISCAPACIDAD', label: 'Persona con Discapacidad' },
+                  { value: 'VICTIMA_CONFLICTO', label: 'Víctima del Conflicto' },
+                  { value: 'LGBTIQ', label: 'LGBTIQ+' },
+                  { value: 'OTRO', label: 'Otro' }
+                ]}
+              />
+
+              <Field
+                label="¿Labora Actualmente?"
+                type="select"
+                value={formData.labora_actualmente}
+                onChange={(e) => handleChange('labora_actualmente', e.target.value)}
+                options={[
+                  { value: '', label: 'Seleccionar...' },
+                  { value: 'SI', label: 'Sí' },
+                  { value: 'NO', label: 'No' }
+                ]}
+              />
+            </div>
+          )}
+
+          {/* Información Familiar */}
+          {activeTab === 'familiar' && (
+            <div className="space-y-6">
+              <div className="border-b border-slate-200 pb-4">
+                <h3 className="text-lg font-bold text-slate-800 mb-4">Información del Padre</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Field
+                    label="Nombre Completo"
+                    value={formData.nombre_padre}
+                    onChange={(e) => handleChange('nombre_padre', e.target.value)}
+                  />
+
+                  <Field
+                    label="Documento"
+                    value={formData.documento_padre}
+                    onChange={(e) => handleChange('documento_padre', e.target.value)}
+                  />
+
+                  <Field
+                    label="Ocupación"
+                    value={formData.ocupacion_padre}
+                    onChange={(e) => handleChange('ocupacion_padre', e.target.value)}
+                  />
+
+                  <Field
+                    label="Ingresos Mensuales"
+                    type="number"
+                    value={formData.ingresos_padre}
+                    onChange={(e) => handleChange('ingresos_padre', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 mb-4">Información de la Madre</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Field
+                    label="Nombre Completo"
+                    value={formData.nombre_madre}
+                    onChange={(e) => handleChange('nombre_madre', e.target.value)}
+                  />
+
+                  <Field
+                    label="Documento"
+                    value={formData.documento_madre}
+                    onChange={(e) => handleChange('documento_madre', e.target.value)}
+                  />
+
+                  <Field
+                    label="Ocupación"
+                    value={formData.ocupacion_madre}
+                    onChange={(e) => handleChange('ocupacion_madre', e.target.value)}
+                  />
+
+                  <Field
+                    label="Ingresos Mensuales"
+                    type="number"
+                    value={formData.ingresos_madre}
+                    onChange={(e) => handleChange('ingresos_madre', e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Formación Secundaria */}
+          {activeTab === 'secundaria' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Field
+                label="Título Obtenido"
+                type="select"
+                value={formData.titulo_obtenido}
+                onChange={(e) => handleChange('titulo_obtenido', e.target.value)}
+                options={[
+                  { value: '', label: 'Seleccionar...' },
+                  { value: 'BACHILLER_ACADEMICO', label: 'Bachiller Académico' },
+                  { value: 'BACHILLER_TECNICO', label: 'Bachiller Técnico' },
+                  { value: 'BACHILLER_COMERCIAL', label: 'Bachiller Comercial' },
+                  { value: 'BACHILLER_PEDAGOGICO', label: 'Bachiller Pedagógico' },
+                  { value: 'NORMALISTA', label: 'Normalista' },
+                  { value: 'OTRO', label: 'Otro' }
+                ]}
+              />
+
+              <Field
+                label="Año de Graduación"
+                type="number"
+                value={formData.ano_graduacion}
+                onChange={(e) => handleChange('ano_graduacion', e.target.value)}
+              />
+
+              <Field
+                label="Establecimiento Educativo"
+                value={formData.establecimiento_educativo}
+                onChange={(e) => handleChange('establecimiento_educativo', e.target.value)}
+                className="md:col-span-2"
+              />
+
+              <Field
+                label="Colegio de Procedencia"
+                value={formData.nombre_colegio}
+                onChange={(e) => handleChange('nombre_colegio', e.target.value)}
+              />
+
+              <Field
+                label="Puntaje ICFES"
+                type="number"
+                value={formData.puntaje_icfes}
+                onChange={(e) => handleChange('puntaje_icfes', e.target.value)}
+              />
+            </div>
+          )}
+
+          {/* Educación Superior (Datos Académicos) */}
           {activeTab === 'academico' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Field
@@ -419,16 +833,34 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
               />
 
               <Field
-                label="Universidad"
+                label="Universidad / Institución"
                 value={formData.nombre_universidad}
                 onChange={(e) => handleChange('nombre_universidad', e.target.value)}
                 placeholder="Nombre de la institución"
               />
 
               <Field
-                label="Colegio de Procedencia"
-                value={formData.nombre_colegio}
-                onChange={(e) => handleChange('nombre_colegio', e.target.value)}
+                label="Institución Superior"
+                value={formData.institucion_superior}
+                onChange={(e) => handleChange('institucion_superior', e.target.value)}
+              />
+
+              <Field
+                label="Departamento de la Institución"
+                value={formData.dpto_institucion}
+                onChange={(e) => handleChange('dpto_institucion', e.target.value)}
+              />
+
+              <Field
+                label="Municipio de la Institución"
+                value={formData.municipio_institucion}
+                onChange={(e) => handleChange('municipio_institucion', e.target.value)}
+              />
+
+              <Field
+                label="Ciudad de la Institución"
+                value={formData.ciudad_institucion}
+                onChange={(e) => handleChange('ciudad_institucion', e.target.value)}
               />
 
               <Field
@@ -468,6 +900,28 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
                 value={formData.semestre_ingreso}
                 onChange={(e) => handleChange('semestre_ingreso', e.target.value)}
                 placeholder="Ej: 2025-1"
+              />
+
+              <Field
+                label="Modalidad de Estudio"
+                type="select"
+                value={formData.modalidad}
+                onChange={(e) => handleChange('modalidad', e.target.value)}
+                options={[
+                  { value: '', label: 'Seleccionar...' },
+                  { value: 'PRESENCIAL', label: 'Presencial' },
+                  { value: 'VIRTUAL', label: 'Virtual' },
+                  { value: 'DISTANCIA', label: 'Distancia' },
+                  { value: 'SEMIPRESENCIAL', label: 'Semipresencial' }
+                ]}
+              />
+
+              <Field
+                label="Promedio Anterior"
+                type="number"
+                value={formData.promedio_anterior}
+                onChange={(e) => handleChange('promedio_anterior', e.target.value)}
+                placeholder="0.0 - 5.0"
               />
 
               <Field
@@ -568,6 +1022,20 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
                     {beneficiario.inscripcion_id || 'N/A'}
                   </p>
                 </div>
+
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                  <p className="text-xs font-bold text-slate-600 mb-1">ACEPTA TÉRMINOS</p>
+                  <p className="text-sm text-slate-900">
+                    {beneficiario.acepta_terminos_at ? formatDateTime(beneficiario.acepta_terminos_at) : 'No aceptado'}
+                  </p>
+                </div>
+
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                  <p className="text-xs font-bold text-slate-600 mb-1">ACEPTA POLÍTICA DE DATOS</p>
+                  <p className="text-sm text-slate-900">
+                    {beneficiario.acepta_datos_at ? formatDateTime(beneficiario.acepta_datos_at) : 'No aceptado'}
+                  </p>
+                </div>
               </div>
 
               <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
@@ -629,15 +1097,13 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
                           </div>
                           
                           {doc.url_documento && (
-                            <a
-                              href={doc.url_documento}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button
+                              onClick={() => handleOpenDocument(doc)}
                               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors"
                             >
                               <Eye size={16} />
                               Ver documento
-                            </a>
+                            </button>
                           )}
                         </div>
                       </div>
@@ -698,6 +1164,94 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
           </div>
         </div>
       </div>
+
+      {/* Modal de visualización de documentos */}
+      {selectedDoc && (
+        <div
+          className="fixed inset-0 z-[70] bg-slate-900/60 p-4 flex items-center justify-center"
+          onClick={closePreviewModal}
+        >
+          <div
+            className="w-full max-w-5xl max-h-[90vh] bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50">
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Visualización de documento</p>
+                <p className="text-sm font-bold text-slate-700 truncate">
+                  {selectedDoc.nombre_original || selectedDoc.tipo_documento || 'Documento'}
+                </p>
+                {documents.length > 1 && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    {currentDocIndex + 1} de {documents.length}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {documents.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={goToPreviousDoc}
+                      disabled={currentDocIndex <= 0 || docPreviewLoading}
+                      className="p-2 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                      aria-label="Documento anterior"
+                      title="Anterior (←)"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={goToNextDoc}
+                      disabled={currentDocIndex >= documents.length - 1 || docPreviewLoading}
+                      className="p-2 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                      aria-label="Documento siguiente"
+                      title="Siguiente (→)"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={handlePrintDocument}
+                  disabled={!selectedDocUrl}
+                  className="p-2 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                  aria-label="Imprimir documento"
+                  title="Imprimir"
+                >
+                  <Printer size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={closePreviewModal}
+                  className="p-2 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100"
+                  aria-label="Cerrar visualización"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-100 max-h-[80vh] overflow-auto">
+              {docPreviewLoading && <p className="text-sm text-slate-500">Cargando vista del documento...</p>}
+              {!docPreviewLoading && docPreviewError && <p className="text-sm text-red-600">{docPreviewError}</p>}
+
+              {!docPreviewLoading && !docPreviewError && selectedDocUrl && (
+                <div className="rounded-xl overflow-hidden border border-slate-200 bg-white">
+                  {looksLikeImage(selectedDocUrl) ? (
+                    <img src={selectedDocUrl} alt={selectedDoc.nombre_original || 'Documento'} className="w-full max-h-[74vh] object-contain bg-slate-50" />
+                  ) : looksLikePdf(selectedDocUrl) ? (
+                    <iframe title={selectedDoc.nombre_original || 'Documento'} src={selectedDocUrl} className="w-full h-[74vh]" />
+                  ) : (
+                    <iframe title={selectedDoc.nombre_original || 'Documento'} src={selectedDocUrl} className="w-full h-[74vh]" />
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

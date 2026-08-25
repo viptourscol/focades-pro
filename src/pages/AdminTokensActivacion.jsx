@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { RefreshCw, Send, Copy, Check, AlertCircle, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import { RefreshCw, Send, Copy, Check, AlertCircle, Clock, CheckCircle2, XCircle, Search } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { showSuccessAlert, showErrorAlert, showConfirmAlert } from '../lib/alerts';
 
@@ -10,6 +10,7 @@ export default function AdminTokensActivacion() {
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     loadBeneficiarios();
@@ -210,6 +211,17 @@ export default function AdminTokensActivacion() {
   const tokenActivo = beneficiarios.filter(b => b.estado === 'token_activo').length;
   const activados = beneficiarios.filter(b => b.estado === 'activado').length;
 
+  // Filtrar beneficiarios por término de búsqueda
+  const beneficiariosFiltrados = beneficiarios.filter(b => {
+    if (!searchTerm.trim()) return true;
+    const termino = searchTerm.toLowerCase();
+    return (
+      b.nombre_completo?.toLowerCase().includes(termino) ||
+      b.email?.toLowerCase().includes(termino) ||
+      b.n_documento?.toString().toLowerCase().includes(termino)
+    );
+  });
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -270,6 +282,25 @@ export default function AdminTokensActivacion() {
         </div>
       </div>
 
+      {/* Buscador */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+          <input
+            type="text"
+            placeholder="Buscar por nombre, email o documento..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+          />
+        </div>
+        {searchTerm && (
+          <p className="text-sm text-slate-600 mt-2">
+            Mostrando {beneficiariosFiltrados.length} de {beneficiarios.length} beneficiarios
+          </p>
+        )}
+      </div>
+
       {/* Tabla */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
@@ -294,7 +325,16 @@ export default function AdminTokensActivacion() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {beneficiarios.map((beneficiario) => (
+              {beneficiariosFiltrados.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-8 text-center">
+                    <p className="text-slate-500">
+                      {searchTerm ? 'No se encontraron beneficiarios con ese criterio' : 'No hay beneficiarios'}
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                beneficiariosFiltrados.map((beneficiario) => (
                 <tr key={beneficiario.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-semibold text-slate-900">{beneficiario.nombre_completo}</div>
@@ -347,17 +387,11 @@ export default function AdminTokensActivacion() {
                     </button>
                   </td>
                 </tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
         </div>
-
-        {beneficiarios.length === 0 && (
-          <div className="text-center py-12">
-            <AlertCircle className="mx-auto mb-4 text-slate-400" size={48} />
-            <p className="text-slate-600">No hay beneficiarios registrados</p>
-          </div>
-        )}
       </div>
 
       {/* Info Box */}

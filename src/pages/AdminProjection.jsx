@@ -238,7 +238,7 @@ const AdminProjection = () => {
       });
 
       annualRows.push({
-        year: `Ano ${yearIndex}`,
+        year: `Año ${yearIndex}`,
         yearIndex,
         activeStart: roundTo(yearActiveStart, 2),
         activeEnd: roundTo(yearActiveEnd, 2),
@@ -280,7 +280,7 @@ const AdminProjection = () => {
 
   const exportProjection = () => {
     const rows = [
-      ['Ano', 'Activos inicio', 'Activos cierre', 'Pagos', 'Deserciones', 'Graduaciones', 'Costo Sueno', 'Costo Merito', 'Costo total'],
+      ['Año', 'Activos inicio', 'Activos cierre', 'Pagos', 'Deserciones', 'Graduaciones', 'Costo Sueño', 'Costo Mérito', 'Costo total'],
       ...projection.annualRows.map((row) => [
         row.year,
         row.activeStart,
@@ -298,7 +298,7 @@ const AdminProjection = () => {
 
   const exportProjectionDetail = () => {
     const rows = [
-      ['Ano', 'Cohorte', 'Modalidad', 'Nivel', 'Activos inicio', 'Pagos anuales', 'Costo anual', 'Deserciones', 'Graduaciones', 'Activos cierre', 'Pagos usados', 'Max pagos'],
+      ['Año', 'Cohorte', 'Modalidad', 'Nivel', 'Activos inicio', 'Pagos anuales', 'Costo anual', 'Deserciones', 'Graduaciones', 'Activos cierre', 'Pagos usados', 'Max pagos'],
       ...projection.detailRows.map((row) => [
         row.year,
         row.cohort,
@@ -421,7 +421,7 @@ const AdminProjection = () => {
       </section>
 
       <section className="grid grid-cols-1 xl:grid-cols-2 gap-6 min-w-0">
-        <ChartPanel title="Costo anual proyectado" subtitle="Costo total por ano con cohortes activas.">
+        <ChartPanel title="Costo anual proyectado" subtitle="Costo total por año con cohortes activas.">
           <SimpleBarChart data={projection.annualCostChart} color="#0f766e" formatter={formatCurrency} />
         </ChartPanel>
 
@@ -440,7 +440,7 @@ const AdminProjection = () => {
             type="button"
             onClick={() =>
               downloadCsv('proyeccion-modalidades.csv', [
-                ['Ano', 'Costo Sueno', 'Costo Merito'],
+                ['Año', 'Costo Sueño', 'Costo Mérito'],
                 ...projection.modalityCostChart.map((row) => [row.label, row.sueno, row.merito]),
               ])
             }
@@ -459,7 +459,7 @@ const AdminProjection = () => {
           <table className="min-w-[650px] divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50 text-slate-500 uppercase tracking-[0.18em] text-[11px] font-black">
               <tr>
-                <th className="px-4 py-3 text-left">Ano</th>
+                <th className="px-4 py-3 text-left">Año</th>
                 <th className="px-4 py-3 text-right">Activos inicio</th>
                 <th className="px-4 py-3 text-right">Pagos</th>
                 <th className="px-4 py-3 text-right">Deserciones</th>

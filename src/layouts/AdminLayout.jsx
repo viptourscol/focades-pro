@@ -11,7 +11,7 @@ const NAV_ITEMS = [
   { to: '/admin/analiticas', label: 'Analíticas', icon: <BarChart3 size={20} />, match: (path) => path.startsWith('/admin/analiticas') },
   { to: '/admin/proyecciones', label: 'Proyecciones', icon: <Calculator size={20} />, match: (path) => path.startsWith('/admin/proyecciones') },
   // Beneficiarios se manejará con BeneficiariesGroup (desplegable)
-  { to: '/admin/actualizaciones', label: 'Actualizaciones', icon: <ClipboardList size={20} />, match: (path) => path.startsWith('/admin/actualizaciones') },
+  // Actualizaciones se manejará con ActualizacionesGroup (desplegable)
   { to: '/admin/condonaciones', label: 'Condonaciones', icon: <ShieldCheck size={20} />, match: (path) => path.startsWith('/admin/condonaciones') },
   { to: '/admin/resoluciones', label: 'Resoluciones', icon: <FileText size={20} />, match: (path) => path.startsWith('/admin/resoluciones') },
   { to: '/admin/generador-tokens', label: 'Generar Tokens', icon: <Zap size={20} />, match: (path) => path.startsWith('/admin/generador-tokens') },
@@ -25,10 +25,11 @@ const NAV_ITEMS = [
 
 const getPageMeta = (pathname) => {
   if (pathname.startsWith('/admin/beneficiarios/')) return { title: 'Ficha 360', subtitle: 'Perfil, pagos, trazabilidad y expediente del beneficiario.' };
+  if (pathname.startsWith('/admin/beneficiarios/autorizados')) return { title: 'Beneficiarios Autorizados', subtitle: 'Gestión de beneficiarios preautorizados y vinculación de cuentas.' };
   if (pathname.startsWith('/admin/beneficiarios')) return { title: 'Beneficiarios', subtitle: 'Vista maestra de estado, vinculación y seguimiento institucional.' };
   if (pathname.startsWith('/admin/generador-tokens')) return { title: 'Generador de Tokens', subtitle: 'Genera tokens de setup y envía emails de activación a beneficiarios.' };
   if (pathname.startsWith('/admin/tokens-activacion')) return { title: 'Tokens de Activación', subtitle: 'Gestiona y reenvía tokens de activación para beneficiarios históricos.' };
-  if (pathname.startsWith('/admin/actualizaciones/ventanas')) return { title: 'Ventanas', subtitle: 'Calendario de actualización y control de periodos.' };
+  if (pathname.startsWith('/admin/actualizaciones/ventanas')) return { title: 'Ventanas de Actualización', subtitle: 'Calendario de actualización y control de periodos.' };
   if (pathname.startsWith('/admin/actualizaciones')) return { title: 'Actualizaciones', subtitle: 'Revisión documental y aprobación del ciclo académico.' };
   if (pathname.startsWith('/admin/historicos/importar')) return { title: 'Importar Beneficiarios', subtitle: 'Carga masiva de beneficiarios históricos por lote.' };
   if (pathname.startsWith('/admin/historicos/documentos')) return { title: 'Documentos Históricos', subtitle: 'Carga individual de soportes por beneficiario histórico.' };
@@ -132,13 +133,13 @@ const AdminLayout = () => {
         </div>
 
         <nav className="relative flex-1 px-4 py-5 space-y-2 overflow-y-auto">
-          {NAV_ITEMS.slice(0, 4).map((item) => (
+          {NAV_ITEMS.slice(0, 3).map((item) => (
             <NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} active={item.match(location.pathname)} onClick={() => setMobileMenuOpen(false)} badge={item.to === '/admin/tickets' ? pendingTickets : 0} />
           ))}
           <BeneficiariesGroup location={location} onClick={() => setMobileMenuOpen(false)} />
-          <SubNavItem to="/admin/actualizaciones/ventanas" icon={<CalendarClock size={16} />} label="Ventanas de Actualización" active={location.pathname.startsWith('/admin/actualizaciones/ventanas')} onClick={() => setMobileMenuOpen(false)} />
+          <ActualizacionesGroup location={location} onClick={() => setMobileMenuOpen(false)} />
           <HistoricosGroup location={location} onClick={() => setMobileMenuOpen(false)} />
-          {NAV_ITEMS.slice(4).map((item) => (
+          {NAV_ITEMS.slice(3).map((item) => (
             <NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} active={item.match(location.pathname)} onClick={() => setMobileMenuOpen(false)} badge={item.to === '/admin/tickets' ? pendingTickets : 0} />
           ))}
         </nav>
@@ -349,7 +350,43 @@ function BeneficiariesGroup({ location, onClick }) {
       {open && (
         <div className="mt-1 space-y-1">
           <SubNavItem to="/admin/beneficiarios" icon={<IdCard size={16} />} label="Todos los beneficiarios" active={location.pathname === '/admin/beneficiarios'} onClick={onClick} />
+          <SubNavItem to="/admin/beneficiarios/autorizados" icon={<ShieldCheck size={16} />} label="Beneficiarios autorizados" active={location.pathname.startsWith('/admin/beneficiarios/autorizados')} onClick={onClick} />
           <SubNavItem to="/admin/beneficiarios/importar" icon={<UploadCloud size={16} />} label="Importar CSV" active={location.pathname.startsWith('/admin/beneficiarios/importar')} onClick={onClick} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ActualizacionesGroup({ location, onClick }) {
+  const isActive = location.pathname.startsWith('/admin/actualizaciones')
+  const [open, setOpen] = useState(isActive)
+
+  useEffect(() => {
+    if (isActive) setOpen(true)
+  }, [isActive])
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => { setOpen(o => !o); }}
+        className={`group flex items-center gap-4 w-full px-4 py-3.5 rounded-2xl transition-all duration-300 ${
+          isActive ? 'bg-white text-[#10233f] shadow-xl shadow-slate-950/10' : 'text-slate-300 hover:bg-white/5'
+        }`}
+      >
+        <span className={`${isActive ? 'text-[#c88c3a]' : 'text-slate-400 group-hover:text-amber-200'} transition-colors`}>
+          <ClipboardList size={20} />
+        </span>
+        <span className="font-bold text-sm flex-1 text-left">Actualizaciones</span>
+        <span className={`${isActive ? 'text-[#c88c3a]' : 'text-slate-400 group-hover:text-amber-200'} transition-colors`}>
+          {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        </span>
+      </button>
+      {open && (
+        <div className="mt-1 space-y-1">
+          <SubNavItem to="/admin/actualizaciones" icon={<ClipboardList size={16} />} label="Revisión de actualizaciones" active={location.pathname === '/admin/actualizaciones'} onClick={onClick} />
+          <SubNavItem to="/admin/actualizaciones/ventanas" icon={<CalendarClock size={16} />} label="Ventanas de actualización" active={location.pathname.startsWith('/admin/actualizaciones/ventanas')} onClick={onClick} />
         </div>
       )}
     </div>

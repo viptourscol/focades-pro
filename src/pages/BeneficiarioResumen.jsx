@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CircleDollarSign, CreditCard, ShieldCheck, Wallet } from 'lucide-react';
+import { AlertCircle, CircleDollarSign, CreditCard, ShieldCheck, Wallet } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 const PAYMENT_RIGHTS_RPC_SESSION_KEY = 'focades-payment-rights-rpc-unavailable';
@@ -94,6 +94,7 @@ const buildLocalPaymentRights = ({ profile, paymentRows = [], enrollmentData = n
   
   // Permitir pagos a menos que esté explícitamente inactivo o suspendido
   const estadoBloqueado = ['inactivo', 'suspendido', 'inhabilitado'].includes(String(profile?.estado_beneficiario || '').toLowerCase());
+  const estadoActual = String(profile?.estado_beneficiario || '').toLowerCase();
 
   let motivoBloqueo = null;
   let esElegible = false;
@@ -103,7 +104,13 @@ const buildLocalPaymentRights = ({ profile, paymentRows = [], enrollmentData = n
   } else if (!semestreIngreso) {
     motivoBloqueo = 'Falta semestre de ingreso para calcular tus derechos de pago.';
   } else if (estadoBloqueado) {
-    motivoBloqueo = 'Tu estado actual no permite nuevos pagos.';
+    if (estadoActual === 'suspendido') {
+      motivoBloqueo = '🚫 Tu estado actual es SUSPENDIDO. No puedes recibir nuevos pagos hasta que se resuelva tu situación. Contacta a administración para más información.';
+    } else if (estadoActual === 'inactivo') {
+      motivoBloqueo = 'Tu estado actual es INACTIVO. No puedes recibir nuevos pagos.';
+    } else {
+      motivoBloqueo = 'Tu estado actual no permite nuevos pagos.';
+    }
   } else if (pagosRestantes <= 0) {
     motivoBloqueo = 'Ya agotaste tus cupos de pago disponibles.';
   } else {
@@ -413,8 +420,23 @@ const BeneficiarioResumen = () => {
         </div>
 
         {!paymentRights?.esElegible && paymentRights?.motivoBloqueo ? (
-          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 animate-fade-in">
-            {paymentRights.motivoBloqueo}
+          <div className={`mt-4 rounded-xl border px-4 py-3 text-sm animate-fade-in ${
+            profile?.estado_beneficiario === 'suspendido'
+              ? 'border-rose-300 bg-rose-50 text-rose-800'
+              : 'border-amber-200 bg-amber-50 text-amber-800'
+          }`}>
+            <div className="flex items-start gap-2">
+              <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+              <p>{paymentRights.motivoBloqueo}</p>
+            </div>
+            {profile?.estado_beneficiario === 'suspendido' && (
+              <a
+                href="/beneficiario/tickets"
+                className="inline-flex items-center gap-1 mt-3 text-xs font-semibold text-rose-700 hover:text-rose-900 hover:underline"
+              >
+                Contactar soporte para resolver tu situación →
+              </a>
+            )}
           </div>
         ) : null}
       </section>

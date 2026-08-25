@@ -727,10 +727,23 @@ const BeneficiarioActualizacion = () => {
           </div>
         )}
 
-        {!canUpdate && !previousUpdate && (
-          <div className="mt-4 p-3 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-sm flex items-start gap-2">
-            <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-            <p>Solo beneficiarios activos con ventana vigente pueden enviar actualización. Puedes consultar tu historial en el menú lateral.</p>
+        {!canUpdate && !previousUpdate && profile && (
+          <div className={`mt-4 p-4 rounded-xl border flex items-start gap-3 text-sm ${
+            profile.estado_beneficiario === 'suspendido'
+              ? 'border-rose-300 bg-rose-50 text-rose-900'
+              : 'border-amber-300 bg-amber-50 text-amber-900'
+          }`}>
+            <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
+            <div>
+              {profile.estado_beneficiario === 'suspendido' ? (
+                <>
+                  <p className="font-semibold mb-1">Tu estado actual es SUSPENDIDO</p>
+                  <p>No puedes enviar actualizaciones semestrales en este momento. Para resolver tu situación o solicitar información sobre tu estado, por favor contacta al equipo de administración a través del <a href="/beneficiario/tickets" className="underline font-semibold hover:text-rose-700">sistema de tickets</a>.</p>
+                </>
+              ) : (
+                <p>Solo beneficiarios con estado <strong>ACTIVO</strong> y ventana de actualización vigente pueden enviar actualizaciones. Puedes consultar tu historial en el menú lateral.</p>
+              )}
+            </div>
           </div>
         )}
 

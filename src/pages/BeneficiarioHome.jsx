@@ -69,6 +69,7 @@ const BeneficiarioHome = () => {
   const [news, setNews] = useState([]);
   const [selectedNews, setSelectedNews] = useState(null);
   const [perfilIncompleto, setPerfilIncompleto] = useState(false);
+  const [estadoBeneficiario, setEstadoBeneficiario] = useState(null);
 
   useEffect(() => {
     if (location.hash !== '#centro-notificaciones') return;
@@ -96,15 +97,19 @@ const BeneficiarioHome = () => {
             // Consultar estado real desde la base de datos
             const { data: beneficiario, error: profileError } = await supabase
               .from('portal_beneficiarios')
-              .select('id, onboarding_completado')
+              .select('id, onboarding_completado, estado_beneficiario')
               .eq('id', beneficiarioId)
               .maybeSingle();
 
             if (!profileError && beneficiario) {
               // Actualizar localStorage con el estado real
               session.profile.onboarding_completado = beneficiario.onboarding_completado;
+              session.profile.estado_beneficiario = beneficiario.estado_beneficiario;
               session.timestamp = new Date().toISOString();
               localStorage.setItem('focades:beneficiario-session', JSON.stringify(session));
+              
+              // Guardar estado para mostrar banners
+              setEstadoBeneficiario(beneficiario.estado_beneficiario);
               
               // Mostrar banner si el onboarding no está completado
               if (!beneficiario.onboarding_completado) {
@@ -170,8 +175,32 @@ const BeneficiarioHome = () => {
         <p className="ui-subtitle mt-1">Noticias y avisos relevantes del programa.</p>
       </section>
 
+      {/* Banner de estado suspendido */}
+      {estadoBeneficiario === 'suspendido' && (
+        <div className="bg-rose-50 border-l-4 border-rose-500 p-4 mb-6 rounded-r-xl shadow-sm animate-slide-up">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-6 w-6 text-rose-500 mt-0.5 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-semibold text-rose-800">
+                Tu estado es SUSPENDIDO
+              </h3>
+              <p className="text-sm text-rose-700 mt-1">
+                Actualmente <strong>no puedes enviar actualizaciones semestrales ni recibir nuevos pagos</strong>. Si tienes dudas sobre tu situación, por favor contacta a administración a través del sistema de tickets de soporte.
+              </p>
+              <a
+                href="/beneficiario/tickets"
+                className="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-sm font-semibold transition-all duration-200 hover:shadow-md"
+              >
+                Contactar soporte
+                <ChevronRight size={16} />
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Banner de perfil incompleto */}
-      {perfilIncompleto && (
+      {perfilIncompleto && !estadoBeneficiario && (
         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-r-xl shadow-sm animate-slide-up">
           <div className="flex items-start gap-3">
             <AlertCircle className="h-6 w-6 text-yellow-400 mt-0.5 flex-shrink-0" />

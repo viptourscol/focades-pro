@@ -159,7 +159,7 @@ const AdminBeneficiarios = () => {
         if (item.deleted_at) acc.eliminados += 1;
         
         // Nuevas métricas
-        const tieneContrasena = item.portal_auth_credentials?.[0]?.setup_completed_at != null;
+        const tieneContrasena = item.portal_auth_credentials?.setup_completed_at != null;
         if (tieneContrasena) acc.conContrasena += 1;
         if (item.onboarding_completado) acc.onboardingCompletado += 1;
         

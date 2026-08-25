@@ -202,6 +202,8 @@ const AdminProjection = () => {
 
       if (benError) throw benError;
 
+      console.log('📊 Beneficiarios cargados de DB:', beneficiarios?.length || 0);
+
       // Query pagos efectuados por beneficiario
       const { data: pagos, error: pagosError } = await supabase
         .from('portal_beneficiario_pagos')
@@ -210,34 +212,50 @@ const AdminProjection = () => {
 
       if (pagosError) throw pagosError;
 
+      console.log('💰 Pagos efectuados cargados:', pagos?.length || 0);
+
       // Contar pagos por beneficiario
       const pagosPorBeneficiario = {};
       (pagos || []).forEach(pago => {
         pagosPorBeneficiario[pago.beneficiario_id] = (pagosPorBeneficiario[pago.beneficiario_id] || 0) + 1;
       });
 
-      // Procesar beneficiarios
-      const processed = (beneficiarios || [])
-        .map(b => {
-          const modalidad = normalizeModalidad(b.modalidad_beca);
-          const nivel = normalizeBeneficiarioLevel(b.nivel_formacion);
-          const pagosEfectuados = pagosPorBeneficiario[b.id] || 0;
-          const pagosRestantes = calculateRemainingPayments(b.nivel_formacion, b.semestre_ingreso, pagosEfectuados);
+      // Procesar beneficiarios con logs detallados
+      const allProcessed = (beneficiarios || []).map(b => {
+        const modalidad = normalizeModalidad(b.modalidad_beca);
+        const nivel = normalizeBeneficiarioLevel(b.nivel_formacion);
+        const pagosEfectuados = pagosPorBeneficiario[b.id] || 0;
+        const pagosRestantes = calculateRemainingPayments(b.nivel_formacion, b.semestre_ingreso, pagosEfectuados);
 
-          return {
-            id: b.id,
-            modalidad,
-            nivel,
-            pagosRestantes,
-            estado: b.estado_beneficiario,
-          };
-        })
-        .filter(b => b.modalidad && b.nivel && b.pagosRestantes > 0); // Solo beneficiarios válidos con pagos restantes
+        return {
+          id: b.id,
+          modalidad,
+          nivel,
+          pagosRestantes,
+          estado: b.estado_beneficiario,
+          raw: { // Para debugging
+            modalidad_beca: b.modalidad_beca,
+            nivel_formacion: b.nivel_formacion,
+            semestre_ingreso: b.semestre_ingreso,
+          },
+        };
+      });
+
+      console.log('🔍 Muestra de primeros 3 beneficiarios procesados:', allProcessed.slice(0, 3));
+
+      // Filtrar solo válidos
+      const processed = allProcessed.filter(b => b.modalidad && b.nivel && b.pagosRestantes > 0);
+
+      console.log('✅ Beneficiarios válidos con pagos restantes:', processed.length);
+      console.log('🎯 Distribución por modalidad:', {
+        sueno: processed.filter(b => b.modalidad === 'sueno').length,
+        merito: processed.filter(b => b.modalidad === 'merito').length,
+      });
 
       setCurrentBeneficiaries(processed);
       setBeneficiariesCount(processed.length);
     } catch (error) {
-      console.error('Error cargando beneficiarios actuales:', error);
+      console.error('❌ Error cargando beneficiarios actuales:', error);
       setCurrentBeneficiaries([]);
       setBeneficiariesCount(0);
     } finally {
@@ -246,7 +264,17 @@ const AdminProjection = () => {
   };
 
   const prepareCurrentBeneficiariesCohorts = () => {
+    console.log('🔧 Preparando cohorts de beneficiarios actuales...');
+    console.log('📦 currentBeneficiaries.length:', currentBeneficiaries.length);
+    
     const grouped = {};
+
+    // Obtener maxPagos para cada nivel
+    const maxPagosMap = {
+      tecnico: Math.max(1, Math.round(numberOrZero(projectionConfig.maxPagosTecnico))),
+      tecnologo: Math.max(1, Math.round(numberOrZero(projectionConfig.maxPagosTecnologo))),
+      profesional: Math.max(1, Math.round(numberOrZero(projectionConfig.maxPagosProfesional))),
+    };
 
     currentBeneficiaries.forEach(b => {
       const key = `${b.modalidad}-${b.nivel}`;
@@ -255,22 +283,32 @@ const AdminProjection = () => {
           modalidad: b.modalidad,
           nivel: b.nivel,
           count: 0,
-          totalPayments: 0,
+          totalPaymentsRemaining: 0,
         };
       }
       grouped[key].count += 1;
-      grouped[key].totalPayments += b.pagosRestantes;
+      grouped[key].totalPaymentsRemaining += b.pagosRestantes;
     });
 
-    return Object.values(grouped).map(g => ({
-      cohortYear: 0, // Indicador de cohorte actual
-      level: g.nivel,
-      modality: g.modalidad,
-      active: g.count,
-      paymentsUsed: 0,
-      // Calculamos pagos promedio restantes por beneficiario
-      avgRemainingPayments: g.count > 0 ? g.totalPayments / g.count : 0,
-    }));
+    const cohorts = Object.values(grouped).map(g => {
+      const maxPagos = maxPagosMap[g.nivel] || 10;
+      const avgRemainingPayments = g.count > 0 ? g.totalPaymentsRemaining / g.count : 0;
+      // Calcular cuántos pagos han usado en promedio
+      const avgPaymentsUsed = Math.max(0, maxPagos - avgRemainingPayments);
+
+      return {
+        cohortYear: 0, // Indicador de cohorte actual
+        level: g.nivel,
+        modality: g.modalidad,
+        active: g.count,
+        paymentsUsed: Math.round(avgPaymentsUsed), // Redondear para que funcione con la lógica existente
+        isCurrentBeneficiaries: true, // Flag para identificar cohorts actuales
+      };
+    });
+
+    console.log('📋 Cohorts actuales preparados:', cohorts);
+    
+    return cohorts;
   };
 
   const projection = useMemo(() => {
@@ -306,8 +344,12 @@ const AdminProjection = () => {
 
     // Insertar cohortes de beneficiarios actuales si está activado
     if (projectionConfig.includeCurrentBeneficiaries) {
+      console.log('🎯 Toggle ACTIVADO - Insertando beneficiarios actuales');
       const currentCohorts = prepareCurrentBeneficiariesCohorts();
       cohorts.push(...currentCohorts);
+      console.log('📊 Total cohorts después de insertar actuales:', cohorts.length);
+    } else {
+      console.log('⚪ Toggle DESACTIVADO - No se incluyen beneficiarios actuales');
     }
 
     for (let yearIndex = 1; yearIndex <= yearsToProject; yearIndex += 1) {
@@ -353,6 +395,17 @@ const AdminProjection = () => {
 
         const availablePayments = Math.min(paymentsPerYear, maxPagos[cohort.level] - cohort.paymentsUsed);
         const annualPayments = activeStart * availablePayments;
+        
+        // Log detallado para cohorts actuales
+        if (cohort.isCurrentBeneficiaries && yearIndex === 1) {
+          console.log(`📊 Año ${yearIndex} - Cohort Actual [${cohort.modality}-${cohort.level}]:`, {
+            activeStart,
+            paymentsUsed: cohort.paymentsUsed,
+            maxPagos: maxPagos[cohort.level],
+            availablePayments,
+            annualPayments,
+          });
+        }
         
         // Usar costo configurable en lugar de MODALITY_MULTIPLIERS fijo
         const modalityCost = getModalityCost(cohort.modality, projectionConfig);

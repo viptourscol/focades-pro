@@ -168,15 +168,24 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
       return path;
     }
 
+    // Limpiar el path: remover prefijo del bucket si existe
+    // storage_path puede venir como "soportes/ruta/archivo.pdf" pero .from('soportes') 
+    // ya especifica el bucket, así que necesitamos solo "ruta/archivo.pdf"
+    let cleanPath = path;
+    const bucketPrefix = 'soportes/';
+    if (cleanPath.startsWith(bucketPrefix)) {
+      cleanPath = cleanPath.substring(bucketPrefix.length);
+    }
+
     const { data: signedData, error: signedError } = await supabase.storage
       .from('soportes')
-      .createSignedUrl(path, 60 * 30);
+      .createSignedUrl(cleanPath, 60 * 30);
 
     if (!signedError && signedData?.signedUrl) {
       return signedData.signedUrl;
     }
 
-    const publicData = supabase.storage.from('soportes').getPublicUrl(path);
+    const publicData = supabase.storage.from('soportes').getPublicUrl(cleanPath);
     const publicUrl = String(publicData?.data?.publicUrl || '').trim();
     if (publicUrl) return publicUrl;
 

@@ -311,9 +311,16 @@ export const loadActiveCertificateSignatures = async (supabase) => {
 
     let firmaUrl = null;
     if (row.firma_storage_path) {
+      // Limpiar el path: remover prefijo del bucket si existe
+      let cleanPath = row.firma_storage_path;
+      const bucketPrefix = 'soportes/';
+      if (cleanPath.startsWith(bucketPrefix)) {
+        cleanPath = cleanPath.substring(bucketPrefix.length);
+      }
+      
       const { data: signedData } = await supabase.storage
         .from('soportes')
-        .createSignedUrl(row.firma_storage_path, 60 * 60 * 24 * 7);
+        .createSignedUrl(cleanPath, 60 * 60 * 24 * 7);
       firmaUrl = signedData?.signedUrl || null;
     }
 

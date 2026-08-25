@@ -383,9 +383,16 @@ const AdminCondonaciones = () => {
         return { ...doc, signed_url: null };
       }
 
+      // Limpiar el path: remover prefijo del bucket si existe
+      let cleanPath = doc.storage_path;
+      const bucketPrefix = 'soportes/';
+      if (cleanPath.startsWith(bucketPrefix)) {
+        cleanPath = cleanPath.substring(bucketPrefix.length);
+      }
+
       const { data } = await supabase.storage
         .from('soportes')
-        .createSignedUrl(doc.storage_path, 60 * 60);
+        .createSignedUrl(cleanPath, 60 * 60);
 
       return {
         ...doc,

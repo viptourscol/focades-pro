@@ -84,15 +84,33 @@ const BeneficiarioHome = () => {
 
     const loadData = async () => {
       const nowIso = new Date().toISOString();
-// Verificar si el perfil del beneficiario está incompleto
+
+      // Verificar si el perfil del beneficiario está incompleto desde la base de datos
       try {
         const sessionStr = localStorage.getItem('focades:beneficiario-session');
         if (sessionStr) {
           const session = JSON.parse(sessionStr);
-          const profile = session.profile;
+          const beneficiarioId = session.profile?.id;
           
-          if (profile && !profile.onboarding_completado) {
-            setPerfilIncompleto(true);
+          if (beneficiarioId) {
+            // Consultar estado real desde la base de datos
+            const { data: beneficiario, error: profileError } = await supabase
+              .from('portal_beneficiarios')
+              .select('id, onboarding_completado')
+              .eq('id', beneficiarioId)
+              .maybeSingle();
+
+            if (!profileError && beneficiario) {
+              // Actualizar localStorage con el estado real
+              session.profile.onboarding_completado = beneficiario.onboarding_completado;
+              session.timestamp = new Date().toISOString();
+              localStorage.setItem('focades:beneficiario-session', JSON.stringify(session));
+              
+              // Mostrar banner si el onboarding no está completado
+              if (!beneficiario.onboarding_completado) {
+                setPerfilIncompleto(true);
+              }
+            }
           }
         }
       } catch (error) {

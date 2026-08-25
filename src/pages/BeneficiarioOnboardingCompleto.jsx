@@ -178,61 +178,76 @@ const BeneficiarioOnboardingCompleto = () => {
         try {
           const session = JSON.parse(sessionStr);
           const profile = session.profile;
+          const beneficiarioId = profile?.id;
           
-          // Si onboarding ya está completo, redirigir al dashboard
-          if (profile && profile.onboarding_completado) {
-            setRedirectToDashboard(true);
-            return;
+          if (beneficiarioId) {
+            // Verificar estado real desde la base de datos
+            const { data: beneficiario, error: profileError } = await supabase
+              .from('portal_beneficiarios')
+              .select('id, onboarding_completado, email, n_documento, genero, telefono, fecha_nacimiento, direccion_residencia, barrio_corregimiento, dpto_residencia, municipio_residencia, zona_residencia, pais_nacimiento, dpto_nacimiento, municipio_nacimiento, sisben_grupo, recibe_subsidio, cual_subsidio, enfoque_diferencial, labora_actualmente, titulo_obtenido, ano_graduacion, establecimiento_educativo, puntaje_icfes, institucion_superior, programa_academico, tipo_educacion, semestre_ingreso, semestre_actual, dpto_institucion, municipio_institucion, modalidad, modalidad_beca, año_convocatoria, nombre_banco, tipo_cuenta_bancaria, numero_cuenta')
+              .eq('id', beneficiarioId)
+              .maybeSingle();
+
+            if (!profileError && beneficiario) {
+              // Si onboarding ya está completo, actualizar localStorage y redirigir
+              if (beneficiario.onboarding_completado) {
+                session.profile.onboarding_completado = true;
+                session.timestamp = new Date().toISOString();
+                localStorage.setItem('focades:beneficiario-session', JSON.stringify(session));
+                setRedirectToDashboard(true);
+                return;
+              }
+              
+              // Usuario ya estableció contraseña, continuar desde paso 4
+              setBeneficiarioId(beneficiario.id);
+              setCurrentStep(4);
+              setIsLoginMode(true); // Mark as login mode
+              
+              // Pre-cargar datos del perfil desde la base de datos (fuente real)
+              setFormData(prev => ({
+                ...prev,
+                email: beneficiario.email || '',
+                document: beneficiario.n_documento || '',
+                genero: beneficiario.genero || '',
+                telefono: beneficiario.telefono || '',
+                fecha_nacimiento: beneficiario.fecha_nacimiento || '',
+                direccion_residencia: beneficiario.direccion_residencia || '',
+                barrio_corregimiento: beneficiario.barrio_corregimiento || '',
+                dpto_residencia: beneficiario.dpto_residencia || '',
+                municipio_residencia: beneficiario.municipio_residencia || '',
+                zona_residencia: beneficiario.zona_residencia || '',
+                pais_nacimiento: beneficiario.pais_nacimiento || 'COLOMBIA',
+                dpto_nacimiento: beneficiario.dpto_nacimiento || '',
+                municipio_nacimiento: beneficiario.municipio_nacimiento || '',
+                sisben_grupo: beneficiario.sisben_grupo || '',
+                recibe_subsidio: beneficiario.recibe_subsidio || '',
+                cual_subsidio: beneficiario.cual_subsidio || '',
+                enfoque_diferencial: beneficiario.enfoque_diferencial || 'NINGUNO',
+                labora_actualmente: beneficiario.labora_actualmente || '',
+                titulo_obtenido: beneficiario.titulo_obtenido || '',
+                ano_graduacion: beneficiario.ano_graduacion || '',
+                establecimiento_educativo: beneficiario.establecimiento_educativo || '',
+                puntaje_icfes: beneficiario.puntaje_icfes || '',
+                institucion_superior: beneficiario.institucion_superior || '',
+                programa_academico: beneficiario.programa_academico || '',
+                tipo_educacion: beneficiario.tipo_educacion || 'PROFESIONAL',
+                semestre_ingreso: beneficiario.semestre_ingreso || '',
+                semestre_actual: beneficiario.semestre_actual || '',
+                dpto_institucion: beneficiario.dpto_institucion || '',
+                municipio_institucion: beneficiario.municipio_institucion || '',
+                modalidad: beneficiario.modalidad || '',
+                modalidad_beca: beneficiario.modalidad_beca || '',
+                año_convocatoria: beneficiario.año_convocatoria || new Date().getFullYear(),
+                nombre_banco: beneficiario.nombre_banco || '',
+                tipo_cuenta_bancaria: beneficiario.tipo_cuenta_bancaria || 'AHORROS',
+                numero_cuenta: beneficiario.numero_cuenta || '',
+              }));
+              
+              // Cargar progreso guardado si existe
+              loadSavedProgress();
+              return;
+            }
           }
-          
-          // Usuario ya estableció contraseña, continuar desde paso 4
-          setBeneficiarioId(profile.id);
-          setCurrentStep(4);
-          setIsLoginMode(true); // Mark as login mode
-          
-          // Pre-cargar datos del perfil
-          setFormData(prev => ({
-            ...prev,
-            email: profile.email || '',
-            document: profile.n_documento || '',
-            genero: profile.genero || '',
-            telefono: profile.telefono || '',
-            fecha_nacimiento: profile.fecha_nacimiento || '',
-            direccion_residencia: profile.direccion_residencia || '',
-            barrio_corregimiento: profile.barrio_corregimiento || '',
-            dpto_residencia: profile.dpto_residencia || '',
-            municipio_residencia: profile.municipio_residencia || '',
-            zona_residencia: profile.zona_residencia || '',
-            pais_nacimiento: profile.pais_nacimiento || 'COLOMBIA',
-            dpto_nacimiento: profile.dpto_nacimiento || '',
-            municipio_nacimiento: profile.municipio_nacimiento || '',
-            sisben_grupo: profile.sisben_grupo || '',
-            recibe_subsidio: profile.recibe_subsidio || '',
-            cual_subsidio: profile.cual_subsidio || '',
-            enfoque_diferencial: profile.enfoque_diferencial || 'NINGUNO',
-            labora_actualmente: profile.labora_actualmente || '',
-            titulo_obtenido: profile.titulo_obtenido || '',
-            ano_graduacion: profile.ano_graduacion || '',
-            establecimiento_educativo: profile.establecimiento_educativo || '',
-            puntaje_icfes: profile.puntaje_icfes || '',
-            institucion_superior: profile.institucion_superior || '',
-            programa_academico: profile.programa_academico || '',
-            tipo_educacion: profile.tipo_educacion || 'PROFESIONAL',
-            semestre_ingreso: profile.semestre_ingreso || '',
-            semestre_actual: profile.semestre_actual || '',
-            dpto_institucion: profile.dpto_institucion || '',
-            municipio_institucion: profile.municipio_institucion || '',
-            modalidad: profile.modalidad || '',
-            modalidad_beca: profile.modalidad_beca || '',
-            año_convocatoria: profile.año_convocatoria || new Date().getFullYear(),
-            nombre_banco: profile.nombre_banco || '',
-            tipo_cuenta_bancaria: profile.tipo_cuenta_bancaria || 'AHORROS',
-            numero_cuenta: profile.numero_cuenta || '',
-          }));
-          
-          // Cargar progreso guardado si existe
-          loadSavedProgress();
-          return;
         } catch (error) {
           console.error('Error leyendo sesión:', error);
         }

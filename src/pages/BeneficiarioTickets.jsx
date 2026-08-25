@@ -184,6 +184,13 @@ const BeneficiarioTickets = () => {
       return;
     }
 
+    // Validar longitud del mensaje antes de enviar
+    const mensajeTrimmed = mensaje?.trim() || '';
+    if (mensajeTrimmed.length < 10) {
+      setError('El mensaje debe tener al menos 10 caracteres.');
+      return;
+    }
+
     setSendingMessage(true);
     setError('');
 
@@ -195,8 +202,6 @@ const BeneficiarioTickets = () => {
       setSendingMessage(false);
       return;
     }
-
-    console.log('Sending message:', { beneficiario_id: beneficiarioId, ticket_id: selectedId, mensaje_length: mensaje?.length });
 
     const { data: result, error: invokeError } = await supabase.functions.invoke('beneficiario-enviar-mensaje', {
       body: {

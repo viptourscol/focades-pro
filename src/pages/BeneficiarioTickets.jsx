@@ -46,9 +46,7 @@ const BeneficiarioTickets = () => {
           return documentSession.beneficiario_id;
         }
       }
-    } catch (error) {
-      console.error('[BeneficiarioTickets] Error leyendo sesión:', error);
-    }
+    } catch (error) {}
 
     // Fallback a Supabase Auth
     const { data: sessionData } = await supabase.auth.getSession();
@@ -78,27 +76,17 @@ const BeneficiarioTickets = () => {
       setError('Tu sesión expiró. Inicia sesión de nuevo para continuar.');
       setLoading(false);
       return;
-    }
-
-    console.log('[BeneficiarioTickets] Cargando tickets...');
-
-    const { data: result, error: invokeError } = await supabase.functions.invoke('get-beneficiario-tickets', {
+    }const { data: result, error: invokeError } = await supabase.functions.invoke('get-beneficiario-tickets', {
       body: { beneficiario_id: beneficiarioId },
     });
 
-    if (invokeError || !result?.ok) {
-      console.error('[BeneficiarioTickets] Error:', invokeError || result);
-      setError(result?.error || invokeError?.message || 'No se pudieron cargar tus tickets.');
+    if (invokeError || !result?.ok) {setError(result?.error || invokeError?.message || 'No se pudieron cargar tus tickets.');
       setTickets([]);
       setMensajes([]);
       setSelectedId('');
       setLoading(false);
       return;
-    }
-
-    console.log(`[BeneficiarioTickets] ${result.tickets?.length || 0} tickets, ${result.mensajes?.length || 0} mensajes`);
-
-    const rows = Array.isArray(result.tickets) ? result.tickets : [];
+    }const rows = Array.isArray(result.tickets) ? result.tickets : [];
     const msgs = Array.isArray(result.mensajes) ? result.mensajes : [];
     const profile = result.profile || {};
 
@@ -166,11 +154,7 @@ const BeneficiarioTickets = () => {
       setError('Tu sesión expiró. Inicia sesión de nuevo para continuar.');
       setSubmitting(false);
       return;
-    }
-
-    console.log('[BeneficiarioTickets] Creando ticket...');
-
-    const { data: result, error: invokeError } = await supabase.functions.invoke('crear-ticket-beneficiario', {
+    }const { data: result, error: invokeError } = await supabase.functions.invoke('crear-ticket-beneficiario', {
       body: {
         beneficiario_id: beneficiarioId,
         asunto,
@@ -178,16 +162,10 @@ const BeneficiarioTickets = () => {
       },
     });
 
-    if (invokeError || !result?.ok) {
-      console.error('[BeneficiarioTickets] Error:', invokeError || result);
-      setError(result?.error || invokeError?.message || 'No se pudo crear el ticket.');
+    if (invokeError || !result?.ok) {setError(result?.error || invokeError?.message || 'No se pudo crear el ticket.');
       setSubmitting(false);
       return;
-    }
-
-    console.log('[BeneficiarioTickets] Ticket creado:', result.ticket?.ticket_codigo);
-
-    const createdTicket = result.ticket || null;
+    }const createdTicket = result.ticket || null;
     setSuccess(result.message || 'Tu ticket fue creado correctamente.');
     setForm({ asunto: '', mensaje: '' });
     setShowForm(false);
@@ -212,11 +190,7 @@ const BeneficiarioTickets = () => {
       setError('Tu sesión expiró. Inicia sesión de nuevo para continuar.');
       setSendingMessage(false);
       return;
-    }
-
-    console.log('[BeneficiarioTickets] Enviando mensaje...');
-
-    const { data: result, error: invokeError } = await supabase.functions.invoke('enviar-mensaje-ticket', {
+    }const { data: result, error: invokeError } = await supabase.functions.invoke('enviar-mensaje-ticket', {
       body: {
         beneficiario_id: beneficiarioId,
         ticket_id: selectedId,
@@ -224,16 +198,10 @@ const BeneficiarioTickets = () => {
       },
     });
 
-    if (invokeError || !result?.ok) {
-      console.error('[BeneficiarioTickets] Error:', invokeError || result);
-      setError(result?.error || invokeError?.message || 'No se pudo enviar el mensaje.');
+    if (invokeError || !result?.ok) {setError(result?.error || invokeError?.message || 'No se pudo enviar el mensaje.');
       setSendingMessage(false);
       return;
-    }
-
-    console.log('[BeneficiarioTickets] Mensaje enviado');
-
-    // Agregar mensaje temporalmente al estado (optimistic update)
+    }// Agregar mensaje temporalmente al estado (optimistic update)
     if (result.mensaje) {
       setMensajes((prev) => [...prev, result.mensaje]);
     }

@@ -194,7 +194,7 @@ const BeneficiarioActualizacion = () => {
           }
         }
       } catch (error) {
-        console.error('Error leyendo sesión de localStorage:', error);
+        // Error leyendo sesión
       }
 
       // Cargar perfil usando Edge Function (bypasses RLS)
@@ -209,7 +209,7 @@ const BeneficiarioActualizacion = () => {
             profileData = result.profile;
           }
         } catch (err) {
-          console.error('Error invocando get-beneficiario-profile:', err);
+          // Error invocando get-beneficiario-profile
         }
       } else {
         // Fallback: Si no hay beneficiario_id, intentar con Supabase Auth (Google OAuth)
@@ -245,7 +245,7 @@ const BeneficiarioActualizacion = () => {
           configData = result.config || null;
         }
       } catch (err) {
-        console.error('Error invocando get-ventana-actualizacion:', err);
+        // Error invocando get-ventana-actualizacion
       }
 
       if (!mounted) return;
@@ -270,7 +270,7 @@ const BeneficiarioActualizacion = () => {
             setPreviousUpdate(prevUpdate);
           }
         } catch (err) {
-          console.error('Error consultando actualización previa:', err);
+          // Error consultando actualización previa
         }
       }
 
@@ -422,7 +422,6 @@ const BeneficiarioActualizacion = () => {
       ]);
 
       // Enviar actualización usando Edge Function (bypasses RLS)
-      console.log('📤 Invocando Edge Function...');
       const { data: result, error: invokeError } = await supabase.functions.invoke('enviar-actualizacion-beneficiario', {
         body: {
           beneficiario_id: profile.id,
@@ -454,10 +453,7 @@ const BeneficiarioActualizacion = () => {
         },
       });
 
-      console.log('📥 Respuesta recibida:', { result, invokeError });
-
       if (invokeError) {
-        console.error('❌ Error de invocación:', invokeError);
         
         // El status HTTP está en context (Response object)
         const httpStatus = invokeError.context?.status;
@@ -474,8 +470,6 @@ const BeneficiarioActualizacion = () => {
             const responseClone = invokeError.context.clone();
             const errorBody = await responseClone.json();
             
-            console.log('📋 Error body 409:', errorBody);
-            
             if (errorBody.code === 'DUPLICATE_SUBMISSION') {
               const statusText = errorBody.existing_status === 'aprobada' 
                 ? 'aprobada'
@@ -483,7 +477,6 @@ const BeneficiarioActualizacion = () => {
               throw new Error(`Ya enviaste una actualización para esta ventana que está ${statusText}. No se permite reenvío hasta que sea procesada.`);
             }
           } catch (e) {
-            console.log('⚠️ Error al parsear body 409:', e);
             throw new Error('Ya existe una actualización pendiente para esta ventana.');
           }
         }
@@ -493,12 +486,10 @@ const BeneficiarioActualizacion = () => {
       }
 
       if (!result) {
-        console.error('❌ Respuesta vacía del servidor');
         throw new Error('No se recibió respuesta del servidor');
       }
 
       if (!result.ok) {
-        console.error('❌ Error en respuesta:', result);
         // Manejar errores específicos
         if (result.code === 'DUPLICATE_SUBMISSION') {
           const statusText = result.existing_status === 'aprobada' 
@@ -508,8 +499,6 @@ const BeneficiarioActualizacion = () => {
         }
         throw new Error(result.error || 'Error al procesar la actualización');
       }
-
-      console.log('✅ Actualización enviada exitosamente:', result);
 
       // Notificación por correo (no bloquea si falla)
       supabase.functions.invoke('notify-beneficiario', {
@@ -574,17 +563,14 @@ const BeneficiarioActualizacion = () => {
     
     if (fileSizeMB > 2) {
       try {
-        console.log(`🗜️ Comprimiendo ${fieldName}...`);
         const compressedFile = await compressPDF(selectedFile, {
           targetSizeKB: 2048, // 2 MB máximo
         });
         
         const reduction = ((1 - compressedFile.size / selectedFile.size) * 100).toFixed(1);
-        console.log(`✅ ${fieldName} comprimido (reducción: ${reduction}%)`);
         
         finalFile = compressedFile;
       } catch (error) {
-        console.warn('⚠️ Error en compresión, usando archivo original:', error);
         finalFile = selectedFile;
       }
     }

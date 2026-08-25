@@ -106,11 +106,7 @@ const BeneficiarioCondonacion = () => {
 
   const loadData = async () => {
     setLoading(true);
-    setError('');
-
-    console.log('[BeneficiarioCondonacion] Cargando módulo de condonación...');
-
-    // Obtener beneficiario_id desde localStorage
+    setError('');// Obtener beneficiario_id desde localStorage
     let beneficiarioId = null;
     try {
       const sessionStr = localStorage.getItem('focades:beneficiario-session');
@@ -121,14 +117,12 @@ const BeneficiarioCondonacion = () => {
         
         if (Date.now() - sessionTime <= maxAge) {
           beneficiarioId = documentSession.beneficiario_id;
-          console.log('[BeneficiarioCondonacion] beneficiario_id desde localStorage:', beneficiarioId);
         }
       }
     } catch (error) {
-      console.error('[BeneficiarioCondonacion] Error leyendo sesión:', error);
+      // Error leyendo sesión
     }
 
-    // Si no hay beneficiario_id, intentar con Supabase Auth
     if (!beneficiarioId) {
       const { data: sessionData } = await supabase.auth.getSession();
       const userId = sessionData?.session?.user?.id;
@@ -144,38 +138,27 @@ const BeneficiarioCondonacion = () => {
     }
 
     if (!beneficiarioId) {
-      console.log('[BeneficiarioCondonacion] No se pudo obtener beneficiario_id');
       setError('No hay beneficiario vinculado.');
       setLoading(false);
       return;
     }
 
     // Cargar módulo de condonación usando Edge Function (bypasses RLS)
-    console.log('[BeneficiarioCondonacion] Invocando Edge Function get-condonacion-modulo...');
     const { data: result, error: invokeError } = await supabase.functions.invoke('get-condonacion-modulo', {
       body: { beneficiario_id: beneficiarioId },
     });
 
     if (invokeError) {
-      console.error('[BeneficiarioCondonacion] Error invocando Edge Function:', invokeError);
       setError(invokeError.message || 'No se pudo cargar la información de condonaciones.');
       setLoading(false);
       return;
     }
 
     if (!result?.ok) {
-      console.error('[BeneficiarioCondonacion] Error en respuesta:', result);
       setError(result?.message || 'No se pudo cargar la información de condonaciones.');
       setLoading(false);
       return;
-    }
-
-    console.log('[BeneficiarioCondonacion] Módulo cargado:', {
-      condonaciones: result.condonaciones?.length || 0,
-      documentos: result.documentos_finales?.length || 0,
-    });
-
-    setPayload(result);
+    }setPayload(result);
     setBeneficiarioProfile(result.beneficiario_profile || null);
     setLoading(false);
   };

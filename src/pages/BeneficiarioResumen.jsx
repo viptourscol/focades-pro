@@ -146,18 +146,8 @@ const BeneficiarioResumen = () => {
       // Primero intentar obtener beneficiario_id desde localStorage (login con documento)
       let beneficiarioId = null;
       try {
-        const sessionStr = localStorage.getItem('focades:beneficiario-session');
-        console.log('[BeneficiarioResumen] localStorage session:', sessionStr ? 'EXISTE' : 'NO EXISTE');
-        
-        if (sessionStr) {
-          const documentSession = JSON.parse(sessionStr);
-          console.log('[BeneficiarioResumen] Session data:', {
-            beneficiario_id: documentSession.beneficiario_id,
-            has_profile: !!documentSession.profile,
-            timestamp: documentSession.timestamp
-          });
-          
-          // Validar que la sesión no sea muy antigua (24h)
+        const sessionStr = localStorage.getItem('focades:beneficiario-session');if (sessionStr) {
+          const documentSession = JSON.parse(sessionStr);// Validar que la sesión no sea muy antigua (24h)
           const sessionTime = new Date(documentSession.timestamp).getTime();
           const maxAge = 24 * 60 * 60 * 1000;
           
@@ -165,32 +155,19 @@ const BeneficiarioResumen = () => {
             beneficiarioId = documentSession.beneficiario_id;
           }
         }
-      } catch (error) {
-        console.error('Error leyendo sesión de localStorage:', error);
-      }
+      } catch (error) {}
 
       // Si hay beneficiario_id, cargar perfil completo desde la base de datos
       let profileData = null;
-      if (beneficiarioId) {
-        console.log('[BeneficiarioResumen] Cargando perfil para beneficiario_id:', beneficiarioId);
-        
-        try {
+      if (beneficiarioId) {try {
           // Usar Edge Function con service key para bypassear RLS
           const { data: result, error } = await supabase.functions.invoke('get-beneficiario-profile', {
             body: { beneficiario_id: beneficiarioId },
           });
 
-          if (error) {
-            console.error('[BeneficiarioResumen] Error invocando Edge Function:', error);
-          } else if (result?.ok && result.profile) {
-            console.log('[BeneficiarioResumen] Perfil cargado:', 'OK');
-            profileData = result.profile;
-          } else {
-            console.error('[BeneficiarioResumen] Edge Function retornó error:', result?.error);
-          }
-        } catch (err) {
-          console.error('[BeneficiarioResumen] Exception invocando Edge Function:', err);
-        }
+          if (error) {} else if (result?.ok && result.profile) {profileData = result.profile;
+          } else {}
+        } catch (err) {}
         
         profileData = profileData;
       } else {

@@ -249,7 +249,7 @@ const BeneficiarioOnboardingCompleto = () => {
             }
           }
         } catch (error) {
-          console.error('Error leyendo sesión:', error);
+          // Error leyendo sesión
         }
       }
       
@@ -287,7 +287,7 @@ const BeneficiarioOnboardingCompleto = () => {
         municipiosInstitucionFiltrados: [],
       }));
     } catch (error) {
-      console.error('Error cargando catálogos:', error);
+      // Error cargando catálogos
     }
   };
 
@@ -330,7 +330,7 @@ const BeneficiarioOnboardingCompleto = () => {
         setBeneficiarioId(data.beneficiarioId);
       }
     } catch (error) {
-      console.error('Error cargando progreso:', error);
+      // Error cargando progreso
     }
   };
 
@@ -343,7 +343,7 @@ const BeneficiarioOnboardingCompleto = () => {
         timestamp: new Date().toISOString(),
       }));
     } catch (error) {
-      console.error('Error guardando progreso:', error);
+      // Error guardando progreso
     }
   };
 
@@ -569,7 +569,6 @@ const BeneficiarioOnboardingCompleto = () => {
         saveProgress();
       }
     } catch (error) {
-      console.error('Error en handleNext:', error);
       await showErrorAlert({
         title: 'Error',
         text: error.message || 'No se pudo continuar',
@@ -639,10 +638,10 @@ const BeneficiarioOnboardingCompleto = () => {
       });
 
       if (!result.data?.ok) {
-        console.error('Error actualizando perfil:', result.data?.error);
+        // Error actualizando perfil
       }
     } catch (error) {
-      console.error('Error en updateProfile:', error);
+      // Error en updateProfile
     }
   };
 
@@ -667,9 +666,7 @@ const BeneficiarioOnboardingCompleto = () => {
         const fileSizeKB = blob.size / 1024;
         
         if (fileSizeKB > 500) {
-          try {
-            console.log('🗜️ Comprimiendo firma digital...');
-            // Convertir blob a File para comprimir
+          try {// Convertir blob a File para comprimir
             const file = new File([blob], 'firma.png', { type: 'image/png' });
             const compressedFile = await compressImage(file, {
               maxSizeMB: 0.5,
@@ -677,11 +674,9 @@ const BeneficiarioOnboardingCompleto = () => {
             });
             
             const reduction = ((1 - compressedFile.size / blob.size) * 100).toFixed(1);
-            console.log(`✅ Firma comprimida (reducción: ${reduction}%)`);
             
             finalBlob = compressedFile;
           } catch (error) {
-            console.warn('⚠️ Error en compresión, usando firma original:', error);
             finalBlob = blob;
           }
         }
@@ -757,7 +752,7 @@ const BeneficiarioOnboardingCompleto = () => {
           }
         }
       } catch (error) {
-        console.error('Error recargando perfil en localStorage:', error);
+        // Error recargando perfil
       }
 
       await showSuccessAlert({
@@ -768,7 +763,6 @@ const BeneficiarioOnboardingCompleto = () => {
       // Avanzar al paso final (resumen)
       setCurrentStep(11); // Ahora es paso 11 (antes era 12)
     } catch (error) {
-      console.error('Error completando onboarding:', error);
       await showErrorAlert({
         title: 'Error',
         text: error.message || 'No se pudo completar el onboarding',
@@ -808,18 +802,14 @@ const BeneficiarioOnboardingCompleto = () => {
       const fileSizeMB = file.size / 1024 / 1024;
       
       if (fileSizeMB > 2) {
-        try {
-          console.log(`🗜️ Comprimiendo documento ${tipoDoc}...`);
-          const compressedFile = await compressPDF(file, {
+        try {const compressedFile = await compressPDF(file, {
             targetSizeKB: 2048, // 2 MB máximo
           });
           
           const reduction = ((1 - compressedFile.size / file.size) * 100).toFixed(1);
-          console.log(`✅ Documento comprimido (reducción: ${reduction}%)`);
           
           finalFile = compressedFile;
         } catch (error) {
-          console.warn('⚠️ Error en compresión, usando archivo original:', error);
           finalFile = file;
         }
       }
@@ -874,7 +864,6 @@ const BeneficiarioOnboardingCompleto = () => {
         timer: 1500,
       });
     } catch (error) {
-      console.error('Error subiendo documento:', error);
       await showErrorAlert({
         title: 'Error',
         text: error.message || 'No se pudo subir el documento',

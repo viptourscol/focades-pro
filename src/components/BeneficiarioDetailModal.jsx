@@ -158,9 +158,7 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
       ];
       
       setDocuments(allDocs);
-    } catch (error) {
-      console.error('Error cargando documentos:', error);
-    } finally {
+    } catch (error) {} finally {
       setLoadingDocs(false);
     }
   };
@@ -328,9 +326,7 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
       setIsEditing(false);
       
       if (onSave) onSave({ ...beneficiario, ...changes });
-    } catch (error) {
-      console.error('Error guardando beneficiario:', error);
-      await showErrorAlert({ title: 'Error', text: 'Error al guardar los cambios' });
+    } catch (error) {await showErrorAlert({ title: 'Error', text: 'Error al guardar los cambios' });
     } finally {
       setSaving(false);
     }

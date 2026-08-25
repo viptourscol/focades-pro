@@ -88,10 +88,7 @@ const BeneficiarioHistorial = () => {
   useEffect(() => {
     let mounted = true;
 
-    const loadRows = async () => {
-      console.log('[BeneficiarioHistorial] Cargando historial...');
-      
-      // Obtener beneficiario_id desde localStorage
+    const loadRows = async () => {// Obtener beneficiario_id desde localStorage
       let beneficiarioId = null;
       try {
         const sessionStr = localStorage.getItem('focades:beneficiario-session');
@@ -101,21 +98,15 @@ const BeneficiarioHistorial = () => {
           const maxAge = 24 * 60 * 60 * 1000;
           
           if (Date.now() - sessionTime <= maxAge) {
-            beneficiarioId = documentSession.beneficiario_id;
-            console.log('[BeneficiarioHistorial] beneficiario_id desde localStorage:', beneficiarioId);
-          }
+            beneficiarioId = documentSession.beneficiario_id;}
         }
-      } catch (error) {
-        console.error('[BeneficiarioHistorial] Error leyendo sesión:', error);
-      }
+      } catch (error) {}
 
       // Si no hay beneficiario_id, intentar con Supabase Auth
       if (!beneficiarioId) {
         const { data: sessionData } = await supabase.auth.getSession();
         const userId = sessionData?.session?.user?.id;
-        if (!userId) {
-          console.log('[BeneficiarioHistorial] No hay sesión activa');
-          if (mounted) setLoading(false);
+        if (!userId) {if (mounted) setLoading(false);
           return;
         }
 
@@ -129,36 +120,24 @@ const BeneficiarioHistorial = () => {
       }
 
       if (!beneficiarioId) {
-        console.log('[BeneficiarioHistorial] No se pudo obtener beneficiario_id');
         if (mounted) setLoading(false);
         return;
       }
 
       // Cargar historial usando Edge Function (bypasses RLS)
-      console.log('[BeneficiarioHistorial] Invocando Edge Function get-beneficiario-historial...');
       const { data: result, error: invokeError } = await supabase.functions.invoke('get-beneficiario-historial', {
         body: { beneficiario_id: beneficiarioId },
       });
 
       if (invokeError) {
-        console.error('[BeneficiarioHistorial] Error invocando Edge Function:', invokeError);
         if (mounted) setLoading(false);
         return;
       }
 
       if (!result?.ok) {
-        console.error('[BeneficiarioHistorial] Error en respuesta:', result);
         if (mounted) setLoading(false);
         return;
-      }
-
-      console.log('[BeneficiarioHistorial] Historial cargado:', {
-        actualizaciones: result.actualizaciones?.length || 0,
-        documentos: result.documentos?.length || 0,
-        ventanas: result.ventanas?.length || 0,
-      });
-
-      // Agrupar documentos por actualización
+      }// Agrupar documentos por actualización
       const groupedDocs = (result.documentos || []).reduce((acc, doc) => {
         const key = doc.actualizacion_id;
         if (!acc[key]) acc[key] = [];

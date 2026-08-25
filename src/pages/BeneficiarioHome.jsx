@@ -114,7 +114,7 @@ const BeneficiarioHome = () => {
           }
         }
       } catch (error) {
-        console.error('Error verificando perfil:', error);
+        // Error verificando perfil
       }
 
       

@@ -73,9 +73,7 @@ export default function BeneficiarioCompletarPerfil({ beneficiarioId, onComplete
           numero_cuenta: data.numero_cuenta || '',
           tipo_cuenta_bancaria: data.tipo_cuenta_bancaria || 'AHORROS',
         });
-      } catch (error) {
-        console.error('Error cargando perfil:', error);
-        await showErrorAlert({
+      } catch (error) {await showErrorAlert({
           title: 'Error',
           text: 'No se pudo cargar tu perfil. Intenta más tarde.',
         });
@@ -153,9 +151,7 @@ export default function BeneficiarioCompletarPerfil({ beneficiarioId, onComplete
 
       if (onComplete) onComplete();
       navigate('/beneficiario');
-    } catch (error) {
-      console.error('Error guardando perfil:', error);
-      await showErrorAlert({
+    } catch (error) {await showErrorAlert({
         title: 'Error al guardar',
         text: 'No se pudo guardar tu información. Intenta más tarde.',
       });

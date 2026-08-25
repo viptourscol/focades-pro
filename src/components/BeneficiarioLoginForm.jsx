@@ -58,7 +58,7 @@ export const BeneficiarioLoginForm = ({ onSuccess, isLoading, setIsLoading }) =>
       try {
         localStorage.setItem('focades:beneficiario-session', JSON.stringify(sessionData));
       } catch (error) {
-        console.error('Error guardando sesión:', error);
+        // Error guardando sesión
       }
 
       // Si necesita completar onboarding, redirigir a la página de continuación
@@ -69,9 +69,7 @@ export const BeneficiarioLoginForm = ({ onSuccess, isLoading, setIsLoading }) =>
 
       // Llamar onSuccess para redirigir al dashboard normal
       if (onSuccess) onSuccess();
-    } catch (error) {
-      console.error('Login error:', error);
-      await showErrorAlert({
+    } catch (error) {await showErrorAlert({
         title: 'Error',
         text: error.message || 'No se pudo procesar tu login.',
       });

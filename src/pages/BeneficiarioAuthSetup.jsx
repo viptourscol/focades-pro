@@ -94,7 +94,7 @@ const BeneficiarioAuthSetup = () => {
         text: `Se envió un link de verificación a ${formData.email}`,
       });
     } catch (error) {
-      console.error('Setup error:', error);
+
       await showErrorAlert({
         title: 'Error',
         text: error.message || 'No se pudo procesar tu solicitud.',
@@ -183,9 +183,7 @@ const BeneficiarioAuthSetup = () => {
         icon: 'success',
       });
       
-    } catch (error) {
-      console.error('Setup complete error:', error);
-      await showErrorAlert({
+    } catch (error) {await showErrorAlert({
         title: 'Error',
         text: error.message || 'No se pudo completar el setup.',
       });

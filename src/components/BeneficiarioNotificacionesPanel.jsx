@@ -119,9 +119,7 @@ const BeneficiarioNotificacionesPanel = ({
         setNotificaciones(visibleArray);
         setNoLeidas(nextUnread);
         emitUnreadCount(nextUnread);
-      } catch (error) {
-        console.error('Error cargando notificaciones:', error);
-        if (mounted) setNotificaciones([]);
+      } catch (error) {if (mounted) setNotificaciones([]);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -149,9 +147,7 @@ const BeneficiarioNotificacionesPanel = ({
       const nextUnread = Math.max(0, noLeidas - 1);
       setNoLeidas(nextUnread);
       emitUnreadCount(nextUnread);
-    } catch (error) {
-      console.error('Error al marcar como leída:', error);
-    }
+    } catch (error) {}
   };
 
   const handleNotificationClick = async (notif) => {

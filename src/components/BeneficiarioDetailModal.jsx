@@ -477,14 +477,18 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center gap-2 px-4 py-3 font-semibold rounded-t-xl transition-all whitespace-nowrap ${
                     activeTab === tab.id
-                      ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
-                      : 'text-slate-600 hover:bg-slate-50'
+                      ? 'bg-blue-600 text-white border-b-4 border-blue-700 shadow-md'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
                   <Icon size={18} />
                   <span className="text-sm">{tab.label}</span>
                   {isDocTab && docCount > 0 && (
-                    <span className="ml-1 px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded-full">
+                    <span className={`ml-1 px-2 py-0.5 text-xs font-bold rounded-full ${
+                      activeTab === tab.id 
+                        ? 'bg-white text-blue-600' 
+                        : 'bg-blue-600 text-white'
+                    }`}>
                       {docCount}
                     </span>
                   )}
@@ -495,7 +499,7 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="overflow-y-auto p-6" style={{ minHeight: '500px', maxHeight: 'calc(90vh - 240px)' }}>
           {/* Datos Personales */}
           {activeTab === 'personal' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1039,12 +1043,12 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
           {activeTab === 'documentos' && (
             <div className="space-y-6">
               {/* Información sobre documentos */}
-              <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+              <div className="bg-slate-50 border border-slate-300 rounded-xl p-4">
                 <div className="flex items-start gap-3">
-                  <FileText size={20} className="text-purple-600 mt-0.5 flex-shrink-0" />
-                  <div className="text-sm text-purple-900">
+                  <FileText size={20} className="text-slate-700 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-slate-800">
                     <p className="font-semibold mb-1">Documentos del Onboarding</p>
-                    <p className="text-purple-700">
+                    <p className="text-slate-600">
                       Aquí se muestran los documentos históricos subidos por el beneficiario durante el proceso de registro inicial (onboarding), 
                       incluyendo: cédula, certificados académicos, soportes bancarios, constancias, etc.
                     </p>
@@ -1077,14 +1081,14 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-2">
-                              <FileText size={20} className="text-purple-600 flex-shrink-0" />
+                              <FileText size={20} className="text-slate-700 flex-shrink-0" />
                               <p className="font-bold text-slate-900 text-base truncate">
                                 {doc.titulo || doc.tipo_documento || 'Documento sin nombre'}
                               </p>
                             </div>
                             <div className="flex flex-wrap items-center gap-2 text-xs">
                               {doc.tipo_documento && (
-                                <span className="bg-purple-100 text-purple-700 px-2.5 py-1 rounded-lg font-bold border border-purple-200">
+                                <span className="bg-slate-700 text-white px-2.5 py-1 rounded-lg font-bold">
                                   {doc.tipo_documento.toUpperCase()}
                                 </span>
                               )}
@@ -1102,7 +1106,7 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
                           {doc.storage_path && (
                             <button
                               onClick={() => handleOpenDocument(doc)}
-                              className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 transition-all shadow-md hover:shadow-lg flex-shrink-0"
+                              className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-md hover:shadow-lg flex-shrink-0"
                             >
                               <Eye size={18} />
                               Ver Documento

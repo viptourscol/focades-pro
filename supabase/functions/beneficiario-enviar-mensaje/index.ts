@@ -37,7 +37,10 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const { beneficiario_id, ticket_id, mensaje } = body
 
+    console.log('Received request:', { beneficiario_id, ticket_id, mensaje_length: mensaje?.length })
+
     if (!beneficiario_id || !ticket_id) {
+      console.error('Missing required fields:', { beneficiario_id, ticket_id })
       return new Response(
         JSON.stringify({ ok: false, error: 'beneficiario_id y ticket_id requeridos' }),
         {
@@ -53,6 +56,7 @@ Deno.serve(async (req) => {
     const cleanMensaje = sanitizeText(mensaje, 2500)
 
     if (cleanMensaje.length < 10) {
+      console.error('Message too short:', cleanMensaje.length)
       return new Response(
         JSON.stringify({ ok: false, error: 'El mensaje debe tener al menos 10 caracteres.' }),
         {

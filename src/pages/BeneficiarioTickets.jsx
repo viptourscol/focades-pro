@@ -179,6 +179,10 @@ const BeneficiarioTickets = () => {
 
   const handleSendMessage = async (mensaje) => {
     if (!selectedTicket) return;
+    if (!selectedId) {
+      setError('No hay ticket seleccionado.');
+      return;
+    }
 
     setSendingMessage(true);
     setError('');
@@ -190,7 +194,11 @@ const BeneficiarioTickets = () => {
       setError('Tu sesión expiró. Inicia sesión de nuevo para continuar.');
       setSendingMessage(false);
       return;
-    }const { data: result, error: invokeError } = await supabase.functions.invoke('beneficiario-enviar-mensaje', {
+    }
+
+    console.log('Sending message:', { beneficiario_id: beneficiarioId, ticket_id: selectedId, mensaje_length: mensaje?.length });
+
+    const { data: result, error: invokeError } = await supabase.functions.invoke('beneficiario-enviar-mensaje', {
       body: {
         beneficiario_id: beneficiarioId,
         ticket_id: selectedId,

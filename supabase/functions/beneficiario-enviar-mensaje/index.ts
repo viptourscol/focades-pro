@@ -21,14 +21,14 @@ const sanitizeText = (value: any, maxLength = 3000) =>
     .slice(0, maxLength)
 
 Deno.serve(async (req) => {
-  // CORS headers
   if (req.method === 'OPTIONS') {
     return new Response(null, {
-      status: 200,
+      status: 204,
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info, apikey',
+        'Access-Control-Max-Age': '86400',
       },
     })
   }
@@ -65,9 +65,6 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log('💬 Agregando mensaje al ticket:', ticket_id)
-
-    // Obtener perfil del beneficiario
     const { data: profile, error: profileError } = await supabase
       .from('portal_beneficiarios')
       .select('id,email')
@@ -75,7 +72,6 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     if (profileError || !profile) {
-      console.error('❌ Error obteniendo perfil:', profileError)
       return new Response(
         JSON.stringify({ ok: false, error: 'No se pudo validar tu perfil de beneficiario.' }),
         {
@@ -90,7 +86,6 @@ Deno.serve(async (req) => {
 
     const contactEmail = String(profile.email || '').trim().toLowerCase()
 
-    // Validar que el ticket existe y pertenece al beneficiario
     const { data: ticket, error: ticketError } = await supabase
       .from('soporte_tickets')
       .select('id,ticket_codigo,email_contacto,estado,cerrado_at')
@@ -99,7 +94,6 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     if (ticketError || !ticket) {
-      console.error('❌ Ticket no encontrado o no pertenece al beneficiario')
       return new Response(
         JSON.stringify({ ok: false, error: 'Ticket no encontrado.' }),
         {
@@ -112,10 +106,9 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Validar que el ticket no está cerrado
     if (ticket.cerrado_at) {
       return new Response(
-        JSON.stringify({ ok: false, error: 'Este ticket fue cerrado por el administrador. Por favor, crea un nuevo ticket si necesitas más ayuda.' }),
+        JSON.stringify({ ok: false, error: 'Este ticket fue cerrado por el administrador.' }),
         {
           status: 400,
           headers: {
@@ -126,8 +119,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Insertar mensaje en la tabla portal_ticket_mensajes
-    const { data: mensaje, error: insertError } = await supabase
+    const { data: mensaje_insertado, error: insertError } = await supabase
       .from('portal_ticket_mensajes')
       .insert({
         ticket_id: ticket_id,
@@ -138,8 +130,7 @@ Deno.serve(async (req) => {
       .select('id,ticket_id,autor_tipo,mensaje,created_at')
       .single()
 
-    if (insertError || !mensaje) {
-      console.error('❌ Error insertando mensaje:', insertError)
+    if (insertError || !mensaje_insertado) {
       return new Response(
         JSON.stringify({ ok: false, error: insertError?.message || 'No se pudo enviar el mensaje.' }),
         {
@@ -152,27 +143,19 @@ Deno.serve(async (req) => {
       )
     }
     
-    // Actualizar el estado del ticket para indicar que hay nueva actividad
-    const { error: updateError } = await supabase
+    await supabase
       .from('soporte_tickets')
       .update({
-        estado: 'respondido', // Indica que el beneficiario respondió
+        estado: 'respondido',
         updated_at: new Date().toISOString(),
       })
       .eq('id', ticket_id)
-
-    if (updateError) {
-      console.error('❌ Error actualizando estado del ticket:', updateError)
-      // No fallamos si no se puede actualizar el estado, el mensaje ya fue guardado
-    }
-
-    console.log('✅ Mensaje agregado al ticket:', ticket.ticket_codigo)
 
     return new Response(
       JSON.stringify({
         ok: true,
         message: 'Mensaje enviado correctamente.',
-        mensaje: mensaje,
+        mensaje: mensaje_insertado,
       }),
       {
         status: 200,
@@ -183,7 +166,6 @@ Deno.serve(async (req) => {
       }
     )
   } catch (error) {
-    console.error('❌ Error en enviar-mensaje-ticket:', error)
     return new Response(
       JSON.stringify({
         ok: false,

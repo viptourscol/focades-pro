@@ -190,7 +190,7 @@ const BeneficiarioTickets = () => {
       setError('Tu sesión expiró. Inicia sesión de nuevo para continuar.');
       setSendingMessage(false);
       return;
-    }const { data: result, error: invokeError } = await supabase.functions.invoke('enviar-mensaje-ticket', {
+    }const { data: result, error: invokeError } = await supabase.functions.invoke('beneficiario-enviar-mensaje', {
       body: {
         beneficiario_id: beneficiarioId,
         ticket_id: selectedId,

@@ -91,7 +91,7 @@ const AdminBeneficiarios = () => {
   }, [rows]);
 
   const modalidadOptions = useMemo(() => {
-    const set = new Set(rows.map((item) => normalizeModalidad(item.modalidad)));
+    const set = new Set(rows.map((item) => normalizeModalidad(item.modalidad_beca)));
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
   }, [rows]);
 
@@ -107,7 +107,7 @@ const AdminBeneficiarios = () => {
       const convocatoriaLabel = normalizeConvocatoria(item.convocatoria_nombre);
       if (convocatoriaFilter !== ALL_OPTION && convocatoriaLabel !== convocatoriaFilter) return false;
 
-      const modalidadLabel = normalizeModalidad(item.modalidad);
+      const modalidadLabel = normalizeModalidad(item.modalidad_beca);
       if (modalidadFilter !== ALL_OPTION && modalidadLabel !== modalidadFilter) return false;
 
       if (!query) return true;

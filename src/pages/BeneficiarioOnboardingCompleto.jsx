@@ -114,8 +114,6 @@ const BeneficiarioOnboardingCompleto = () => {
       acta_grado: null,
       diploma: null,
       pruebas_saber: null,
-      cert_matricula: null,
-      cert_notas: null,
       ficha_sisben: null,
       cert_enfoque: null,
       certificado_bancario: null,
@@ -414,8 +412,7 @@ const BeneficiarioOnboardingCompleto = () => {
 
       case 9: // Documentos (antes era paso 10)
         const requiredDocs = ['documento_identidad', 'acta_grado', 'diploma', 
-                              'pruebas_saber', 'cert_matricula', 'cert_notas', 
-                              'certificado_bancario'];
+                              'pruebas_saber', 'certificado_bancario'];
         requiredDocs.forEach(doc => {
           if (!uploadedDocs[doc]) {
             newErrors[doc] = 'Documento requerido';
@@ -878,8 +875,6 @@ const BeneficiarioOnboardingCompleto = () => {
       acta_grado: 'Acta de Grado',
       diploma: 'Diploma de Bachiller',
       pruebas_saber: 'Resultados Pruebas Saber 11',
-      cert_matricula: 'Certificado de Matrícula',
-      cert_notas: 'Certificado de Notas',
       certificado_bancario: 'Certificado Bancario',
       ficha_sisben: 'Ficha SISBEN',
       cert_enfoque: 'Certificado de Enfoque Diferencial',
@@ -1781,8 +1776,6 @@ const BeneficiarioOnboardingCompleto = () => {
       { key: 'acta_grado', label: 'Acta de Grado Bachillerato', required: true },
       { key: 'diploma', label: 'Diploma de Bachiller', required: true },
       { key: 'pruebas_saber', label: 'Resultados Pruebas Saber 11', required: true },
-      { key: 'cert_matricula', label: 'Certificado de Matrícula', required: true },
-      { key: 'cert_notas', label: 'Certificado de Notas Actual', required: true },
       { key: 'certificado_bancario', label: 'Certificado Bancario', required: true },
       { 
         key: 'ficha_sisben', 

@@ -175,6 +175,7 @@ const AdminBeneficiarioDetalle = () => {
   const [editingPaymentId, setEditingPaymentId] = useState(null);
   const [viewingDoc, setViewingDoc] = useState(null);
   const [activeTab, setActiveTab] = useState('perfil');
+  const [onboardingSubTab, setOnboardingSubTab] = useState('personal');
   const [loadedTabs, setLoadedTabs] = useState({ perfil: false, onboarding: false, actualizaciones: false, expediente: false, pagos: false, tickets: false, bitacora: false });
   const [loadingByTab, setLoadingByTab] = useState({ perfil: false, onboarding: false, actualizaciones: false, expediente: false, pagos: false, tickets: false, bitacora: false });
   const [expedienteDocs, setExpedienteDocs] = useState([]);
@@ -974,72 +975,255 @@ const AdminBeneficiarioDetalle = () => {
       )}
 
       {activeTab === 'onboarding' && (
-      <section className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
-        <SectionTitle title="Documentos del Onboarding" subtitle="Documentos históricos subidos durante el proceso de registro inicial del beneficiario." />
-        {loadingByTab.onboarding && <p className="text-sm text-slate-500">Cargando documentos de onboarding...</p>}
-        {!loadingByTab.onboarding && onboardingDocs.length === 0 ? (
-          <div className="text-center py-12">
-            <FileText size={56} className="mx-auto text-slate-300 mb-4" />
-            <h4 className="text-lg font-bold text-slate-700 mb-2">Sin documentos</h4>
-            <p className="text-slate-500">El beneficiario aún no tiene documentos de onboarding registrados</p>
-          </div>
-        ) : (
-          <>
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm font-bold text-slate-700">
-                Total de documentos: <span className="text-secondary">{onboardingDocs.length}</span>
-              </p>
-            </div>
-            <div className="space-y-2">
-              {onboardingDocs.map((doc) => (
-                <div key={doc.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-2 border-slate-200 rounded-2xl px-4 py-3 hover:border-blue-300 hover:bg-blue-50/30 transition-all">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <FileText size={20} className="text-slate-700 flex-shrink-0" />
-                      <p className="font-bold text-slate-900 text-base truncate">
-                        {doc.titulo || doc.tipo_documento || 'Documento sin nombre'}
+      <section className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-6">
+        <SectionTitle title="Información de Onboarding" subtitle="Datos completos del proceso de registro inicial del beneficiario." />
+        
+        {/* Sub-pestañas de onboarding */}
+        <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-2">
+          {[
+            { id: 'personal', label: 'Personal' },
+            { id: 'socioeconomico', label: 'Socio-económico' },
+            { id: 'familiar', label: 'Familiar' },
+            { id: 'secundaria', label: 'Secundaria' },
+            { id: 'academico', label: 'Académico' },
+            { id: 'bancario', label: 'Bancario' },
+            { id: 'estado', label: 'Estado' },
+            { id: 'documentos', label: 'Documentos' }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setOnboardingSubTab(tab.id)}
+              className={`px-4 py-2 font-semibold rounded-lg text-sm transition-all ${
+                onboardingSubTab === tab.id
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {loadingByTab.onboarding && <p className="text-sm text-slate-500">Cargando información...</p>}
+        
+        {!loadingByTab.onboarding && beneficiario && (
+          <div className="space-y-4">
+            {/* Personal */}
+            {onboardingSubTab === 'personal' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <DataField label="Nombre Completo" value={beneficiario.nombre_completo} />
+                <DataField label="Tipo de Documento" value={beneficiario.tipo_documento} />
+                <DataField label="Número de Documento" value={beneficiario.n_documento} />
+                <DataField label="Género" value={beneficiario.genero} />
+                <DataField label="Email" value={beneficiario.email} />
+                <DataField label="Teléfono" value={beneficiario.telefono} />
+                <DataField label="Fecha de Nacimiento" value={beneficiario.fecha_nacimiento ? formatDate(beneficiario.fecha_nacimiento) : null} />
+                <DataField label="País de Nacimiento" value={beneficiario.pais_nacimiento} />
+                <DataField label="Departamento de Nacimiento" value={beneficiario.dpto_nacimiento} />
+                <DataField label="Municipio de Nacimiento" value={beneficiario.municipio_nacimiento} />
+                <DataField label="Departamento de Residencia" value={beneficiario.dpto_residencia} />
+                <DataField label="Municipio de Residencia" value={beneficiario.municipio_residencia} />
+                <DataField label="Dirección de Residencia" value={beneficiario.direccion_residencia} className="md:col-span-2" />
+                <DataField label="Barrio/Corregimiento" value={beneficiario.barrio_corregimiento} />
+                <DataField label="Zona de Residencia" value={beneficiario.zona_residencia} />
+                <DataField label="Dirección" value={beneficiario.direccion} className="md:col-span-2" />
+              </div>
+            )}
+
+            {/* Socio-económico */}
+            {onboardingSubTab === 'socioeconomico' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <DataField label="Grupo SISBEN" value={beneficiario.sisben_grupo} />
+                <DataField label="¿Recibe Subsidio?" value={beneficiario.recibe_subsidio} />
+                {beneficiario.recibe_subsidio === 'SI' && (
+                  <DataField label="¿Cuál Subsidio?" value={beneficiario.cual_subsidio} className="md:col-span-2" />
+                )}
+                <DataField label="Enfoque Diferencial" value={beneficiario.enfoque_diferencial} />
+                <DataField label="¿Labora Actualmente?" value={beneficiario.labora_actualmente} />
+              </div>
+            )}
+
+            {/* Familiar */}
+            {onboardingSubTab === 'familiar' && (
+              <div className="space-y-6">
+                <div className="border-b border-slate-200 pb-4">
+                  <h3 className="text-lg font-bold text-slate-800 mb-4">Información del Padre</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <DataField label="Nombre Completo" value={beneficiario.nombre_padre} />
+                    <DataField label="Documento" value={beneficiario.documento_padre} />
+                    <DataField label="Ocupación" value={beneficiario.ocupacion_padre} />
+                    <DataField label="Ingresos Mensuales" value={beneficiario.ingresos_padre ? formatMoney(beneficiario.ingresos_padre) : null} />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 mb-4">Información de la Madre</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <DataField label="Nombre Completo" value={beneficiario.nombre_madre} />
+                    <DataField label="Documento" value={beneficiario.documento_madre} />
+                    <DataField label="Ocupación" value={beneficiario.ocupacion_madre} />
+                    <DataField label="Ingresos Mensuales" value={beneficiario.ingresos_madre ? formatMoney(beneficiario.ingresos_madre) : null} />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Secundaria */}
+            {onboardingSubTab === 'secundaria' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <DataField label="Título Obtenido" value={beneficiario.titulo_obtenido} />
+                <DataField label="Año de Graduación" value={beneficiario.ano_graduacion} />
+                <DataField label="Establecimiento Educativo" value={beneficiario.establecimiento_educativo} />
+                <DataField label="Puntaje ICFES" value={beneficiario.puntaje_icfes} />
+              </div>
+            )}
+
+            {/* Académico */}
+            {onboardingSubTab === 'academico' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <DataField label="Programa Académico" value={beneficiario.programa_academico} />
+                <DataField label="Universidad / Institución" value={beneficiario.nombre_universidad} />
+                <DataField label="Institución Superior" value={beneficiario.institucion_superior} />
+                <DataField label="Departamento de la Institución" value={beneficiario.dpto_institucion} />
+                <DataField label="Municipio de la Institución" value={beneficiario.municipio_institucion} />
+                <DataField label="Ciudad de la Institución" value={beneficiario.ciudad_institucion} />
+                <DataField label="Tipo de Educación" value={beneficiario.tipo_educacion} />
+                <DataField label="Modalidad de Beca" value={beneficiario.modalidad_beca} />
+                <DataField label="Semestre Actual" value={beneficiario.semestre_actual} />
+                <DataField label="Semestre de Ingreso" value={beneficiario.semestre_ingreso} />
+                <DataField label="Modalidad de Estudio" value={beneficiario.modalidad} />
+                <DataField label="Promedio Anterior" value={beneficiario.promedio_anterior} />
+                <DataField label="Año de Convocatoria" value={beneficiario.año_convocatoria} />
+              </div>
+            )}
+
+            {/* Bancario */}
+            {onboardingSubTab === 'bancario' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <DataField label="Banco" value={beneficiario.nombre_banco} />
+                <DataField label="Tipo de Cuenta" value={beneficiario.tipo_cuenta_bancaria} />
+                <DataField label="Número de Cuenta" value={beneficiario.numero_cuenta} className="md:col-span-2" />
+              </div>
+            )}
+
+            {/* Estado */}
+            {onboardingSubTab === 'estado' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                    <p className="text-xs font-bold text-slate-600 mb-1">ESTADO DEL BENEFICIARIO</p>
+                    <p className={`text-sm font-semibold inline-block px-3 py-1 rounded-lg ${estadoClassName(beneficiario.estado_beneficiario)}`}>
+                      {beneficiario.estado_beneficiario?.toUpperCase() || 'ACTIVO'}
+                    </p>
+                  </div>
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                    <p className="text-xs font-bold text-slate-600 mb-1">ORIGEN DEL REGISTRO</p>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {beneficiario.origen_registro === 'historico' ? 'Beneficiario Histórico' : 'Nueva Inscripción'}
+                    </p>
+                  </div>
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                    <p className="text-xs font-bold text-slate-600 mb-1">ONBOARDING</p>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {beneficiario.onboarding_completado ? '✓ Completado' : '⏳ Pendiente'}
+                    </p>
+                  </div>
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                    <p className="text-xs font-bold text-slate-600 mb-1">AUTH USER ID</p>
+                    <p className="text-sm font-mono text-slate-900 break-all">
+                      {beneficiario.auth_user_id || 'No vinculado'}
+                    </p>
+                  </div>
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                    <p className="text-xs font-bold text-slate-600 mb-1">INSCRIPCIÓN ID</p>
+                    <p className="text-sm font-mono text-slate-900 break-all">
+                      {beneficiario.inscripcion_id || 'N/A'}
+                    </p>
+                  </div>
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                    <p className="text-xs font-bold text-slate-600 mb-1">ACEPTA TÉRMINOS</p>
+                    <p className="text-sm text-slate-900">
+                      {beneficiario.acepta_terminos_at ? formatDateTime(beneficiario.acepta_terminos_at) : 'No aceptado'}
+                    </p>
+                  </div>
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                    <p className="text-xs font-bold text-slate-600 mb-1">ACEPTA POLÍTICA DE DATOS</p>
+                    <p className="text-sm text-slate-900">
+                      {beneficiario.acepta_datos_at ? formatDateTime(beneficiario.acepta_datos_at) : 'No aceptado'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Documentos */}
+            {onboardingSubTab === 'documentos' && (
+              <div className="space-y-4">
+                {onboardingDocs.length === 0 ? (
+                  <div className="text-center py-12">
+                    <FileText size={56} className="mx-auto text-slate-300 mb-4" />
+                    <h4 className="text-lg font-bold text-slate-700 mb-2">Sin documentos</h4>
+                    <p className="text-slate-500">El beneficiario aún no tiene documentos de onboarding registrados</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-sm font-bold text-slate-700">
+                        Total de documentos: <span className="text-secondary">{onboardingDocs.length}</span>
                       </p>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      {doc.tipo_documento && (
-                        <span className="bg-slate-700 text-white px-2.5 py-1 rounded-lg font-bold">
-                          {doc.tipo_documento.toUpperCase()}
-                        </span>
-                      )}
-                      {doc.descripcion && (
-                        <span className="bg-slate-50 text-slate-600 px-2.5 py-1 rounded-lg text-xs border border-slate-200">
-                          {doc.descripcion}
-                        </span>
-                      )}
-                      <span className="text-slate-600 font-medium">
-                        {formatDateTime(doc.created_at)}
-                      </span>
-                      {doc.fecha_documento && (
-                        <span className="text-slate-500">
-                          Fecha doc: {formatDate(doc.fecha_documento)}
-                        </span>
-                      )}
+                    <div className="space-y-2">
+                      {onboardingDocs.map((doc) => (
+                        <div key={doc.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-2 border-slate-200 rounded-2xl px-4 py-3 hover:border-blue-300 hover:bg-blue-50/30 transition-all">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <FileText size={20} className="text-slate-700 flex-shrink-0" />
+                              <p className="font-bold text-slate-900 text-base truncate">
+                                {doc.titulo || doc.tipo_documento || 'Documento sin nombre'}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                              {doc.tipo_documento && (
+                                <span className="bg-slate-700 text-white px-2.5 py-1 rounded-lg font-bold">
+                                  {doc.tipo_documento.toUpperCase()}
+                                </span>
+                              )}
+                              {doc.descripcion && (
+                                <span className="bg-slate-50 text-slate-600 px-2.5 py-1 rounded-lg text-xs border border-slate-200">
+                                  {doc.descripcion}
+                                </span>
+                              )}
+                              <span className="text-slate-600 font-medium">
+                                {formatDateTime(doc.created_at)}
+                              </span>
+                              {doc.fecha_documento && (
+                                <span className="text-slate-500">
+                                  Fecha doc: {formatDate(doc.fecha_documento)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {doc.storage_path && (
+                            <button 
+                              type="button" 
+                              onClick={() => {
+                                const path = doc.storage_path.replace('soportes/', '')
+                                window.open(`/storage/download?path=${encodeURIComponent(path)}`, '_blank')
+                              }}
+                              className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-md hover:shadow-lg flex-shrink-0"
+                            >
+                              <FileText size={18} />
+                              Ver Documento
+                            </button>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  </div>
-                  
-                  {doc.storage_path && (
-                    <button 
-                      type="button" 
-                      onClick={() => {
-                        // Intenta descargar el documento del storage
-                        const path = doc.storage_path.replace('soportes/', '')
-                        window.open(`/storage/download?path=${encodeURIComponent(path)}`, '_blank')
-                      }}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-md hover:shadow-lg flex-shrink-0"
-                    >
-                      <FileText size={18} />
-                      Ver Documento
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </section>
       )}
@@ -1350,6 +1534,19 @@ const SectionTitle = ({ title, subtitle }) => (
     <p className="text-sm text-slate-500 mt-1">{subtitle}</p>
   </div>
 );
+
+const DataField = ({ label, value, className = '' }) => {
+  const displayValue = value || 'No especificado';
+  
+  return (
+    <div className={className}>
+      <label className="block text-sm font-semibold text-slate-700 mb-2">{label}</label>
+      <div className="px-4 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl text-slate-900">
+        {displayValue}
+      </div>
+    </div>
+  );
+};
 
 const SummaryCard = ({ title, value, icon, tone }) => (
   <div className="border border-slate-200 rounded-2xl px-4 py-4 flex items-center gap-3">

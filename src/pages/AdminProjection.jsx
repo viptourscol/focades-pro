@@ -133,21 +133,30 @@ const distributeCohort = (total, shares) => {
 };
 
 // Normaliza el nivel de formación a tecnico/tecnologo/profesional
-const normalizeBeneficiarioLevel = (value) => {
-  if (!value) return null;
-  const normalized = String(value).trim().toLowerCase();
-  if (normalized.includes('tecnol')) return 'tecnologo';
-  if (normalized.includes('tecnic')) return 'tecnico';
+// Prioriza tipo_educacion (nuevo) sobre nivel_formacion (viejo)
+const normalizeBeneficiarioLevel = (nivel_formacion, tipo_educacion) => {
+  // Primero intentar con tipo_educacion (más estructurado)
+  if (tipo_educacion) {
+    const tipoNorm = String(tipo_educacion).trim().toUpperCase();
+    if (tipoNorm === 'TECNICO' || tipoNorm === 'TÉCNICO') return 'tecnico';
+    if (tipoNorm === 'TECNOLOGICO' || tipoNorm === 'TECNÓLOGICO') return 'tecnologo';
+    if (tipoNorm === 'PROFESIONAL') return 'profesional';
+  }
+  
+  // Si no hay tipo_educacion, usar nivel_formacion
+  if (!nivel_formacion) return null;
+  const normalized = String(nivel_formacion).trim().toLowerCase();
+  if (normalized.includes('tecnol') || normalized.includes('tecnólog')) return 'tecnologo';
+  if (normalized.includes('tecnic') || normalized.includes('técnic')) return 'tecnico';
   if (normalized.includes('universi') || normalized.includes('pregrado') || normalized.includes('profesional')) return 'profesional';
   return null;
 };
 
-// Calcula el tope de pagos según el nivel
-const paymentCapForLevel = (level) => {
-  const normalized = normalizeBeneficiarioLevel(level);
-  if (normalized === 'tecnico') return 4;
-  if (normalized === 'tecnologo') return 6;
-  if (normalized === 'profesional') return 10;
+// Calcula el tope de pagos según el nivel (ya normalizado)
+const paymentCapForLevel = (normalizedLevel) => {
+  if (normalizedLevel === 'tecnico') return 4;
+  if (normalizedLevel === 'tecnologo') return 6;
+  if (normalizedLevel === 'profesional') return 10;
   return null;
 };
 
@@ -161,6 +170,7 @@ const normalizeModalidad = (value) => {
 };
 
 // Calcula pagos restantes para un beneficiario
+// nivelFormacion debe ser el nivel ya normalizado (tecnico/tecnologo/profesional)
 const calculateRemainingPayments = (nivelFormacion, semestreIngreso, pagosEfectuados) => {
   const tope = paymentCapForLevel(nivelFormacion);
   if (!tope || !semestreIngreso) return 0;
@@ -196,7 +206,7 @@ const AdminProjection = () => {
       // Query beneficiarios con estados activos
       const { data: beneficiarios, error: benError } = await supabase
         .from('portal_beneficiarios')
-        .select('id, estado_beneficiario, modalidad_beca, nivel_formacion, semestre_ingreso')
+        .select('id, estado_beneficiario, modalidad_beca, nivel_formacion, tipo_educacion, semestre_ingreso')
         .in('estado_beneficiario', ['activo', 'suspendido', 'retirado', 'condonado', 'egresado'])
         .is('deleted_at', null);
 
@@ -223,9 +233,10 @@ const AdminProjection = () => {
       // Procesar beneficiarios con logs detallados
       const allProcessed = (beneficiarios || []).map(b => {
         const modalidad = normalizeModalidad(b.modalidad_beca);
-        const nivel = normalizeBeneficiarioLevel(b.nivel_formacion);
+        const nivel = normalizeBeneficiarioLevel(b.nivel_formacion, b.tipo_educacion);
         const pagosEfectuados = pagosPorBeneficiario[b.id] || 0;
-        const pagosRestantes = calculateRemainingPayments(b.nivel_formacion, b.semestre_ingreso, pagosEfectuados);
+        // Usar el nivel normalizado para calcular pagos restantes
+        const pagosRestantes = nivel ? calculateRemainingPayments(nivel, b.semestre_ingreso, pagosEfectuados) : 0;
 
         return {
           id: b.id,
@@ -236,14 +247,16 @@ const AdminProjection = () => {
           raw: { // Para debugging
             modalidad_beca: b.modalidad_beca,
             nivel_formacion: b.nivel_formacion,
+            tipo_educacion: b.tipo_educacion,
             semestre_ingreso: b.semestre_ingreso,
           },
         };
       });
 
       console.log('🔍 Muestra de primeros 3 beneficiarios procesados:', allProcessed.slice(0, 3));
-      console.log('🔍 Valores RAW de nivel_formacion:', beneficiarios.slice(0, 10).map(b => b.nivel_formacion));
-      console.log('🔍 Valores RAW de semestre_ingreso:', beneficiarios.slice(0, 10).map(b => b.semestre_ingreso));
+      console.log('🔍 Valores RAW nivel_formacion:', beneficiarios.slice(0, 10).map(b => b.nivel_formacion));
+      console.log('🔍 Valores RAW tipo_educacion:', beneficiarios.slice(0, 10).map(b => b.tipo_educacion));
+      console.log('🔍 Valores RAW semestre_ingreso:', beneficiarios.slice(0, 10).map(b => b.semestre_ingreso));
 
       // Filtrar solo válidos
       const processed = allProcessed.filter(b => b.modalidad && b.nivel && b.pagosRestantes > 0);

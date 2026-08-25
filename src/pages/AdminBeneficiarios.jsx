@@ -42,6 +42,8 @@ const AdminBeneficiarios = () => {
   const [deletedFilter, setDeletedFilter] = useState('active');
   const [convocatoriaFilter, setConvocatoriaFilter] = useState(ALL_OPTION);
   const [modalidadFilter, setModalidadFilter] = useState(ALL_OPTION);
+  const [onboardingFilter, setOnboardingFilter] = useState('all');
+  const [contrasenaFilter, setContrasenaFilter] = useState('all');
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
   const [actionLoadingId, setActionLoadingId] = useState(null);
@@ -113,19 +115,28 @@ const AdminBeneficiarios = () => {
       const modalidadLabel = normalizeModalidad(item.modalidad_beca);
       if (modalidadFilter !== ALL_OPTION && modalidadLabel !== modalidadFilter) return false;
 
+      // Filtro de onboarding
+      if (onboardingFilter === 'completado' && !item.onboarding_completado) return false;
+      if (onboardingFilter === 'pendiente' && item.onboarding_completado) return false;
+
+      // Filtro de contraseña
+      const tieneContrasena = item.portal_auth_credentials?.setup_completed_at != null;
+      if (contrasenaFilter === 'si' && !tieneContrasena) return false;
+      if (contrasenaFilter === 'no' && tieneContrasena) return false;
+
       if (!query) return true;
       return [item.nombre_completo, item.email, item.n_documento]
         .map((value) => String(value || '').toLowerCase())
         .some((value) => value.includes(query));
     });
-  }, [rows, searchTerm, stateFilter, deletedFilter, convocatoriaFilter, modalidadFilter]);
+  }, [rows, searchTerm, stateFilter, deletedFilter, convocatoriaFilter, modalidadFilter, onboardingFilter, contrasenaFilter]);
 
   const totalFiltered = filteredRows.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, stateFilter, deletedFilter, convocatoriaFilter, modalidadFilter, pageSize]);
+  }, [searchTerm, stateFilter, deletedFilter, convocatoriaFilter, modalidadFilter, onboardingFilter, contrasenaFilter, pageSize]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -390,8 +401,8 @@ const AdminBeneficiarios = () => {
       </div>
 
       <section className="admin-panel rounded-[30px] p-4 md:p-6 space-y-4 animate-slide-up" style={{ animationDelay: '80ms', animationFillMode: 'both' }}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3">
-          <div className="relative sm:col-span-2 xl:col-span-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-8 gap-3">
+          <div className="relative sm:col-span-2 lg:col-span-3 xl:col-span-4 2xl:col-span-2">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               value={searchTerm}
@@ -448,6 +459,26 @@ const AdminBeneficiarios = () => {
                 {option === 'active' ? 'Solo activos' : option === 'deleted' ? 'Solo eliminados' : 'Activos + eliminados'}
               </option>
             ))}
+          </select>
+
+          <select
+            value={onboardingFilter}
+            onChange={(event) => setOnboardingFilter(event.target.value)}
+            className="border border-[var(--gov-line)] rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none"
+          >
+            <option value="all">Onboarding: Todos</option>
+            <option value="completado">✓ Completado</option>
+            <option value="pendiente">⏳ Pendiente</option>
+          </select>
+
+          <select
+            value={contrasenaFilter}
+            onChange={(event) => setContrasenaFilter(event.target.value)}
+            className="border border-[var(--gov-line)] rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none"
+          >
+            <option value="all">Contraseña: Todos</option>
+            <option value="si">🔑 Establecida</option>
+            <option value="no">❌ Sin establecer</option>
           </select>
 
           <button

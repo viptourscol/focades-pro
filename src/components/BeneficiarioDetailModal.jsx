@@ -434,7 +434,7 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-7xl w-full max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200">
           <div>
@@ -485,34 +485,32 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
         </div>
 
         {/* Tabs */}
-        <div className="overflow-x-auto px-6 pt-4 border-b border-slate-200">
-          <div className="flex gap-2 min-w-max">
-            {tabs.map(tab => {
-              const Icon = tab.icon;
-              const isDocTab = tab.id === 'documentos';
-              const docCount = isDocTab ? documents.length : 0;
-              
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-3 font-semibold rounded-t-xl transition-all whitespace-nowrap ${
-                    activeTab === tab.id
-                      ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
-                      : 'text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  <Icon size={18} />
-                  <span className="text-sm">{tab.label}</span>
-                  {isDocTab && docCount > 0 && (
-                    <span className="ml-1 px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded-full">
-                      {docCount}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+        <div className="flex gap-2 px-6 pt-4 border-b border-slate-200">
+          {tabs.map(tab => {
+            const Icon = tab.icon;
+            const isDocTab = tab.id === 'documentos';
+            const docCount = isDocTab ? documents.length : 0;
+            
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-3 font-semibold rounded-t-xl transition-all whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <Icon size={18} />
+                <span className="text-sm">{tab.label}</span>
+                {isDocTab && docCount > 0 && (
+                  <span className="ml-1 px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded-full">
+                    {docCount}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Content */}

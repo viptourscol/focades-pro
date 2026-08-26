@@ -143,15 +143,27 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, onClose, onSav
     
     const saveChecklistToDB = async () => {
       try {
-        await supabase
+        console.log('💾 Guardando checklist en BD:', {
+          update_id: update.id,
+          checklist: reviewChecklist
+        });
+        
+        const { data, error } = await supabase
           .from('portal_actualizaciones')
           .update({
             checklist_revision: reviewChecklist || {},
             updated_at: new Date().toISOString(),
           })
-          .eq('id', update.id);
+          .eq('id', update.id)
+          .select();
+        
+        if (error) {
+          console.error('❌ Error guardando checklist:', error);
+        } else {
+          console.log('✅ Checklist guardado exitosamente:', data);
+        }
       } catch (error) {
-        console.error('Error guardando checklist:', error);
+        console.error('❌ Error guardando checklist:', error);
       }
     };
 
@@ -461,7 +473,10 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, onClose, onSav
             <ReviewChecklist
               aspiranteId={update.id}
               checklist={reviewChecklist}
-              onChecklistChange={setReviewChecklist}
+              onChecklistChange={(newChecklist) => {
+                console.log('📝 Checklist cambiado:', newChecklist);
+                setReviewChecklist(newChecklist);
+              }}
             />
           </section>
 

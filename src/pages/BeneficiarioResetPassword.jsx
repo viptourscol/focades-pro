@@ -91,7 +91,7 @@ const BeneficiarioResetPassword = () => {
     setPasswordStrength({ score, text, color });
   }, [newPassword]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!newPassword || newPassword.length < 8) {

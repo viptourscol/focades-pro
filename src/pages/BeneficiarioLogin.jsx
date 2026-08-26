@@ -45,6 +45,18 @@ const BeneficiarioLogin = () => {
       const authCode = String(currentUrl.searchParams.get('code') || '').trim();
       const authError = String(currentUrl.searchParams.get('error_description') || currentUrl.searchParams.get('error') || '').trim();
       const logoutReason = String(currentUrl.searchParams.get('reason') || '').trim();
+      const freshLogin = String(currentUrl.searchParams.get('fresh') || '').trim();
+
+      // Si viene con fresh=1, limpiar sesión guardada y no hacer redirect automático
+      if (freshLogin === '1') {
+        try {
+          localStorage.removeItem('focades:beneficiario-session');
+          await supabase.auth.signOut();
+        } catch (error) {
+          console.error('Error limpiando sesión para fresh login:', error);
+        }
+        window.history.replaceState({}, document.title, '/beneficiario/login');
+      }
 
       // Mostrar mensaje si la sesión expiró por inactividad
       if (logoutReason === 'session-expired') {
@@ -86,7 +98,8 @@ const BeneficiarioLogin = () => {
       const nowIso = new Date().toISOString();
 
       const [access, { data: newsData }] = await Promise.all([
-        resolvePortalAccess({ attemptClaim: true }),
+        // Si viene con fresh=1, no intentar reclamar acceso automático
+        freshLogin === '1' ? { ok: false, hasSession: false } : resolvePortalAccess({ attemptClaim: true }),
         supabase
           .from('portal_noticias')
           .select('id,title,summary,content,image_url,button_label,button_url,publish_at')

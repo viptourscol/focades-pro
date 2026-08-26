@@ -133,8 +133,16 @@ const BeneficiarioResetPassword = () => {
         text: 'Tu contraseña ha sido actualizada exitosamente. Ahora puedes iniciar sesión con tu nueva contraseña.',
       });
 
-      // Redirigir al login
-      navigate('/beneficiario/login');
+      // Limpiar cualquier sesión guardada para forzar un nuevo login
+      try {
+        localStorage.removeItem('focades:beneficiario-session');
+        await supabase.auth.signOut();
+      } catch (error) {
+        console.error('Error limpiando sesión:', error);
+      }
+
+      // Redirigir al login con parámetro para evitar redirect automático
+      navigate('/beneficiario/login?fresh=1');
     } catch (error) {
       console.error('Error restableciendo contraseña:', error);
       await showErrorAlert({

@@ -89,39 +89,73 @@ const BeneficiarioHome = () => {
 
       // Verificar si el perfil del beneficiario está incompleto desde la base de datos
       try {
+        let beneficiarioId = null;
+        
+        // Intentar obtener beneficiario_id desde localStorage
         const sessionStr = localStorage.getItem('focades:beneficiario-session');
         if (sessionStr) {
           const session = JSON.parse(sessionStr);
-          const beneficiarioId = session.profile?.id;
-          
-          if (beneficiarioId) {
-            // Consultar estado real desde la base de datos
-            const { data: beneficiario, error: profileError } = await supabase
+          beneficiarioId = session.profile?.id || session.beneficiario_id;
+        }
+        
+        // Si no hay en localStorage, intentar desde Auth
+        if (!beneficiarioId) {
+          const { data: authData } = await supabase.auth.getSession();
+          const userId = authData?.session?.user?.id;
+          if (userId) {
+            const { data: profileData } = await supabase
               .from('portal_beneficiarios')
-              .select('id, onboarding_completado, estado_beneficiario, razon_suspension')
-              .eq('id', beneficiarioId)
+              .select('id')
+              .eq('auth_user_id', userId)
               .maybeSingle();
-
-            if (!profileError && beneficiario) {
-              // Actualizar localStorage con el estado real
-              session.profile.onboarding_completado = beneficiario.onboarding_completado;
-              session.profile.estado_beneficiario = beneficiario.estado_beneficiario;
-              session.timestamp = new Date().toISOString();
-              localStorage.setItem('focades:beneficiario-session', JSON.stringify(session));
-              
-              // Guardar estado para mostrar banners
-              setEstadoBeneficiario(beneficiario.estado_beneficiario);
-              setRazonSuspension(beneficiario.razon_suspension);
-              
-              // Mostrar banner si el onboarding no está completado
-              if (!beneficiario.onboarding_completado) {
-                setPerfilIncompleto(true);
-              }
-            }
+            beneficiarioId = profileData?.id;
           }
         }
+        
+        if (beneficiarioId) {
+          // Consultar estado real desde la base de datos
+          const { data: beneficiario, error: profileError } = await supabase
+            .from('portal_beneficiarios')
+            .select('id, onboarding_completado, estado_beneficiario, razon_suspension')
+            .eq('id', beneficiarioId)
+            .maybeSingle();
+
+          console.log('🔍 Estado de onboarding:', {
+            beneficiario_id: beneficiarioId,
+            onboarding_completado: beneficiario?.onboarding_completado,
+            estado: beneficiario?.estado_beneficiario
+          });
+
+          if (!profileError && beneficiario) {
+            // Actualizar localStorage con el estado real
+            if (sessionStr) {
+              const session = JSON.parse(sessionStr);
+              session.profile = session.profile || {};
+              session.profile.onboarding_completado = beneficiario.onboarding_completado;
+              session.profile.estado_beneficiario = beneficiario.estado_beneficiario;
+              session.profile.razon_suspension = beneficiario.razon_suspension;
+              session.timestamp = new Date().toISOString();
+              localStorage.setItem('focades:beneficiario-session', JSON.stringify(session));
+            }
+            
+            // Guardar estado para mostrar banners
+            setEstadoBeneficiario(beneficiario.estado_beneficiario);
+            setRazonSuspension(beneficiario.razon_suspension);
+            
+            // Mostrar banner si el onboarding no está completado
+            if (!beneficiario.onboarding_completado) {
+              console.log('✅ Mostrando banner de onboarding incompleto');
+              setPerfilIncompleto(true);
+            } else {
+              console.log('ℹ️ Onboarding completado, no se muestra banner');
+              setPerfilIncompleto(false);
+            }
+          }
+        } else {
+          console.log('⚠️ No se encontró beneficiario_id');
+        }
       } catch (error) {
-        // Error verificando perfil
+        console.error('❌ Error verificando perfil:', error);
       }
 
       

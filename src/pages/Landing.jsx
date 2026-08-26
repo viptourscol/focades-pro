@@ -259,8 +259,8 @@ const Landing = () => {
           .limit(6),
         supabase
           .from('convocatorias')
-          .select('id,nombre,fecha_inicio,fecha_fin,activa')
-          .eq('activa', true)
+          .select('id,nombre,fecha_inicio,fecha_fin,is_activa')
+          .eq('is_activa', true)
           .order('fecha_inicio', { ascending: false })
           .limit(1)
           .maybeSingle(),

@@ -120,6 +120,14 @@ const BeneficiarioHome = () => {
             .eq('id', beneficiarioId)
             .maybeSingle();
 
+          console.log('🔍 Query beneficiario result:', {
+            beneficiario_id: beneficiarioId,
+            has_data: !!beneficiario,
+            has_error: !!profileError,
+            error: profileError,
+            beneficiario: beneficiario
+          });
+
           console.log('🔍 Estado de onboarding:', {
             beneficiario_id: beneficiarioId,
             onboarding_completado: beneficiario?.onboarding_completado,

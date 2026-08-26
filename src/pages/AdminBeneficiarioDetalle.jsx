@@ -495,7 +495,13 @@ const AdminBeneficiarioDetalle = () => {
 
       const { data } = await supabase
         .from('portal_beneficiario_bitacora')
-        .select('*')
+        .select(`
+          *,
+          actor:portal_admin_users!actor_user_id(
+            nombre_completo,
+            email
+          )
+        `)
         .eq('beneficiario_id', profile.id)
         .order('created_at', { ascending: false })
         .limit(300);
@@ -1267,25 +1273,54 @@ const AdminBeneficiarioDetalle = () => {
           <p className="text-sm text-slate-500">No hay eventos registrados todavía para este beneficiario.</p>
         ) : (
           <div className="space-y-2">
-            {bitacoraRows.map((row) => (
-              <div key={row.id} className="border border-slate-200 rounded-2xl px-4 py-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-700">
-                    {row.categoria || 'general'}
-                  </span>
-                  <span className="px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest bg-blue-50 text-blue-700">
-                    {row.tipo_evento || 'evento'}
-                  </span>
-                  <span className="text-xs text-slate-500">{formatDateTime(row.created_at)}</span>
+            {bitacoraRows.map((row) => {
+              // Determinar el nombre del actor
+              const actorName = row.actor?.nombre_completo || row.actor_email || row.actor?.email || 'Sistema';
+              
+              // Mejorar la descripción de la acción
+              const getAccionDescriptiva = () => {
+                if (row.nota) return row.nota;
+                
+                const accionMap = {
+                  'create': 'Creación',
+                  'update': 'Actualización',
+                  'delete': 'Eliminación',
+                  'insert': 'Registro',
+                  'assign': 'Asignación',
+                  'change': 'Cambio',
+                  'approve': 'Aprobación',
+                  'reject': 'Rechazo',
+                  'review': 'Revisión',
+                  'send': 'Envío',
+                  'upload': 'Carga',
+                };
+                
+                const accionTexto = accionMap[row.accion] || row.accion || 'Acción';
+                const campoTexto = row.campo_cambio ? ` del campo "${row.campo_cambio}"` : '';
+                
+                return `${accionTexto}${campoTexto}`;
+              };
+              
+              return (
+                <div key={row.id} className="border border-slate-200 rounded-2xl px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-700">
+                      {row.categoria || 'general'}
+                    </span>
+                    <span className="px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest bg-blue-50 text-blue-700">
+                      {row.tipo_evento || 'evento'}
+                    </span>
+                    <span className="text-xs text-slate-500">{formatDateTime(row.created_at)}</span>
+                  </div>
+                  <p className="text-sm text-slate-700 mt-2">
+                    {getAccionDescriptiva()}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-2">
+                    👤 {actorName}
+                  </p>
                 </div>
-                <p className="text-sm text-slate-700 mt-2">
-                  {row.nota || `Acción: ${row.accion || 'update'}${row.campo_cambio ? ` · Campo: ${row.campo_cambio}` : ''}`}
-                </p>
-                <p className="text-xs text-slate-500 mt-2">
-                  Actor: {row.actor_email || row.actor_user_id || 'Sistema'}
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

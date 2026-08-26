@@ -123,18 +123,28 @@ const BeneficiarioHome = () => {
         console.log('🔍 Beneficiario ID final para consulta:', beneficiarioId);
         
         if (beneficiarioId) {
-          // Consultar estado real desde la base de datos
-          const { data: beneficiario, error: profileError } = await supabase
-            .from('portal_beneficiarios')
-            .select('id, onboarding_completado, estado_beneficiario, razon_suspension')
-            .eq('id', beneficiarioId)
-            .maybeSingle();
+          // Usar Edge Function para obtener perfil (bypasses RLS)
+          const { data: profileResponse, error: profileError } = await supabase.functions.invoke(
+            'get-beneficiario-profile',
+            {
+              body: { beneficiario_id: beneficiarioId }
+            }
+          );
+
+          console.log('🔍 Response de get-beneficiario-profile:', {
+            ok: profileResponse?.ok,
+            has_profile: !!profileResponse?.profile,
+            error: profileError || profileResponse?.error,
+            profile: profileResponse?.profile
+          });
+
+          const beneficiario = profileResponse?.ok ? profileResponse.profile : null;
 
           console.log('🔍 Query beneficiario result:', {
             beneficiario_id: beneficiarioId,
             has_data: !!beneficiario,
-            has_error: !!profileError,
-            error: profileError,
+            has_error: !!profileError || !profileResponse?.ok,
+            error: profileError || profileResponse?.error,
             beneficiario: beneficiario
           });
 
@@ -144,7 +154,7 @@ const BeneficiarioHome = () => {
             estado: beneficiario?.estado_beneficiario
           });
 
-          if (!profileError && beneficiario) {
+          if (profileResponse?.ok && beneficiario) {
             // Actualizar localStorage con el estado real
             if (sessionStr) {
               const session = JSON.parse(sessionStr);

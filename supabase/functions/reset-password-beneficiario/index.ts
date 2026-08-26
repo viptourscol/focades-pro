@@ -158,6 +158,127 @@ async function sendResetEmail(email: string, resetToken: string, nombreCompleto:
   }
 }
 
+// Envía email informando que la cuenta no está activada
+async function sendAccountNotActivatedEmail(email: string, nombreCompleto: string) {
+  if (!resendApiKey) {
+    console.warn('⚠️ RESEND_API_KEY no configurada - no se enviará email')
+    return { ok: false, error: 'Servicio de correo no configurado' }
+  }
+
+  const activateLink = `https://focades-pro.vercel.app/beneficiario/auth-setup`
+  
+  const emailHtml = `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cuenta no activada - Portal FOCADES</title>
+</head>
+<body style="font-family: Arial, sans-serif; background:#f4f4f4; margin:0; padding:0;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4; padding: 40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+          
+          <!-- Header con logo -->
+          <tr>
+            <td style="background:#1e3a5f; padding:32px; text-align:center;">
+              <img src="https://raw.githubusercontent.com/focades-debug/mis-imagenes-apps-script/main/logo-focades-alcadia.png" 
+                   alt="Logo FOCADES" 
+                   style="max-width:200px; height:auto; margin:0 auto 16px auto; display:block;" />
+              <h1 style="color:#ffffff; margin:0; font-size:22px;">FOCADES</h1>
+              <p style="color:#a8c4e0; margin:8px 0 0 0; font-size:13px;">Portal de Beneficiarios</p>
+            </td>
+          </tr>
+          
+          <!-- Cuerpo del mensaje -->
+          <tr>
+            <td style="padding:36px;">
+              <h2 style="color:#1e3a5f; margin:0 0 16px 0;">Cuenta no activada</h2>
+              <p style="color:#444; line-height:1.7; margin:0 0 16px 0;">
+                Hola, <strong>${nombreCompleto}</strong>
+              </p>
+              <p style="color:#444; line-height:1.7; margin:0 0 16px 0;">
+                Intentaste recuperar tu contraseña, pero tu cuenta aún no ha sido activada.
+              </p>
+              
+              <!-- Aviso importante -->
+              <div style="background:#fff3cd; border-left:4px solid #f9a03f; padding:16px; border-radius:6px; margin:0 0 24px 0;">
+                <p style="margin:0; color:#856404; font-size:14px;">
+                  <strong>▸ ¿Ya recibiste tu token de activación?</strong><br>
+                  Debes activar tu cuenta antes de poder iniciar sesión. Si no has recibido tu token de activación, 
+                  contacta al administrador del sistema.
+                </p>
+              </div>
+              
+              <!-- Botón de activación -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;">
+                <tr>
+                  <td align="center">
+                    <a href="${activateLink}" 
+                       style="display:inline-block; background:#1e3a5f; color:#ffffff; text-decoration:none; padding:14px 32px; border-radius:8px; font-weight:bold; font-size:15px;">
+                      → Activar mi cuenta
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="color:#666; font-size:13px; text-align:center; margin:0 0 32px 0;">
+                Si ya activaste tu cuenta, intenta iniciar sesión directamente.
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background:#f8f9fa; padding:24px; text-align:center; border-top:1px solid #e9ecef;">
+              <p style="margin:0 0 8px 0; color:#6c757d; font-size:12px;">
+                Este es un correo automático, por favor no respondas a este mensaje.
+              </p>
+              <p style="margin:0; color:#6c757d; font-size:11px;">
+                &copy; ${new Date().getFullYear()} FOCADES - Alcaldía de Montería
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'FOCADES Portal <noreply@focades.monteria.gov.co>',
+        to: [email],
+        subject: 'Tu cuenta aún no está activada - Portal FOCADES',
+        html: emailHtml,
+      }),
+    })
+
+    const responseData = await response.json()
+
+    if (!response.ok) {
+      console.error('❌ Error enviando email:', responseData)
+      return { ok: false, error: responseData.message || 'Error al enviar email' }
+    }
+
+    console.log('✅ Email de cuenta no activada enviado:', email)
+    return { ok: true, emailId: responseData.id }
+  } catch (error) {
+    console.error('❌ Error enviando email:', error)
+    return { ok: false, error: error.message }
+  }
+}
+
 Deno.serve(async (req) => {
   // Manejo de preflight requests (OPTIONS)
   if (req.method === 'OPTIONS') {
@@ -240,6 +361,15 @@ Deno.serve(async (req) => {
       // Si no tiene credenciales o no tiene contraseña establecida, no puede recuperar
       if (!cred || !cred.password_hash) {
         console.log('📧 Beneficiario sin contraseña establecida:', email)
+        
+        // Enviar email explicando que debe activar su cuenta primero
+        if (beneficiario.email) {
+          await sendAccountNotActivatedEmail(
+            beneficiario.email,
+            beneficiario.nombre_completo
+          )
+        }
+        
         return new Response(
           JSON.stringify({ 
             ok: true, 
@@ -272,6 +402,7 @@ Deno.serve(async (req) => {
       }
 
       // 5. Enviar email
+      console.log('✅ Enviando email de recuperación a:', beneficiario.email)
       const emailResult = await sendResetEmail(
         beneficiario.email,
         resetToken,
@@ -279,8 +410,10 @@ Deno.serve(async (req) => {
       )
 
       if (!emailResult.ok) {
-        console.error('Error enviando email de recuperación:', emailResult.error)
+        console.error('❌ Error enviando email de recuperación:', emailResult.error)
         // No revelamos el error específico al usuario
+      } else {
+        console.log('✅ Email de recuperación enviado exitosamente:', emailResult.emailId)
       }
 
       // Siempre devolvemos éxito por seguridad

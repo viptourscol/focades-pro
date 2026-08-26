@@ -121,34 +121,46 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, onClose, onSav
   const [assigningReviewer, setAssigningReviewer] = useState(false);
   const [reviewerUserId, setReviewerUserId] = useState(update.revisor_asignado_user_id || '');
   const [viewingDoc, setViewingDoc] = useState(null);
-  const [reviewChecklist, setReviewChecklist] = useState({});
+  const [reviewChecklist, setReviewChecklist] = useState(update.checklist_revision || {});
   const [notasAdmin, setNotasAdmin] = useState(() => {
     try { return localStorage.getItem(`notas_actualizacion_${update?.id}`) || ''; }
     catch { return ''; }
   });
   const [notasSaved, setNotasSaved] = useState(false);
 
+  // Cargar checklist desde BD
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(`checklist_actualizacion_${update?.id}`);
-      if (!raw) {
-        setReviewChecklist({});
-        return;
-      }
-      const parsed = JSON.parse(raw);
-      setReviewChecklist(parsed && typeof parsed === 'object' ? parsed : {});
-    } catch {
+    if (update?.checklist_revision && typeof update.checklist_revision === 'object') {
+      setReviewChecklist(update.checklist_revision);
+    } else {
       setReviewChecklist({});
     }
-  }, [update?.id]);
+  }, [update?.id, update?.checklist_revision]);
 
+  // Guardar checklist en BD cuando cambia
   useEffect(() => {
     if (!update?.id) return;
-    try {
-      localStorage.setItem(`checklist_actualizacion_${update.id}`, JSON.stringify(reviewChecklist || {}));
-    } catch {
-      // ignore localStorage errors
-    }
+    
+    const saveChecklistToDB = async () => {
+      try {
+        await supabase
+          .from('portal_actualizaciones')
+          .update({
+            checklist_revision: reviewChecklist || {},
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', update.id);
+      } catch (error) {
+        console.error('Error guardando checklist:', error);
+      }
+    };
+
+    // Debounce para evitar muchas escrituras
+    const timeoutId = setTimeout(() => {
+      saveChecklistToDB();
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
   }, [update?.id, reviewChecklist]);
 
   useEffect(() => {
@@ -607,7 +619,13 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, onClose, onSav
       </div>
 
       {viewingDoc && (
-        <DocViewerModal doc={viewingDoc} onClose={() => setViewingDoc(null)} />
+        <DocViewerModal 
+          doc={viewingDoc} 
+          onClose={() => setViewingDoc(null)}
+          allDocs={docs}
+          currentIndex={docs.findIndex(d => d.id === viewingDoc.id)}
+          onNavigate={(newIndex) => setViewingDoc(docs[newIndex])}
+        />
       )}
     </div>
   );

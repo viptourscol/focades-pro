@@ -88,12 +88,46 @@ export const BeneficiarioLoginForm = ({ onSuccess, isLoading, setIsLoading }) =>
       return;
     }
 
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(resetEmail)) {
+      await showErrorAlert({
+        title: 'Correo inválido',
+        text: 'Por favor ingresa un correo electrónico válido.',
+      });
+      return;
+    }
+
     setResetLoading(true);
     try {
-      // TODO: Implementar endpoint de password reset
+      const { data, error } = await supabase.functions.invoke('reset-password-beneficiario', {
+        body: {
+          method: 'request-reset',
+          email: resetEmail,
+        },
+      });
+
+      if (error || !data?.ok) {
+        await showErrorAlert({
+          title: 'Error',
+          text: data?.error || 'No se pudo procesar tu solicitud. Intenta de nuevo.',
+        });
+        return;
+      }
+
+      // Cerrar modal y mostrar mensaje de éxito
+      setShowPasswordReset(false);
+      setResetEmail('');
+      
       await showErrorAlert({
-        title: 'En desarrollo',
-        text: 'La recuperación de contraseña está en desarrollo. Contacta al administrador.',
+        title: 'Correo enviado',
+        text: data.message || 'Si el correo está registrado, recibirás un link de recuperación en tu bandeja de entrada.',
+        icon: 'success',
+      });
+    } catch (error) {
+      await showErrorAlert({
+        title: 'Error',
+        text: error.message || 'No se pudo procesar tu solicitud.',
       });
     } finally {
       setResetLoading(false);

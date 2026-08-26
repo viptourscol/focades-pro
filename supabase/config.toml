@@ -30,3 +30,6 @@ verify_jwt = false
 
 [functions.auth-credentials]
 verify_jwt = false
+
+[functions.reset-password-beneficiario]
+verify_jwt = false

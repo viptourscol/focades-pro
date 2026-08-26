@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Download, ExternalLink, FileText, Loader2, X } from 'lucide-react';
+import { Download, ExternalLink, FileText, Loader2, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 const DOC_LABELS = {
@@ -24,11 +24,14 @@ const isImage = (mime, path, name) => {
 /**
  * DocViewerModal
  * Props:
- *   doc      – portal_actualizacion_documentos row (storage_path, tipo_documento,
- *              nombre_original, mime_type)
- *   onClose  – () => void
+ *   doc          – portal_actualizacion_documentos row (storage_path, tipo_documento,
+ *                  nombre_original, mime_type)
+ *   onClose      – () => void
+ *   allDocs      – (opcional) array de todos los documentos para navegación
+ *   currentIndex – (opcional) índice del documento actual en allDocs
+ *   onNavigate   – (opcional) función (newIndex) => void para cambiar de documento
  */
-const DocViewerModal = ({ doc, onClose }) => {
+const DocViewerModal = ({ doc, onClose, allDocs = [], currentIndex = -1, onNavigate }) => {
   const [loadingUrl, setLoadingUrl] = useState(true);
   const [signedUrl, setSignedUrl] = useState(null);
   const [urlError, setUrlError] = useState(null);
@@ -41,6 +44,9 @@ const DocViewerModal = ({ doc, onClose }) => {
         setLoadingUrl(false);
         return;
       }
+      setLoadingUrl(true);
+      setUrlError(null);
+      setSignedUrl(null);
       try {
         console.log('[DocViewerModal] Solicitando signed URL para:', doc.storage_path);
         
@@ -76,7 +82,40 @@ const DocViewerModal = ({ doc, onClose }) => {
     };
     fetchUrl();
     return () => { mounted = false; };
-  }, [doc?.storage_path]);
+  }, [doc?.storage_path, doc?.id]);
+
+  // Navegación con teclado
+  useEffect(() => {
+    if (!doc) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        goToPrevious();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        goToNext();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [doc, currentIndex, allDocs]);
+
+  const goToPrevious = () => {
+    if (!onNavigate || !allDocs.length || currentIndex <= 0) return;
+    onNavigate(currentIndex - 1);
+  };
+
+  const goToNext = () => {
+    if (!onNavigate || !allDocs.length || currentIndex >= allDocs.length - 1) return;
+    onNavigate(currentIndex + 1);
+  };
+
+  const canNavigate = onNavigate && allDocs.length > 1;
+  const hasPrevious = canNavigate && currentIndex > 0;
+  const hasNext = canNavigate && currentIndex < allDocs.length - 1;
 
   const label = DOC_LABELS[doc.tipo_documento] || doc.tipo_documento || 'Documento';
   const fileName = doc.nombre_original || doc.storage_path?.split('/').pop() || 'archivo';
@@ -92,9 +131,29 @@ const DocViewerModal = ({ doc, onClose }) => {
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden"
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden relative"
         style={{ maxHeight: '92vh' }}
       >
+        {/* Botones de navegación flotantes */}
+        {hasPrevious && (
+          <button
+            onClick={goToPrevious}
+            className="absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-white/90 hover:bg-white p-2 rounded-full shadow-lg transition-all"
+            title="Documento anterior (←)"
+          >
+            <ChevronLeft size={24} className="text-slate-700" />
+          </button>
+        )}
+        {hasNext && (
+          <button
+            onClick={goToNext}
+            className="absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-white/90 hover:bg-white p-2 rounded-full shadow-lg transition-all"
+            title="Siguiente documento (→)"
+          >
+            <ChevronRight size={24} className="text-slate-700" />
+          </button>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-3 min-w-0">
@@ -102,6 +161,11 @@ const DocViewerModal = ({ doc, onClose }) => {
             <div className="min-w-0">
               <p className="font-bold text-slate-800 truncate">{label}</p>
               <p className="text-xs text-slate-400 truncate">{fileName}</p>
+              {canNavigate && (
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Documento {currentIndex + 1} de {allDocs.length}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2 ml-4 shrink-0">

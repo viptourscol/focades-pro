@@ -211,7 +211,7 @@ const BeneficiarioHome = () => {
       )}
 
       {/* Banner de perfil incompleto */}
-      {perfilIncompleto && !estadoBeneficiario && (
+      {perfilIncompleto && (
         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-r-xl shadow-sm animate-slide-up">
           <div className="flex items-start gap-3">
             <AlertCircle className="h-6 w-6 text-yellow-400 mt-0.5 flex-shrink-0" />

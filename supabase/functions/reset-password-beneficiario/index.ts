@@ -36,7 +36,7 @@ async function sendResetEmail(email: string, resetToken: string, nombreCompleto:
     return { ok: false, error: 'Servicio de correo no configurado' }
   }
 
-  const resetLink = `https://focades-pro.vercel.app/beneficiario/reset-password?token=${resetToken}`
+  const resetLink = `https://portal.focades.info/beneficiario/reset-password?token=${resetToken}`
   
   const emailHtml = `
 <!DOCTYPE html>
@@ -165,7 +165,7 @@ async function sendAccountNotActivatedEmail(email: string, nombreCompleto: strin
     return { ok: false, error: 'Servicio de correo no configurado' }
   }
 
-  const activateLink = `https://focades-pro.vercel.app/beneficiario/auth-setup`
+  const activateLink = `https://portal.focades.info/beneficiario/auth-setup`
   
   const emailHtml = `
 <!DOCTYPE html>

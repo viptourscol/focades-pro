@@ -93,24 +93,34 @@ const BeneficiarioHome = () => {
         
         // Intentar obtener beneficiario_id desde localStorage
         const sessionStr = localStorage.getItem('focades:beneficiario-session');
+        console.log('🔍 Session en localStorage:', sessionStr);
+        
         if (sessionStr) {
           const session = JSON.parse(sessionStr);
+          console.log('🔍 Session parseada:', session);
           beneficiarioId = session.profile?.id || session.beneficiario_id;
+          console.log('🔍 Beneficiario ID extraído:', beneficiarioId, 'desde:', session.profile?.id ? 'profile.id' : 'beneficiario_id');
         }
         
         // Si no hay en localStorage, intentar desde Auth
         if (!beneficiarioId) {
+          console.log('🔍 No hay beneficiario_id en localStorage, intentando Auth...');
           const { data: authData } = await supabase.auth.getSession();
           const userId = authData?.session?.user?.id;
+          console.log('🔍 Auth user ID:', userId);
+          
           if (userId) {
-            const { data: profileData } = await supabase
+            const { data: profileData, error: profileErr } = await supabase
               .from('portal_beneficiarios')
               .select('id')
               .eq('auth_user_id', userId)
               .maybeSingle();
+            console.log('🔍 Profile desde Auth:', profileData, 'error:', profileErr);
             beneficiarioId = profileData?.id;
           }
         }
+        
+        console.log('🔍 Beneficiario ID final para consulta:', beneficiarioId);
         
         if (beneficiarioId) {
           // Consultar estado real desde la base de datos

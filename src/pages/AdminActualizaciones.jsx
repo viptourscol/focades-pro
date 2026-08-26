@@ -130,9 +130,18 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, onClose, onSav
 
   // Cargar checklist desde BD
   useEffect(() => {
+    console.log('🔄 Cargando checklist desde update:', {
+      update_id: update?.id,
+      has_checklist_revision: !!update?.checklist_revision,
+      checklist_revision_type: typeof update?.checklist_revision,
+      checklist_revision: update?.checklist_revision
+    });
+
     if (update?.checklist_revision && typeof update.checklist_revision === 'object') {
+      console.log('✅ Cargando checklist desde BD:', update.checklist_revision);
       setReviewChecklist(update.checklist_revision);
     } else {
+      console.log('⚠️ No hay checklist guardado, iniciando vacío');
       setReviewChecklist({});
     }
   }, [update?.id, update?.checklist_revision]);
@@ -1116,7 +1125,7 @@ const AdminActualizaciones = () => {
       const [{ data: updatesData }, { data: benefData }, { data: ventData }, { data: adminsData }] = await Promise.all([
         supabase
           .from('portal_actualizaciones')
-          .select('id,beneficiario_id,ventana_id,estado,semestre_actual,promedio_semestre_anterior,observacion_admin,revisado_at,created_at,updated_at,payload_formulario,email,telefono,direccion,revisado_por_user_id,revisor_asignado_user_id,revisor_asignado_at')
+          .select('id,beneficiario_id,ventana_id,estado,semestre_actual,promedio_semestre_anterior,observacion_admin,revisado_at,created_at,updated_at,payload_formulario,email,telefono,direccion,revisado_por_user_id,revisor_asignado_user_id,revisor_asignado_at,checklist_revision')
           .order('created_at', { ascending: false })
           .limit(500),
         supabase

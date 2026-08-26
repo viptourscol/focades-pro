@@ -136,7 +136,7 @@ async function sendResetEmail(email: string, resetToken: string, nombreCompleto:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'FOCADES Portal <onboarding@resend.dev>',
+        from: 'FOCADES Portal <noreply@focades.info>',
         to: [email],
         subject: 'Recuperación de contraseña - Portal FOCADES',
         html: emailHtml,
@@ -257,7 +257,7 @@ async function sendAccountNotActivatedEmail(email: string, nombreCompleto: strin
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'FOCADES Portal <onboarding@resend.dev>',
+        from: 'FOCADES Portal <noreply@focades.info>',
         to: [email],
         subject: 'Tu cuenta aún no está activada - Portal FOCADES',
         html: emailHtml,

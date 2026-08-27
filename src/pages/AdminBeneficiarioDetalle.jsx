@@ -303,15 +303,27 @@ const AdminBeneficiarioDetalle = () => {
 
   const loadPaymentRights = async (targetBeneficiarioId = beneficiarioId, profileOverride = null, paymentRowsOverride = null) => {
     try {
+      // Validar que tengamos un ID válido
+      const validId = Number(targetBeneficiarioId);
+      if (!validId || isNaN(validId) || validId <= 0) {
+        console.warn('loadPaymentRights: ID de beneficiario inválido:', targetBeneficiarioId);
+        setPaymentRights(null);
+        setPaymentRightsNotice('ID de beneficiario inválido');
+        return;
+      }
+
       if (isRpcMarkedUnavailable(ADMIN_PAYMENT_RIGHTS_RPC)) {
         throw new Error('__PAYMENT_RIGHTS_RPC_UNAVAILABLE__');
       }
 
       const { data, error } = await supabase.rpc('admin_beneficiario_payment_rights', {
-        p_beneficiario_id: Number(targetBeneficiarioId),
+        p_beneficiario_id: validId,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error en admin_beneficiario_payment_rights:', error);
+        throw error;
+      }
       setPaymentRights(data || null);
       setPaymentRightsNotice('');
     } catch (error) {
@@ -502,20 +514,41 @@ const AdminBeneficiarioDetalle = () => {
         return;
       }
 
-      const { data } = await supabase
+      // Cargar bitácora
+      const { data: bitacoraData } = await supabase
         .from('portal_beneficiario_bitacora')
-        .select(`
-          *,
-          actor:portal_admin_users!actor_user_id(
-            nombre_completo,
-            email
-          )
-        `)
+        .select('*')
         .eq('beneficiario_id', profile.id)
         .order('created_at', { ascending: false })
         .limit(300);
 
-      setBitacoraRows(Array.isArray(data) ? data : []);
+      // Cargar datos de admins para los registros que tienen actor_user_id
+      const actorIds = [...new Set(
+        (bitacoraData || [])
+          .map(row => row.actor_user_id)
+          .filter(Boolean)
+      )];
+
+      let actorsMap = {};
+      if (actorIds.length > 0) {
+        const { data: actorsData } = await supabase
+          .from('portal_admin_users')
+          .select('user_id, nombre_completo, email')
+          .in('user_id', actorIds);
+        
+        actorsMap = (actorsData || []).reduce((acc, actor) => {
+          acc[actor.user_id] = actor;
+          return acc;
+        }, {});
+      }
+
+      // Combinar datos
+      const bitacoraWithActors = (bitacoraData || []).map(row => ({
+        ...row,
+        actor: row.actor_user_id ? actorsMap[row.actor_user_id] || null : null
+      }));
+
+      setBitacoraRows(bitacoraWithActors);
       markTabLoaded('bitacora');
     } finally {
       setTabLoading('bitacora', false);

@@ -133,6 +133,7 @@ Deno.serve(async (req) => {
       direccion: String(form_data.direccion || '').trim(),
       semestre_actual: Number(form_data.semestre_actual || 0),
       promedio_semestre_anterior: promedio,
+      fecha_expedicion_cert_bancario: form_data.fecha_expedicion_cert_bancario || null,
       payload_formulario: form_data,
     }
 

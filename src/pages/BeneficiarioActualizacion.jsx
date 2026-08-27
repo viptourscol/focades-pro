@@ -165,6 +165,7 @@ const BeneficiarioActualizacion = () => {
     banco: '',
     tipo_cuenta: '',
     cuenta_bancaria: '',
+    fecha_expedicion_cert_bancario: '',
   });
   const [files, setFiles] = useState({
     certificado_bancario: null,
@@ -283,6 +284,7 @@ const BeneficiarioActualizacion = () => {
         banco: profileData?.nombre_banco || profileData?.banco || '',
         tipo_cuenta: profileData?.tipo_cuenta_bancaria || profileData?.tipo_cuenta || '',
         cuenta_bancaria: profileData?.numero_cuenta || profileData?.cuenta_bancaria || '',
+        fecha_expedicion_cert_bancario: '',
       });
       setCuentaBancariaConfirm('');
 
@@ -403,6 +405,27 @@ const BeneficiarioActualizacion = () => {
         throw new Error('Los números de cuenta no coinciden. Verifica e inténtalo nuevamente.');
       }
 
+      // Validar fecha de expedición del certificado bancario
+      if (!form.fecha_expedicion_cert_bancario) {
+        throw new Error('Debes indicar la fecha de expedición del certificado bancario.');
+      }
+
+      const fechaExpedicion = new Date(form.fecha_expedicion_cert_bancario);
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      fechaExpedicion.setHours(0, 0, 0, 0);
+
+      if (fechaExpedicion > hoy) {
+        throw new Error('La fecha de expedición del certificado bancario no puede ser futura.');
+      }
+
+      const maxDiasVigencia = Number(config?.cert_bancario_max_dias || 15);
+      const diasDiferencia = Math.floor((hoy.getTime() - fechaExpedicion.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (diasDiferencia > maxDiasVigencia) {
+        throw new Error(`El certificado bancario está vencido. La fecha de expedición debe ser máximo ${maxDiasVigencia} días antes de hoy. Tu certificado tiene ${diasDiferencia} días de antigüedad.`);
+      }
+
       setSaving(true);
 
       // Convertir archivos a base64
@@ -435,6 +458,7 @@ const BeneficiarioActualizacion = () => {
             banco: String(form.banco || '').trim(),
             tipo_cuenta: String(form.tipo_cuenta || '').trim(),
             cuenta_bancaria: accountNumber,
+            fecha_expedicion_cert_bancario: form.fecha_expedicion_cert_bancario,
           },
           files_base64: {
             certificado_bancario: {
@@ -855,6 +879,49 @@ const BeneficiarioActualizacion = () => {
                   {cuentaBancariaConfirm && normalizeAccountNumber(form.cuenta_bancaria) === normalizeAccountNumber(cuentaBancariaConfirm) && (
                     <span className="text-[11px] text-emerald-600">Cuenta confirmada.</span>
                   )}
+                </label>
+              </div>
+
+              {/* Fecha de expedición del certificado bancario */}
+              <div className="mt-4 pt-4 border-t border-slate-200">
+                <div className="bg-amber-50 border-l-4 border-amber-400 p-3 mb-3 rounded">
+                  <div className="flex items-start gap-2">
+                    <Info size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-semibold text-amber-900 mb-1">Importante: Vigencia del Certificado Bancario</p>
+                      <p className="text-xs text-amber-800">
+                        La fecha de expedición que indiques debe coincidir <strong>exactamente</strong> con la fecha que aparece en el certificado bancario adjunto. 
+                        El certificado debe tener una vigencia máxima de <strong>{config?.cert_bancario_max_dias || 15} días</strong> desde su expedición. 
+                        Certificados con fechas que no coincidan o vencidos serán causa de <strong>rechazo inmediato</strong> de tu actualización.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <label className="grid gap-1 text-sm max-w-xs">
+                  <span className="text-xs uppercase tracking-wide font-bold text-slate-600">Fecha de expedición del certificado bancario *</span>
+                  <input
+                    type="date"
+                    value={form.fecha_expedicion_cert_bancario}
+                    onChange={(event) => setForm((prev) => ({ ...prev, fecha_expedicion_cert_bancario: event.target.value }))}
+                    disabled={!canUpdate}
+                    max={new Date().toISOString().split('T')[0]}
+                    className="border border-border rounded-lg px-3 py-2 disabled:bg-slate-100 transition-all duration-200 focus:ring-2 focus:ring-secondary/25 focus:border-secondary"
+                  />
+                  {form.fecha_expedicion_cert_bancario && (() => {
+                    const fechaExpedicion = new Date(form.fecha_expedicion_cert_bancario);
+                    const hoy = new Date();
+                    hoy.setHours(0, 0, 0, 0);
+                    fechaExpedicion.setHours(0, 0, 0, 0);
+                    const diasDiferencia = Math.floor((hoy.getTime() - fechaExpedicion.getTime()) / (1000 * 60 * 60 * 24));
+                    const maxDias = Number(config?.cert_bancario_max_dias || 15);
+                    
+                    if (diasDiferencia > maxDias) {
+                      return <span className="text-[11px] text-red-600 font-semibold">⚠️ Certificado vencido ({diasDiferencia} días). Máximo permitido: {maxDias} días.</span>;
+                    } else if (diasDiferencia >= 0) {
+                      return <span className="text-[11px] text-emerald-600">✓ Certificado válido ({diasDiferencia} días de antigüedad)</span>;
+                    }
+                    return null;
+                  })()}
                 </label>
               </div>
             </div>

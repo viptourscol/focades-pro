@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { Eye, CreditCard, RefreshCcw, Search, Trash2, Undo2, UserCircle2, Users, Key, CheckSquare, ClipboardCheck, TrendingUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { showConfirmAlert, showErrorAlert, showSuccessAlert, showWarningAlert } from '../lib/alerts';
-import BeneficiarioDetailModal from '../components/BeneficiarioDetailModal';
 
 const STATE_OPTIONS = ['all', 'activo', 'suspendido', 'retirado', 'condonado', 'egresado'];
 const DELETED_FILTER_OPTIONS = ['active', 'deleted', 'all'];
@@ -47,10 +46,6 @@ const AdminBeneficiarios = () => {
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
   const [actionLoadingId, setActionLoadingId] = useState(null);
-  
-  // Estados para el modal de detalle
-  const [selectedBeneficiario, setSelectedBeneficiario] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -256,27 +251,6 @@ const AdminBeneficiarios = () => {
     } finally {
       setActionLoadingId(null);
     }
-  };
-
-  const handleOpenDetailModal = (beneficiario) => {
-    setSelectedBeneficiario(beneficiario);
-    setIsModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setSelectedBeneficiario(null);
-  };
-
-  const handleSaveModal = (updatedBeneficiario) => {
-    // Actualizar la lista localmente
-    setRows(prevRows => 
-      prevRows.map(row => 
-        row.id === updatedBeneficiario.id ? updatedBeneficiario : row
-      )
-    );
-    // Recargar datos para estar seguros
-    loadData();
   };
 
   const handleRestore = async (item) => {
@@ -538,14 +512,6 @@ const AdminBeneficiarios = () => {
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={() => handleOpenDetailModal(item)}
-                    title="Ver datos completos"
-                    className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold transition-all duration-150 hover:bg-blue-700 active:scale-95"
-                  >
-                    <UserCircle2 size={14} />
-                  </button>
-                  
                   <Link
                     to={`/admin/beneficiarios/${item.id}`}
                     title="Ver ficha 360 completa"
@@ -633,14 +599,6 @@ const AdminBeneficiarios = () => {
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleOpenDetailModal(item)}
-                          title="Ver datos completos"
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold transition-all duration-150 hover:bg-blue-700 active:scale-95"
-                        >
-                          <UserCircle2 size={14} />
-                        </button>
-                        
                         <Link
                           to={`/admin/beneficiarios/${item.id}`}
                           title="Ver ficha 360 completa"
@@ -730,14 +688,6 @@ const AdminBeneficiarios = () => {
           </div>
         )}
       </section>
-      
-      {/* Modal de detalle completo */}
-      <BeneficiarioDetailModal
-        beneficiario={selectedBeneficiario}
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        onSave={handleSaveModal}
-      />
     </div>
   );
 };

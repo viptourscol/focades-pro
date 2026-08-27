@@ -110,7 +110,7 @@ const DocRow = ({ doc, onView }) => (
 
 const UPDATE_STATUS_OPTIONS = ['en_revision', 'aprobada', 'rechazada'];
 
-const UpdateModal = ({ update, beneficiario, ventana, adminUsers, onClose, onSaved }) => {
+const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasMap, onClose, onSaved }) => {
   const [docs, setDocs] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(true);
   const [reviewEstado, setReviewEstado] = useState(update.estado || 'en_revision');
@@ -423,7 +423,19 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, onClose, onSav
           <section className="bg-slate-50 rounded-2xl p-4 space-y-1">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Beneficiario</p>
             <p className="font-bold text-slate-800">{beneficiario?.nombre_completo || '—'}</p>
-            <p className="text-sm text-slate-500">{beneficiario?.n_documento || '—'} · {beneficiario?.email || '—'}</p>
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <span>{beneficiario?.n_documento || '—'}</span>
+              <span>·</span>
+              <span>{beneficiario?.email || '—'}</span>
+            </div>
+            {beneficiario?.convocatoria_id && (
+              <div className="flex items-center gap-1.5 pt-0.5">
+                <div className="bg-blue-500 rounded-full w-1.5 h-1.5"></div>
+                <p className="text-xs text-slate-600">
+                  <span className="font-medium">Convocatoria:</span> {convocatoriasMap[beneficiario.convocatoria_id]?.nombre || convocatoriasMap[beneficiario.convocatoria_id]?.anio || 'N/A'}
+                </p>
+              </div>
+            )}
             {ventana?.nombre && (
               <p className="text-sm text-slate-500">Ventana: <span className="font-medium">{ventana.nombre}</span></p>
             )}
@@ -1100,8 +1112,10 @@ const AdminActualizaciones = () => {
   const [rows, setRows] = useState([]);
   const [ventanas, setVentanas] = useState([]);
   const [adminUsers, setAdminUsers] = useState([]);
+  const [convocatorias, setConvocatorias] = useState([]);
   const [beneficiariosMap, setBeneficiariosMap] = useState({});
   const [ventanasMap, setVentanasMap] = useState({});
+  const [convocatoriasMap, setConvocatoriasMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [estadoFilter, setEstadoFilter] = useState('all');
@@ -1122,7 +1136,7 @@ const AdminActualizaciones = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [{ data: updatesData }, { data: benefData }, { data: ventData }, { data: adminsData }] = await Promise.all([
+      const [{ data: updatesData }, { data: benefData }, { data: ventData }, { data: adminsData }, { data: convocData }] = await Promise.all([
         supabase
           .from('portal_actualizaciones')
           .select('id,beneficiario_id,ventana_id,estado,semestre_actual,promedio_semestre_anterior,observacion_admin,revisado_at,created_at,updated_at,payload_formulario,email,telefono,direccion,revisado_por_user_id,revisor_asignado_user_id,revisor_asignado_at,checklist_revision')
@@ -1130,7 +1144,7 @@ const AdminActualizaciones = () => {
           .limit(500),
         supabase
           .from('portal_beneficiarios')
-          .select('id,nombre_completo,n_documento,email,estado_beneficiario')
+          .select('id,nombre_completo,n_documento,email,estado_beneficiario,convocatoria_id')
           .limit(1000),
         supabase
           .from('portal_ventanas_actualizacion')
@@ -1141,11 +1155,16 @@ const AdminActualizaciones = () => {
           .select('user_id,nombre_completo,created_at')
           .eq('is_active', true)
           .order('created_at', { ascending: true }),
+        supabase
+          .from('convocatorias')
+          .select('id,nombre,anio')
+          .order('anio', { ascending: false }),
       ]);
 
       setRows(Array.isArray(updatesData) ? updatesData : []);
       setVentanas(Array.isArray(ventData) ? ventData : []);
       setAdminUsers(Array.isArray(adminsData) ? adminsData : []);
+      setConvocatorias(Array.isArray(convocData) ? convocData : []);
 
       const bMap = {};
       (benefData || []).forEach((b) => { bMap[b.id] = b; });
@@ -1154,6 +1173,10 @@ const AdminActualizaciones = () => {
       const vMap = {};
       (ventData || []).forEach((v) => { vMap[v.id] = v; });
       setVentanasMap(vMap);
+
+      const cMap = {};
+      (convocData || []).forEach((c) => { cMap[c.id] = c; });
+      setConvocatoriasMap(cMap);
     } catch {
       setRows([]);
     } finally {
@@ -1679,6 +1702,7 @@ const AdminActualizaciones = () => {
           beneficiario={beneficiariosMap[selectedRow.beneficiario_id]}
           ventana={selectedRow.ventana_id ? ventanasMap[selectedRow.ventana_id] : null}
           adminUsers={adminUsers}
+          convocatoriasMap={convocatoriasMap}
           onClose={() => setSelectedRow(null)}
           onSaved={handleSaved}
         />

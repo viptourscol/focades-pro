@@ -1548,13 +1548,56 @@ const AdminBeneficiarioDetalle = () => {
             {/* Socio-económico */}
             {onboardingSubTab === 'socioeconomico' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <DataField label="Grupo SISBEN" value={beneficiario.sisben_grupo} />
-                <DataField label="¿Recibe Subsidio?" value={beneficiario.recibe_subsidio} />
-                {beneficiario.recibe_subsidio === 'SI' && (
-                  <DataField label="¿Cuál Subsidio?" value={beneficiario.cual_subsidio} className="md:col-span-2" />
+                <DataField 
+                  label="Grupo SISBEN" 
+                  value={isEditingOnboarding ? onboardingForm.sisben_grupo : beneficiario.sisben_grupo}
+                  field="sisben_grupo"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="¿Recibe Subsidio?" 
+                  value={isEditingOnboarding ? onboardingForm.recibe_subsidio : beneficiario.recibe_subsidio}
+                  field="recibe_subsidio"
+                  type="select"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                  options={[
+                    { value: '', label: 'Seleccionar...' },
+                    { value: 'SI', label: 'Sí' },
+                    { value: 'NO', label: 'No' }
+                  ]}
+                />
+                {(isEditingOnboarding ? onboardingForm.recibe_subsidio : beneficiario.recibe_subsidio) === 'SI' && (
+                  <DataField 
+                    label="¿Cuál Subsidio?" 
+                    value={isEditingOnboarding ? onboardingForm.cual_subsidio : beneficiario.cual_subsidio}
+                    field="cual_subsidio"
+                    isEditing={isEditingOnboarding}
+                    onChange={handleOnboardingChange}
+                    className="md:col-span-2" 
+                  />
                 )}
-                <DataField label="Enfoque Diferencial" value={beneficiario.enfoque_diferencial} />
-                <DataField label="¿Labora Actualmente?" value={beneficiario.labora_actualmente} />
+                <DataField 
+                  label="Enfoque Diferencial" 
+                  value={isEditingOnboarding ? onboardingForm.enfoque_diferencial : beneficiario.enfoque_diferencial}
+                  field="enfoque_diferencial"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="¿Labora Actualmente?" 
+                  value={isEditingOnboarding ? onboardingForm.labora_actualmente : beneficiario.labora_actualmente}
+                  field="labora_actualmente"
+                  type="select"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                  options={[
+                    { value: '', label: 'Seleccionar...' },
+                    { value: 'SI', label: 'Sí' },
+                    { value: 'NO', label: 'No' }
+                  ]}
+                />
               </div>
             )}
 
@@ -1564,19 +1607,69 @@ const AdminBeneficiarioDetalle = () => {
                 <div className="border-b border-slate-200 pb-4">
                   <h3 className="text-lg font-bold text-slate-800 mb-4">Información del Padre</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <DataField label="Nombre Completo" value={beneficiario.nombre_padre} />
-                    <DataField label="Documento" value={beneficiario.documento_padre} />
-                    <DataField label="Ocupación" value={beneficiario.ocupacion_padre} />
-                    <DataField label="Ingresos Mensuales" value={beneficiario.ingresos_padre ? formatMoney(beneficiario.ingresos_padre) : null} />
+                    <DataField 
+                      label="Nombre Completo" 
+                      value={isEditingOnboarding ? onboardingForm.nombre_padre : beneficiario.nombre_padre}
+                      field="nombre_padre"
+                      isEditing={isEditingOnboarding}
+                      onChange={handleOnboardingChange}
+                    />
+                    <DataField 
+                      label="Documento" 
+                      value={isEditingOnboarding ? onboardingForm.documento_padre : beneficiario.documento_padre}
+                      field="documento_padre"
+                      isEditing={isEditingOnboarding}
+                      onChange={handleOnboardingChange}
+                    />
+                    <DataField 
+                      label="Ocupación" 
+                      value={isEditingOnboarding ? onboardingForm.ocupacion_padre : beneficiario.ocupacion_padre}
+                      field="ocupacion_padre"
+                      isEditing={isEditingOnboarding}
+                      onChange={handleOnboardingChange}
+                    />
+                    <DataField 
+                      label="Ingresos Mensuales" 
+                      value={isEditingOnboarding ? onboardingForm.ingresos_padre : (beneficiario.ingresos_padre ? formatMoney(beneficiario.ingresos_padre) : null)}
+                      field="ingresos_padre"
+                      type="number"
+                      isEditing={isEditingOnboarding}
+                      onChange={handleOnboardingChange}
+                    />
                   </div>
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-800 mb-4">Información de la Madre</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <DataField label="Nombre Completo" value={beneficiario.nombre_madre} />
-                    <DataField label="Documento" value={beneficiario.documento_madre} />
-                    <DataField label="Ocupación" value={beneficiario.ocupacion_madre} />
-                    <DataField label="Ingresos Mensuales" value={beneficiario.ingresos_madre ? formatMoney(beneficiario.ingresos_madre) : null} />
+                    <DataField 
+                      label="Nombre Completo" 
+                      value={isEditingOnboarding ? onboardingForm.nombre_madre : beneficiario.nombre_madre}
+                      field="nombre_madre"
+                      isEditing={isEditingOnboarding}
+                      onChange={handleOnboardingChange}
+                    />
+                    <DataField 
+                      label="Documento" 
+                      value={isEditingOnboarding ? onboardingForm.documento_madre : beneficiario.documento_madre}
+                      field="documento_madre"
+                      isEditing={isEditingOnboarding}
+                      onChange={handleOnboardingChange}
+                    />
+                    <DataField 
+                      label="Ocupación" 
+                      value={isEditingOnboarding ? onboardingForm.ocupacion_madre : beneficiario.ocupacion_madre}
+                      field="ocupacion_madre"
+                      isEditing={isEditingOnboarding}
+                      onChange={handleOnboardingChange}
+                    />
+                    <DataField 
+                      label="Ingresos Mensuales" 
+                      value={isEditingOnboarding ? onboardingForm.ingresos_madre : (beneficiario.ingresos_madre ? formatMoney(beneficiario.ingresos_madre) : null)}
+                      field="ingresos_madre"
+                      type="number"
+                      isEditing={isEditingOnboarding}
+                      onChange={handleOnboardingChange}
+                    />
                   </div>
                 </div>
               </div>
@@ -1585,38 +1678,170 @@ const AdminBeneficiarioDetalle = () => {
             {/* Secundaria */}
             {onboardingSubTab === 'secundaria' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <DataField label="Título Obtenido" value={beneficiario.titulo_obtenido} />
-                <DataField label="Año de Graduación" value={beneficiario.ano_graduacion} />
-                <DataField label="Establecimiento Educativo" value={beneficiario.establecimiento_educativo} />
-                <DataField label="Puntaje ICFES" value={beneficiario.puntaje_icfes} />
+                <DataField 
+                  label="Título Obtenido" 
+                  value={isEditingOnboarding ? onboardingForm.titulo_obtenido : beneficiario.titulo_obtenido}
+                  field="titulo_obtenido"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Año de Graduación" 
+                  value={isEditingOnboarding ? onboardingForm.ano_graduacion : beneficiario.ano_graduacion}
+                  field="ano_graduacion"
+                  type="number"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Establecimiento Educativo" 
+                  value={isEditingOnboarding ? onboardingForm.establecimiento_educativo : beneficiario.establecimiento_educativo}
+                  field="establecimiento_educativo"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Puntaje ICFES" 
+                  value={isEditingOnboarding ? onboardingForm.puntaje_icfes : beneficiario.puntaje_icfes}
+                  field="puntaje_icfes"
+                  type="number"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
               </div>
             )}
 
             {/* Académico */}
             {onboardingSubTab === 'academico' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <DataField label="Programa Académico" value={beneficiario.programa_academico} />
-                <DataField label="Universidad / Institución" value={beneficiario.nombre_universidad} />
-                <DataField label="Institución Superior" value={beneficiario.institucion_superior} />
-                <DataField label="Departamento de la Institución" value={beneficiario.dpto_institucion} />
-                <DataField label="Municipio de la Institución" value={beneficiario.municipio_institucion} />
-                <DataField label="Ciudad de la Institución" value={beneficiario.ciudad_institucion} />
-                <DataField label="Tipo de Educación" value={beneficiario.tipo_educacion} />
-                <DataField label="Modalidad de Beca" value={beneficiario.modalidad_beca} />
-                <DataField label="Semestre Actual" value={beneficiario.semestre_actual} />
-                <DataField label="Semestre de Ingreso" value={beneficiario.semestre_ingreso} />
-                <DataField label="Modalidad de Estudio" value={beneficiario.modalidad} />
-                <DataField label="Promedio Anterior" value={beneficiario.promedio_anterior} />
-                <DataField label="Año de Convocatoria" value={beneficiario.año_convocatoria} />
+                <DataField 
+                  label="Programa Académico" 
+                  value={isEditingOnboarding ? onboardingForm.programa_academico : beneficiario.programa_academico}
+                  field="programa_academico"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Universidad / Institución" 
+                  value={isEditingOnboarding ? onboardingForm.nombre_universidad : beneficiario.nombre_universidad}
+                  field="nombre_universidad"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Institución Superior" 
+                  value={isEditingOnboarding ? onboardingForm.institucion_superior : beneficiario.institucion_superior}
+                  field="institucion_superior"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Departamento de la Institución" 
+                  value={isEditingOnboarding ? onboardingForm.dpto_institucion : beneficiario.dpto_institucion}
+                  field="dpto_institucion"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Municipio de la Institución" 
+                  value={isEditingOnboarding ? onboardingForm.municipio_institucion : beneficiario.municipio_institucion}
+                  field="municipio_institucion"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Ciudad de la Institución" 
+                  value={isEditingOnboarding ? onboardingForm.ciudad_institucion : beneficiario.ciudad_institucion}
+                  field="ciudad_institucion"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Tipo de Educación" 
+                  value={isEditingOnboarding ? onboardingForm.tipo_educacion : beneficiario.tipo_educacion}
+                  field="tipo_educacion"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Modalidad de Beca" 
+                  value={isEditingOnboarding ? onboardingForm.modalidad_beca : beneficiario.modalidad_beca}
+                  field="modalidad_beca"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Semestre Actual" 
+                  value={isEditingOnboarding ? onboardingForm.semestre_actual : beneficiario.semestre_actual}
+                  field="semestre_actual"
+                  type="number"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Semestre de Ingreso" 
+                  value={isEditingOnboarding ? onboardingForm.semestre_ingreso : beneficiario.semestre_ingreso}
+                  field="semestre_ingreso"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Modalidad de Estudio" 
+                  value={isEditingOnboarding ? onboardingForm.modalidad : beneficiario.modalidad}
+                  field="modalidad"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Promedio Anterior" 
+                  value={isEditingOnboarding ? onboardingForm.promedio_anterior : beneficiario.promedio_anterior}
+                  field="promedio_anterior"
+                  type="number"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Año de Convocatoria" 
+                  value={isEditingOnboarding ? onboardingForm.año_convocatoria : beneficiario.año_convocatoria}
+                  field="año_convocatoria"
+                  type="number"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
               </div>
             )}
 
             {/* Bancario */}
             {onboardingSubTab === 'bancario' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <DataField label="Banco" value={beneficiario.nombre_banco} />
-                <DataField label="Tipo de Cuenta" value={beneficiario.tipo_cuenta_bancaria} />
-                <DataField label="Número de Cuenta" value={beneficiario.numero_cuenta} className="md:col-span-2" />
+                <DataField 
+                  label="Banco" 
+                  value={isEditingOnboarding ? onboardingForm.nombre_banco : beneficiario.nombre_banco}
+                  field="nombre_banco"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                />
+                <DataField 
+                  label="Tipo de Cuenta" 
+                  value={isEditingOnboarding ? onboardingForm.tipo_cuenta_bancaria : beneficiario.tipo_cuenta_bancaria}
+                  field="tipo_cuenta_bancaria"
+                  type="select"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                  options={[
+                    { value: '', label: 'Seleccionar...' },
+                    { value: 'AHORRO', label: 'Ahorro' },
+                    { value: 'CORRIENTE', label: 'Corriente' }
+                  ]}
+                />
+                <DataField 
+                  label="Número de Cuenta" 
+                  value={isEditingOnboarding ? onboardingForm.numero_cuenta : beneficiario.numero_cuenta}
+                  field="numero_cuenta"
+                  isEditing={isEditingOnboarding}
+                  onChange={handleOnboardingChange}
+                  className="md:col-span-2" 
+                />
               </div>
             )}
 

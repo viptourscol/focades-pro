@@ -191,6 +191,15 @@ const AdminBeneficiarioDetalle = () => {
   const [historicoDocs, setHistoricoDocs] = useState([]);
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteMessage, setInviteMessage] = useState('');
+  const [catalogos, setCatalogos] = useState({
+    departamentos: [],
+    municipios: [],
+    municipiosNacimientoFiltrados: [],
+    municipiosResidenciaFiltrados: [],
+    municipiosInstitucionFiltrados: [],
+    bancos: [],
+    establecimientos: [],
+  });
 
   const setTabLoading = (tab, value) => {
     setLoadingByTab((prev) => ({ ...prev, [tab]: value }));
@@ -594,6 +603,17 @@ const AdminBeneficiarioDetalle = () => {
   const handleOnboardingChange = (field, value) => {
     setOnboardingForm(prev => ({ ...prev, [field]: value }));
     setHasOnboardingChanges(true);
+    
+    // Limpiar municipio cuando cambia el departamento
+    if (field === 'dpto_nacimiento') {
+      setOnboardingForm(prev => ({ ...prev, municipio_nacimiento: '' }));
+    }
+    if (field === 'dpto_residencia') {
+      setOnboardingForm(prev => ({ ...prev, municipio_residencia: '' }));
+    }
+    if (field === 'dpto_institucion') {
+      setOnboardingForm(prev => ({ ...prev, municipio_institucion: '' }));
+    }
   };
 
   const handleCancelOnboardingEdit = () => {
@@ -832,6 +852,62 @@ const AdminBeneficiarioDetalle = () => {
     if (tab === 'bitacora') await loadBitacoraData(profileOverride);
     if (tab === 'onboarding') await loadOnboardingData(profileOverride);
   };
+
+  // Cargar catálogos
+  const loadCatalogos = async () => {
+    try {
+      const [{ data: bancos }, { data: establecimientos }, { data: departamentos }, { data: municipios }] = await Promise.all([
+        supabase.from('catalog_bancos').select('nombre').order('nombre'),
+        supabase.from('vw_catalog_establecimientos').select('nombre').order('nombre'),
+        supabase.from('vw_catalog_departamentos_colombia').select('*').order('nombre'),
+        supabase.from('vw_catalog_municipios_colombia').select('*').order('nombre'),
+      ]);
+
+      setCatalogos({
+        bancos: bancos?.map(b => b.nombre) || [],
+        establecimientos: establecimientos?.map(e => e.nombre) || [],
+        departamentos: departamentos || [],
+        municipios: municipios || [],
+        municipiosNacimientoFiltrados: [],
+        municipiosResidenciaFiltrados: [],
+        municipiosInstitucionFiltrados: [],
+      });
+    } catch (error) {
+      console.error('Error cargando catálogos:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadCatalogos();
+  }, []);
+
+  // Filtrar municipios cuando cambian los departamentos
+  useEffect(() => {
+    if (onboardingForm.dpto_nacimiento && catalogos.municipios.length > 0) {
+      const filtered = catalogos.municipios.filter(m => m.departamento === onboardingForm.dpto_nacimiento);
+      setCatalogos(prev => ({ ...prev, municipiosNacimientoFiltrados: filtered }));
+    } else {
+      setCatalogos(prev => ({ ...prev, municipiosNacimientoFiltrados: [] }));
+    }
+  }, [onboardingForm.dpto_nacimiento, catalogos.municipios]);
+
+  useEffect(() => {
+    if (onboardingForm.dpto_residencia && catalogos.municipios.length > 0) {
+      const filtered = catalogos.municipios.filter(m => m.departamento === onboardingForm.dpto_residencia);
+      setCatalogos(prev => ({ ...prev, municipiosResidenciaFiltrados: filtered }));
+    } else {
+      setCatalogos(prev => ({ ...prev, municipiosResidenciaFiltrados: [] }));
+    }
+  }, [onboardingForm.dpto_residencia, catalogos.municipios]);
+
+  useEffect(() => {
+    if (onboardingForm.dpto_institucion && catalogos.municipios.length > 0) {
+      const filtered = catalogos.municipios.filter(m => m.departamento === onboardingForm.dpto_institucion);
+      setCatalogos(prev => ({ ...prev, municipiosInstitucionFiltrados: filtered }));
+    } else {
+      setCatalogos(prev => ({ ...prev, municipiosInstitucionFiltrados: [] }));
+    }
+  }, [onboardingForm.dpto_institucion, catalogos.municipios]);
 
   useEffect(() => {
     let mounted = true;
@@ -1480,31 +1556,53 @@ const AdminBeneficiarioDetalle = () => {
                 />
                 <DataField 
                   label="Departamento de Nacimiento" 
-                  value={isEditingOnboarding ? onboardingForm.dpto_nacimiento : beneficiario.dpto_nacimiento} 
+                  value={isEditingOnboarding ? onboardingForm.dpto_nacimiento : beneficiario.dpto_nacimiento}
                   field="dpto_nacimiento"
+                  type="select"
                   isEditing={isEditingOnboarding}
                   onChange={handleOnboardingChange}
+                  options={[
+                    { value: '', label: 'Seleccionar...' },
+                    ...catalogos.departamentos.map(d => ({ value: d.nombre, label: d.nombre }))
+                  ]}
                 />
                 <DataField 
                   label="Municipio de Nacimiento" 
-                  value={isEditingOnboarding ? onboardingForm.municipio_nacimiento : beneficiario.municipio_nacimiento} 
+                  value={isEditingOnboarding ? onboardingForm.municipio_nacimiento : beneficiario.municipio_nacimiento}
                   field="municipio_nacimiento"
+                  type="select"
                   isEditing={isEditingOnboarding}
                   onChange={handleOnboardingChange}
+                  disabled={!onboardingForm.dpto_nacimiento && isEditingOnboarding}
+                  options={[
+                    { value: '', label: onboardingForm.dpto_nacimiento ? 'Seleccionar...' : 'Primero selecciona departamento' },
+                    ...catalogos.municipiosNacimientoFiltrados.map(m => ({ value: m.nombre, label: m.nombre }))
+                  ]}
                 />
                 <DataField 
                   label="Departamento de Residencia" 
-                  value={isEditingOnboarding ? onboardingForm.dpto_residencia : beneficiario.dpto_residencia} 
+                  value={isEditingOnboarding ? onboardingForm.dpto_residencia : beneficiario.dpto_residencia}
                   field="dpto_residencia"
+                  type="select"
                   isEditing={isEditingOnboarding}
                   onChange={handleOnboardingChange}
+                  options={[
+                    { value: '', label: 'Seleccionar...' },
+                    ...catalogos.departamentos.map(d => ({ value: d.nombre, label: d.nombre }))
+                  ]}
                 />
                 <DataField 
                   label="Municipio de Residencia" 
-                  value={isEditingOnboarding ? onboardingForm.municipio_residencia : beneficiario.municipio_residencia} 
+                  value={isEditingOnboarding ? onboardingForm.municipio_residencia : beneficiario.municipio_residencia}
                   field="municipio_residencia"
+                  type="select"
                   isEditing={isEditingOnboarding}
                   onChange={handleOnboardingChange}
+                  disabled={!onboardingForm.dpto_residencia && isEditingOnboarding}
+                  options={[
+                    { value: '', label: onboardingForm.dpto_residencia ? 'Seleccionar...' : 'Primero selecciona departamento' },
+                    ...catalogos.municipiosResidenciaFiltrados.map(m => ({ value: m.nombre, label: m.nombre }))
+                  ]}
                 />
                 <DataField 
                   label="Dirección de Residencia" 
@@ -1770,6 +1868,7 @@ const AdminBeneficiarioDetalle = () => {
                   field="establecimiento_educativo"
                   isEditing={isEditingOnboarding}
                   onChange={handleOnboardingChange}
+                  placeholder="Nombre del colegio"
                 />
                 <DataField 
                   label="Puntaje ICFES" 
@@ -1810,15 +1909,26 @@ const AdminBeneficiarioDetalle = () => {
                   label="Departamento de la Institución" 
                   value={isEditingOnboarding ? onboardingForm.dpto_institucion : beneficiario.dpto_institucion}
                   field="dpto_institucion"
+                  type="select"
                   isEditing={isEditingOnboarding}
                   onChange={handleOnboardingChange}
+                  options={[
+                    { value: '', label: 'Seleccionar...' },
+                    ...catalogos.departamentos.map(d => ({ value: d.nombre, label: d.nombre }))
+                  ]}
                 />
                 <DataField 
                   label="Municipio de la Institución" 
                   value={isEditingOnboarding ? onboardingForm.municipio_institucion : beneficiario.municipio_institucion}
                   field="municipio_institucion"
+                  type="select"
                   isEditing={isEditingOnboarding}
                   onChange={handleOnboardingChange}
+                  disabled={!onboardingForm.dpto_institucion && isEditingOnboarding}
+                  options={[
+                    { value: '', label: onboardingForm.dpto_institucion ? 'Seleccionar...' : 'Primero selecciona departamento' },
+                    ...catalogos.municipiosInstitucionFiltrados.map(m => ({ value: m.nombre, label: m.nombre }))
+                  ]}
                 />
                 <DataField 
                   label="Ciudad de la Institución" 
@@ -1903,8 +2013,13 @@ const AdminBeneficiarioDetalle = () => {
                   label="Banco" 
                   value={isEditingOnboarding ? onboardingForm.nombre_banco : beneficiario.nombre_banco}
                   field="nombre_banco"
+                  type="select"
                   isEditing={isEditingOnboarding}
                   onChange={handleOnboardingChange}
+                  options={[
+                    { value: '', label: 'Seleccionar...' },
+                    ...catalogos.bancos.map(b => ({ value: b, label: b }))
+                  ]}
                 />
                 <DataField 
                   label="Tipo de Cuenta" 

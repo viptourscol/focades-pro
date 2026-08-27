@@ -114,6 +114,14 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
   const [docs, setDocs] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(true);
   const [reviewEstado, setReviewEstado] = useState(update.estado || 'en_revision');
+  
+  // Debug: verificar datos de convocatoria
+  console.log('🔍 Debug Convocatoria:', {
+    beneficiario_id: beneficiario?.id,
+    convocatoria_id: beneficiario?.convocatoria_id,
+    convocatoriasMap: convocatoriasMap,
+    convocatoria_data: beneficiario?.convocatoria_id ? convocatoriasMap[beneficiario.convocatoria_id] : null
+  });
   const [reviewObs, setReviewObs] = useState(update.observacion_admin || '');
   const [saving, setSaving] = useState(false);
   const [notifying, setNotifying] = useState(false);

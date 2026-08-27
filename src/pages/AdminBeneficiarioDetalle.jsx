@@ -1552,8 +1552,17 @@ const AdminBeneficiarioDetalle = () => {
                   label="Grupo SISBEN" 
                   value={isEditingOnboarding ? onboardingForm.sisben_grupo : beneficiario.sisben_grupo}
                   field="sisben_grupo"
+                  type="select"
                   isEditing={isEditingOnboarding}
                   onChange={handleOnboardingChange}
+                  options={[
+                    { value: '', label: 'Seleccionar...' },
+                    { value: 'A', label: 'A' },
+                    { value: 'B', label: 'B' },
+                    { value: 'C', label: 'C' },
+                    { value: 'D', label: 'D' },
+                    { value: 'NO_APLICA', label: 'No Aplica' }
+                  ]}
                 />
                 <DataField 
                   label="¿Recibe Subsidio?" 
@@ -1582,8 +1591,22 @@ const AdminBeneficiarioDetalle = () => {
                   label="Enfoque Diferencial" 
                   value={isEditingOnboarding ? onboardingForm.enfoque_diferencial : beneficiario.enfoque_diferencial}
                   field="enfoque_diferencial"
+                  type="select"
                   isEditing={isEditingOnboarding}
                   onChange={handleOnboardingChange}
+                  options={[
+                    { value: '', label: 'Seleccionar...' },
+                    { value: 'NINGUNO', label: 'Ninguno' },
+                    { value: 'INDIGENA', label: 'Indígena' },
+                    { value: 'AFROCOLOMBIANO', label: 'Afrocolombiano' },
+                    { value: 'ROM', label: 'Rom (Gitano)' },
+                    { value: 'RAIZAL', label: 'Raizal' },
+                    { value: 'PALENQUERO', label: 'Palenquero' },
+                    { value: 'DISCAPACIDAD', label: 'Persona con Discapacidad' },
+                    { value: 'VICTIMA_CONFLICTO', label: 'Víctima del Conflicto' },
+                    { value: 'LGBTIQ', label: 'LGBTIQ+' },
+                    { value: 'OTRO', label: 'Otro' }
+                  ]}
                 />
                 <DataField 
                   label="¿Labora Actualmente?" 
@@ -1625,16 +1648,35 @@ const AdminBeneficiarioDetalle = () => {
                       label="Ocupación" 
                       value={isEditingOnboarding ? onboardingForm.ocupacion_padre : beneficiario.ocupacion_padre}
                       field="ocupacion_padre"
+                      type="select"
                       isEditing={isEditingOnboarding}
                       onChange={handleOnboardingChange}
+                      options={[
+                        { value: '', label: 'Seleccionar...' },
+                        { value: 'Fallecido', label: 'Fallecido' },
+                        { value: 'Hogar', label: 'Hogar' },
+                        { value: 'Empleado', label: 'Empleado' },
+                        { value: 'Independiente', label: 'Independiente' },
+                        { value: 'Pensionado', label: 'Pensionado' },
+                        { value: 'Desempleado', label: 'Desempleado' },
+                        { value: 'No sabe/No responde', label: 'No sabe/No responde' }
+                      ]}
                     />
                     <DataField 
                       label="Ingresos Mensuales" 
-                      value={isEditingOnboarding ? onboardingForm.ingresos_padre : (beneficiario.ingresos_padre ? formatMoney(beneficiario.ingresos_padre) : null)}
+                      value={isEditingOnboarding ? onboardingForm.ingresos_padre : beneficiario.ingresos_padre}
                       field="ingresos_padre"
-                      type="number"
+                      type="select"
                       isEditing={isEditingOnboarding}
                       onChange={handleOnboardingChange}
+                      options={[
+                        { value: '', label: 'Seleccionar...' },
+                        { value: 'Sin ingresos', label: 'Sin ingresos' },
+                        { value: 'Menos de 1 SMLV', label: 'Menos de 1 SMLV' },
+                        { value: 'Entre 1 y 2 SMLV', label: 'Entre 1 y 2 SMLV' },
+                        { value: 'Entre 2 y 3 SMLV', label: 'Entre 2 y 3 SMLV' },
+                        { value: 'Más de 3 SMLV', label: 'Más de 3 SMLV' }
+                      ]}
                     />
                   </div>
                 </div>
@@ -1659,16 +1701,35 @@ const AdminBeneficiarioDetalle = () => {
                       label="Ocupación" 
                       value={isEditingOnboarding ? onboardingForm.ocupacion_madre : beneficiario.ocupacion_madre}
                       field="ocupacion_madre"
+                      type="select"
                       isEditing={isEditingOnboarding}
                       onChange={handleOnboardingChange}
+                      options={[
+                        { value: '', label: 'Seleccionar...' },
+                        { value: 'Fallecido', label: 'Fallecido' },
+                        { value: 'Hogar', label: 'Hogar' },
+                        { value: 'Empleado', label: 'Empleado' },
+                        { value: 'Independiente', label: 'Independiente' },
+                        { value: 'Pensionado', label: 'Pensionado' },
+                        { value: 'Desempleado', label: 'Desempleado' },
+                        { value: 'No sabe/No responde', label: 'No sabe/No responde' }
+                      ]}
                     />
                     <DataField 
                       label="Ingresos Mensuales" 
-                      value={isEditingOnboarding ? onboardingForm.ingresos_madre : (beneficiario.ingresos_madre ? formatMoney(beneficiario.ingresos_madre) : null)}
+                      value={isEditingOnboarding ? onboardingForm.ingresos_madre : beneficiario.ingresos_madre}
                       field="ingresos_madre"
-                      type="number"
+                      type="select"
                       isEditing={isEditingOnboarding}
                       onChange={handleOnboardingChange}
+                      options={[
+                        { value: '', label: 'Seleccionar...' },
+                        { value: 'Sin ingresos', label: 'Sin ingresos' },
+                        { value: 'Menos de 1 SMLV', label: 'Menos de 1 SMLV' },
+                        { value: 'Entre 1 y 2 SMLV', label: 'Entre 1 y 2 SMLV' },
+                        { value: 'Entre 2 y 3 SMLV', label: 'Entre 2 y 3 SMLV' },
+                        { value: 'Más de 3 SMLV', label: 'Más de 3 SMLV' }
+                      ]}
                     />
                   </div>
                 </div>
@@ -1682,8 +1743,18 @@ const AdminBeneficiarioDetalle = () => {
                   label="Título Obtenido" 
                   value={isEditingOnboarding ? onboardingForm.titulo_obtenido : beneficiario.titulo_obtenido}
                   field="titulo_obtenido"
+                  type="select"
                   isEditing={isEditingOnboarding}
                   onChange={handleOnboardingChange}
+                  options={[
+                    { value: '', label: 'Seleccionar...' },
+                    { value: 'BACHILLER_ACADEMICO', label: 'Bachiller Académico' },
+                    { value: 'BACHILLER_TECNICO', label: 'Bachiller Técnico' },
+                    { value: 'BACHILLER_COMERCIAL', label: 'Bachiller Comercial' },
+                    { value: 'BACHILLER_PEDAGOGICO', label: 'Bachiller Pedagógico' },
+                    { value: 'NORMALISTA', label: 'Normalista' },
+                    { value: 'OTRO', label: 'Otro' }
+                  ]}
                 />
                 <DataField 
                   label="Año de Graduación" 
@@ -1760,8 +1831,14 @@ const AdminBeneficiarioDetalle = () => {
                   label="Tipo de Educación" 
                   value={isEditingOnboarding ? onboardingForm.tipo_educacion : beneficiario.tipo_educacion}
                   field="tipo_educacion"
+                  type="select"
                   isEditing={isEditingOnboarding}
                   onChange={handleOnboardingChange}
+                  options={[
+                    { value: 'PROFESIONAL', label: 'Profesional' },
+                    { value: 'TECNICO', label: 'Técnico' },
+                    { value: 'TECNOLOGO', label: 'Tecnólogo' }
+                  ]}
                 />
                 <DataField 
                   label="Modalidad de Beca" 
@@ -1789,8 +1866,16 @@ const AdminBeneficiarioDetalle = () => {
                   label="Modalidad de Estudio" 
                   value={isEditingOnboarding ? onboardingForm.modalidad : beneficiario.modalidad}
                   field="modalidad"
+                  type="select"
                   isEditing={isEditingOnboarding}
                   onChange={handleOnboardingChange}
+                  options={[
+                    { value: '', label: 'Seleccionar...' },
+                    { value: 'PRESENCIAL', label: 'Presencial' },
+                    { value: 'VIRTUAL', label: 'Virtual' },
+                    { value: 'DISTANCIA', label: 'A Distancia' },
+                    { value: 'SEMIPRESENCIAL', label: 'Semipresencial' }
+                  ]}
                 />
                 <DataField 
                   label="Promedio Anterior" 
@@ -1829,8 +1914,7 @@ const AdminBeneficiarioDetalle = () => {
                   isEditing={isEditingOnboarding}
                   onChange={handleOnboardingChange}
                   options={[
-                    { value: '', label: 'Seleccionar...' },
-                    { value: 'AHORRO', label: 'Ahorro' },
+                    { value: 'AHORROS', label: 'Ahorros' },
                     { value: 'CORRIENTE', label: 'Corriente' }
                   ]}
                 />

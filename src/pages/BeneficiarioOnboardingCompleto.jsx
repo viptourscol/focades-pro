@@ -72,7 +72,7 @@ const BeneficiarioOnboardingCompleto = () => {
     enfoque_diferencial: 'NINGUNO',
     labora_actualmente: '',
     
-    // Paso 5b: Composición familiar (opcional)
+    // Paso 5b: Composición familiar (obligatorio)
     nombre_padre: '',
     documento_padre: '',
     ocupacion_padre: '',
@@ -138,6 +138,7 @@ const BeneficiarioOnboardingCompleto = () => {
 
   // Opciones para selects
   const OCUPACION_OPTIONS = [
+    'N/A (No aplica)',
     'Fallecido',
     'Hogar',
     'Empleado',
@@ -148,6 +149,7 @@ const BeneficiarioOnboardingCompleto = () => {
   ];
 
   const INGRESOS_OPTIONS = [
+    'N/A (No aplica)',
     'Sin ingresos',
     'Menos de 1 SMLV',
     'Entre 1 y 2 SMLV',
@@ -388,7 +390,7 @@ const BeneficiarioOnboardingCompleto = () => {
         if (!formData.municipio_nacimiento) newErrors.municipio_nacimiento = 'Campo requerido';
         break;
 
-      case 5: // Información socioeconómica
+      case 5: // Información socioeconómica y composición familiar
         if (!formData.sisben_grupo) newErrors.sisben_grupo = 'Campo requerido';
         if (!formData.recibe_subsidio) newErrors.recibe_subsidio = 'Campo requerido';
         if (formData.recibe_subsidio === 'SI' && !formData.cual_subsidio) {
@@ -396,6 +398,25 @@ const BeneficiarioOnboardingCompleto = () => {
         }
         if (!formData.enfoque_diferencial) newErrors.enfoque_diferencial = 'Campo requerido';
         if (!formData.labora_actualmente) newErrors.labora_actualmente = 'Campo requerido';
+        
+        // Validación composición familiar (obligatorios)
+        if (!formData.nombre_padre || !formData.nombre_padre.trim()) {
+          newErrors.nombre_padre = 'Campo requerido (ingrese N/A si no aplica)';
+        }
+        if (!formData.documento_padre || !formData.documento_padre.trim()) {
+          newErrors.documento_padre = 'Campo requerido (ingrese N/A si no aplica)';
+        }
+        if (!formData.ocupacion_padre) newErrors.ocupacion_padre = 'Campo requerido';
+        if (!formData.ingresos_padre) newErrors.ingresos_padre = 'Campo requerido';
+        
+        if (!formData.nombre_madre || !formData.nombre_madre.trim()) {
+          newErrors.nombre_madre = 'Campo requerido (ingrese N/A si no aplica)';
+        }
+        if (!formData.documento_madre || !formData.documento_madre.trim()) {
+          newErrors.documento_madre = 'Campo requerido (ingrese N/A si no aplica)';
+        }
+        if (!formData.ocupacion_madre) newErrors.ocupacion_madre = 'Campo requerido';
+        if (!formData.ingresos_madre) newErrors.ingresos_madre = 'Campo requerido';
         break;
 
       case 6: // Formación secundaria
@@ -1364,9 +1385,22 @@ const BeneficiarioOnboardingCompleto = () => {
       <div className="border-t border-slate-200 pt-4 mt-6">
         <h3 className="text-lg font-semibold text-slate-700 mb-4">
           <Users className="inline-block mr-2" size={20} />
-          Composición Familiar (Opcional)
+          Composición Familiar
         </h3>
-        <p className="text-sm text-slate-600 mb-4">Si deseas, puedes proporcionar información sobre tus padres</p>
+        <div className="bg-amber-50 border-l-4 border-amber-400 p-4 mb-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-amber-800">
+                <strong className="font-semibold">Importante:</strong> Todos los campos de esta sección son obligatorios. Si no cuenta con información de alguno de sus padres (padre o madre), debe registrar <strong>"N/A"</strong> en los campos correspondientes. La información suministrada debe coincidir con lo registrado en su documento de identidad y registro civil de nacimiento. El suministro de información falsa o inexacta será considerado como falta grave y causal de sanción, incluyendo la suspensión o retiro del programa de créditos condonables FOCADES.
+              </p>
+            </div>
+          </div>
+        </div>
 
         <div className="space-y-6">
           {/* Información del Padre */}
@@ -1374,27 +1408,35 @@ const BeneficiarioOnboardingCompleto = () => {
             <h4 className="text-sm font-semibold text-slate-700 mb-3">Información del Padre</h4>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-2">Nombre Completo</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">
+                  Nombre Completo <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   value={formData.nombre_padre}
                   onChange={(e) => setFormData({ ...formData, nombre_padre: e.target.value })}
                   className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
-                  placeholder="Nombre del padre"
+                  placeholder="Nombre del padre o N/A"
                 />
+                {errors.nombre_padre && <p className="text-red-500 text-sm mt-1">{errors.nombre_padre}</p>}
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-2">Documento</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">
+                  Documento <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   value={formData.documento_padre}
                   onChange={(e) => setFormData({ ...formData, documento_padre: e.target.value })}
                   className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
-                  placeholder="Número de documento"
+                  placeholder="Número de documento o N/A"
                 />
+                {errors.documento_padre && <p className="text-red-500 text-sm mt-1">{errors.documento_padre}</p>}
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-2">Ocupación</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">
+                  Ocupación <span className="text-red-500">*</span>
+                </label>
                 <select
                   value={formData.ocupacion_padre}
                   onChange={(e) => setFormData({ ...formData, ocupacion_padre: e.target.value })}
@@ -1405,9 +1447,12 @@ const BeneficiarioOnboardingCompleto = () => {
                     <option key={idx} value={opc}>{opc}</option>
                   ))}
                 </select>
+                {errors.ocupacion_padre && <p className="text-red-500 text-sm mt-1">{errors.ocupacion_padre}</p>}
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-2">Ingresos Mensuales</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">
+                  Ingresos Mensuales <span className="text-red-500">*</span>
+                </label>
                 <select
                   value={formData.ingresos_padre}
                   onChange={(e) => setFormData({ ...formData, ingresos_padre: e.target.value })}
@@ -1418,6 +1463,7 @@ const BeneficiarioOnboardingCompleto = () => {
                     <option key={idx} value={opc}>{opc}</option>
                   ))}
                 </select>
+                {errors.ingresos_padre && <p className="text-red-500 text-sm mt-1">{errors.ingresos_padre}</p>}
               </div>
             </div>
           </div>
@@ -1427,27 +1473,35 @@ const BeneficiarioOnboardingCompleto = () => {
             <h4 className="text-sm font-semibold text-slate-700 mb-3">Información de la Madre</h4>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-2">Nombre Completo</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">
+                  Nombre Completo <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   value={formData.nombre_madre}
                   onChange={(e) => setFormData({ ...formData, nombre_madre: e.target.value })}
                   className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
-                  placeholder="Nombre de la madre"
+                  placeholder="Nombre de la madre o N/A"
                 />
+                {errors.nombre_madre && <p className="text-red-500 text-sm mt-1">{errors.nombre_madre}</p>}
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-2">Documento</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">
+                  Documento <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   value={formData.documento_madre}
                   onChange={(e) => setFormData({ ...formData, documento_madre: e.target.value })}
                   className="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
-                  placeholder="Número de documento"
+                  placeholder="Número de documento o N/A"
                 />
+                {errors.documento_madre && <p className="text-red-500 text-sm mt-1">{errors.documento_madre}</p>}
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-2">Ocupación</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">
+                  Ocupación <span className="text-red-500">*</span>
+                </label>
                 <select
                   value={formData.ocupacion_madre}
                   onChange={(e) => setFormData({ ...formData, ocupacion_madre: e.target.value })}
@@ -1458,9 +1512,12 @@ const BeneficiarioOnboardingCompleto = () => {
                     <option key={idx} value={opc}>{opc}</option>
                   ))}
                 </select>
+                {errors.ocupacion_madre && <p className="text-red-500 text-sm mt-1">{errors.ocupacion_madre}</p>}
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-2">Ingresos Mensuales</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-2">
+                  Ingresos Mensuales <span className="text-red-500">*</span>
+                </label>
                 <select
                   value={formData.ingresos_madre}
                   onChange={(e) => setFormData({ ...formData, ingresos_madre: e.target.value })}
@@ -1471,6 +1528,7 @@ const BeneficiarioOnboardingCompleto = () => {
                     <option key={idx} value={opc}>{opc}</option>
                   ))}
                 </select>
+                {errors.ingresos_madre && <p className="text-red-500 text-sm mt-1">{errors.ingresos_madre}</p>}
               </div>
             </div>
           </div>

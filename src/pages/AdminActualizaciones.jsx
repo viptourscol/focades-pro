@@ -436,14 +436,19 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
               <span>·</span>
               <span>{beneficiario?.email || '—'}</span>
             </div>
-            {beneficiario?.convocatoria_id && (
-              <div className="flex items-center gap-1.5 pt-0.5">
-                <div className="bg-blue-500 rounded-full w-1.5 h-1.5"></div>
-                <p className="text-xs text-slate-600">
-                  <span className="font-medium">Convocatoria:</span> {convocatoriasMap[beneficiario.convocatoria_id]?.nombre || convocatoriasMap[beneficiario.convocatoria_id]?.anio || 'N/A'}
-                </p>
-              </div>
-            )}
+            
+            {/* Convocatoria - Siempre mostrar para debug */}
+            <div className="flex items-center gap-1.5 pt-1 pb-0.5">
+              <div className={`${beneficiario?.convocatoria_id ? 'bg-blue-500' : 'bg-slate-300'} rounded-full w-1.5 h-1.5`}></div>
+              <p className="text-xs text-slate-600">
+                <span className="font-semibold">Convocatoria:</span>{' '}
+                {beneficiario?.convocatoria_id 
+                  ? (convocatoriasMap[beneficiario.convocatoria_id]?.nombre || convocatoriasMap[beneficiario.convocatoria_id]?.anio || `ID: ${beneficiario.convocatoria_id}`)
+                  : <span className="text-slate-400 italic">Sin asignar</span>
+                }
+              </p>
+            </div>
+            
             {ventana?.nombre && (
               <p className="text-sm text-slate-500">Ventana: <span className="font-medium">{ventana.nombre}</span></p>
             )}
@@ -1185,7 +1190,16 @@ const AdminActualizaciones = () => {
       const cMap = {};
       (convocData || []).forEach((c) => { cMap[c.id] = c; });
       setConvocatoriasMap(cMap);
-    } catch {
+      
+      // Debug: verificar carga de convocatorias
+      console.log('📊 Datos cargados en AdminActualizaciones:', {
+        convocatorias: convocData?.length || 0,
+        beneficiarios: benefData?.length || 0,
+        beneficiarios_con_convocatoria: (benefData || []).filter(b => b.convocatoria_id).length,
+        convocatoriasMap: cMap
+      });
+    } catch (error) {
+      console.error('❌ Error cargando datos:', error);
       setRows([]);
     } finally {
       setLoading(false);

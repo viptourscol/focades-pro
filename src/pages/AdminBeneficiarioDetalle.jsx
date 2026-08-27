@@ -724,6 +724,9 @@ const AdminBeneficiarioDetalle = () => {
       const profile = await loadProfileData();
       if (profile) {
         await loadOnboardingData(profile);
+        if (loadedTabs.bitacora) {
+          await loadBitacoraData(profile);
+        }
       }
       
       setIsEditingOnboarding(false);
@@ -990,6 +993,21 @@ const AdminBeneficiarioDetalle = () => {
         .eq('id', beneficiario.id);
 
       if (error) throw error;
+
+      // Registrar en bitácora
+      const session = await getSafeSession();
+      const actorUserId = session?.user?.id || null;
+      const actorEmail = session?.user?.email || 'Sistema';
+
+      await supabase.from('portal_beneficiario_bitacora').insert({
+        beneficiario_id: beneficiario.id,
+        categoria: 'datos_personales',
+        tipo_evento: 'actualizacion_admin',
+        accion: 'update',
+        nota: `Actualización de perfil por ${actorEmail}. Campos: ${Object.keys(profileForm).filter(k => profileForm[k]).join(', ')}`,
+        actor_user_id: actorUserId,
+      });
+
       await showSuccessAlert({ title: 'Perfil actualizado', text: 'Los datos base del beneficiario fueron actualizados.' });
       const profile = await loadProfileData();
       if (loadedTabs.tickets) {
@@ -997,6 +1015,9 @@ const AdminBeneficiarioDetalle = () => {
       }
       if (loadedTabs.expediente) {
         await loadExpedienteData(profile);
+      }
+      if (loadedTabs.bitacora) {
+        await loadBitacoraData(profile);
       }
       await loadPaymentRights(beneficiario.id);
     } catch (error) {
@@ -1038,9 +1059,22 @@ const AdminBeneficiarioDetalle = () => {
       });
       if (historyError) throw historyError;
 
+      // Registrar en bitácora
+      await supabase.from('portal_beneficiario_bitacora').insert({
+        beneficiario_id: beneficiario.id,
+        categoria: 'estado',
+        tipo_evento: 'cambio_estado',
+        accion: 'update',
+        nota: `Cambio de estado de "${beneficiario.estado_beneficiario}" a "${statusDraft}" por ${actor?.email || 'Sistema'}. Motivo: ${statusReason}`,
+        actor_user_id: actor?.id || null,
+      });
+
       setStatusReason('');
       await showSuccessAlert({ title: 'Estado actualizado', text: 'El cambio quedó registrado en el historial.' });
       await loadProfileData();
+      if (loadedTabs.bitacora) {
+        await loadBitacoraData();
+      }
       await loadPaymentRights(beneficiario.id);
     } catch (error) {
       await showErrorAlert({ title: 'No se pudo cambiar el estado', text: error.message || 'Ocurrió un error.' });
@@ -1072,8 +1106,22 @@ const AdminBeneficiarioDetalle = () => {
         .eq('id', updateId);
 
       if (error) throw error;
+
+      // Registrar en bitácora
+      await supabase.from('portal_beneficiario_bitacora').insert({
+        beneficiario_id: beneficiario?.id,
+        categoria: 'actualizaciones',
+        tipo_evento: 'revision_actualizacion',
+        accion: 'update',
+        nota: `Revisión de actualización #${updateId} - Estado: ${draft.estado} por ${session?.user?.email || 'Sistema'}${draft.observacion_admin ? '. Obs: ' + draft.observacion_admin : ''}`,
+        actor_user_id: session?.user?.id || null,
+      });
+
       await showSuccessAlert({ title: 'Actualización revisada', text: 'La revisión administrativa fue guardada.' });
       await loadUpdatesData();
+      if (loadedTabs.bitacora) {
+        await loadBitacoraData();
+      }
     } catch (error) {
       await showErrorAlert({ title: 'No se pudo guardar la revisión', text: error.message || 'Ocurrió un error.' });
     } finally {
@@ -1137,9 +1185,24 @@ const AdminBeneficiarioDetalle = () => {
         if (error) throw error;
       }
 
+      // Registrar en bitácora
+      const accionTipo = editingPaymentId ? 'update' : 'create';
+      const accionTexto = editingPaymentId ? 'Actualización' : 'Creación';
+      await supabase.from('portal_beneficiario_bitacora').insert({
+        beneficiario_id: beneficiario.id,
+        categoria: 'pagos',
+        tipo_evento: 'gestion_pagos',
+        accion: accionTipo,
+        nota: `${accionTexto} de pago por ${session?.user?.email || 'Sistema'}. Concepto: ${payload.concepto}, Monto: $${payload.monto.toLocaleString('es-CO')}`,
+        actor_user_id: session?.user?.id || null,
+      });
+
       resetPaymentForm();
       await showSuccessAlert({ title: 'Pago guardado', text: 'El registro financiero fue actualizado.' });
       await loadPagosData();
+      if (loadedTabs.bitacora) {
+        await loadBitacoraData();
+      }
       await loadPaymentRights(beneficiario.id);
     } catch (error) {
       await showErrorAlert({ title: 'No se pudo guardar el pago', text: error.message || 'Ocurrió un error.' });
@@ -1187,8 +1250,23 @@ const AdminBeneficiarioDetalle = () => {
     try {
       const { error } = await supabase.from('portal_beneficiario_pagos').delete().eq('id', paymentId);
       if (error) throw error;
+
+      // Registrar en bitácora
+      const session = await getSafeSession();
+      await supabase.from('portal_beneficiario_bitacora').insert({
+        beneficiario_id: beneficiario?.id,
+        categoria: 'pagos',
+        tipo_evento: 'gestion_pagos',
+        accion: 'delete',
+        nota: `Eliminación de pago #${paymentId} por ${session?.user?.email || 'Sistema'}`,
+        actor_user_id: session?.user?.id || null,
+      });
+
       await showSuccessAlert({ title: 'Pago eliminado', text: 'El registro fue eliminado correctamente.' });
       await loadPagosData();
+      if (loadedTabs.bitacora) {
+        await loadBitacoraData();
+      }
       await loadPaymentRights(beneficiario.id);
     } catch (error) {
       await showErrorAlert({ title: 'No se pudo eliminar el pago', text: error.message || 'Ocurrió un error.' });

@@ -135,7 +135,6 @@ Deno.serve(async (req) => {
 
     const convocatoriaId = sanitizeText(body?.convocatoria_id, 80);
     const radicado = normalizeRadicado(body?.radicado);
-    const puntajeTotal = Number(body?.puntaje_total || 0);
     const personaPayloadRaw = body?.persona && typeof body.persona === 'object' ? body.persona : {};
     const inscripcionFieldsRaw =
       body?.inscripcion_fields && typeof body.inscripcion_fields === 'object' ? body.inscripcion_fields : {};
@@ -339,12 +338,31 @@ Deno.serve(async (req) => {
       n_documento: numeroDocumento,
     };
 
+    // El puntaje se calcula siempre en el servidor: el valor que envíe el cliente se ignora.
+    let puntajeTotal = 0;
+    let puntajeDetalle: unknown = null;
+    let puntajeVersion: number | null = null;
+
+    const puntajeResp = await admin.rpc('calcular_puntaje_inscripcion', {
+      p_datos: { ...datosFormulario, ...inscripcionFields },
+    });
+
+    if (puntajeResp.error) {
+      console.error('Error calculando puntaje de inscripción:', puntajeResp.error);
+    } else if (puntajeResp.data) {
+      puntajeTotal = Number(puntajeResp.data.total || 0);
+      puntajeDetalle = puntajeResp.data.detalle ?? null;
+      puntajeVersion = Number(puntajeResp.data.version) || null;
+    }
+
     const inscripcionPayload = {
       radicado,
       estado: 'Radicado',
       convocatoria_id: convocatoriaId,
       persona_id: personaId,
       puntaje_total: Number.isFinite(puntajeTotal) ? puntajeTotal : 0,
+      puntaje_detalle: puntajeDetalle,
+      puntaje_config_version: puntajeVersion,
       ...inscripcionFields,
       soportes,
       firma_url: firmaUrl || null,

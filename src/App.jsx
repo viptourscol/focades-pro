@@ -10,6 +10,7 @@ import AdminImportBeneficiarios from './pages/AdminImportBeneficiarios';
 import AdminBeneficiarioDetalle from './pages/AdminBeneficiarioDetalle';
 import AdminActualizaciones from './pages/AdminActualizaciones';
 import AdminVentanasActualizacion from './pages/AdminVentanasActualizacion';
+import AdminConfiguracionPuntaje from './pages/AdminConfiguracionPuntaje';
 import Registro from './pages/Registro';
 import TicketsAdmin from './pages/TicketsAdmin';
 import PortalConfig from './pages/PortalConfig';
@@ -326,6 +327,7 @@ function App() {
           <Route path="importar-pagos" element={<Navigate to="/admin/historicos/pagos" replace />} />
           <Route path="activacion" element={<Navigate to="/admin/historicos/activacion" replace />} />
           <Route path="aspirantes" element={<Aspirantes />} />
+          <Route path="aspirantes/configuracion-puntaje" element={<AdminConfiguracionPuntaje />} />
           <Route path="convocatorias" element={<AdminConvocatorias />} />
           <Route path="faq" element={<AdminFaq />} />
           <Route path="tickets" element={<TicketsAdmin />} />

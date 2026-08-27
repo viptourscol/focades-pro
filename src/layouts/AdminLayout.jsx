@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { to: '/admin/generador-tokens', label: 'Generar Tokens', icon: <Zap size={20} />, match: (path) => path.startsWith('/admin/generador-tokens') },
   { to: '/admin/tokens-activacion', label: 'Tokens Activación', icon: <KeyRound size={20} />, match: (path) => path.startsWith('/admin/tokens-activacion') },
   { to: '/admin/aspirantes', label: 'Aspirantes', icon: <Users size={20} />, match: (path) => path === '/admin/aspirantes' },
+  { to: '/admin/aspirantes/configuracion-puntaje', label: 'Puntaje Aspirantes', icon: <Calculator size={20} />, match: (path) => path.startsWith('/admin/aspirantes/configuracion-puntaje') },
   { to: '/admin/convocatorias', label: 'Convocatorias', icon: <Megaphone size={20} />, match: (path) => path.startsWith('/admin/convocatorias') },
   { to: '/admin/tickets', label: 'Tickets', icon: <LifeBuoy size={20} />, match: (path) => path === '/admin/tickets' },
   { to: '/admin/faq', label: 'FAQ Pública', icon: <HelpCircle size={20} />, match: (path) => path.startsWith('/admin/faq') },
@@ -42,6 +43,7 @@ const getPageMeta = (pathname) => {
   if (pathname.startsWith('/admin/resoluciones')) return { title: 'Resoluciones', subtitle: 'Generación institucional de actos administrativos.' };
   if (pathname.startsWith('/admin/tickets')) return { title: 'Tickets', subtitle: 'Atención, seguimiento y trazabilidad de solicitudes.' };
   if (pathname.startsWith('/admin/configuracion')) return { title: 'Configuración', subtitle: 'Parámetros del portal y control administrativo.' };
+  if (pathname.startsWith('/admin/aspirantes/configuracion-puntaje')) return { title: 'Configuración de Puntaje', subtitle: 'Criterios y pesos con los que se califica a los aspirantes.' };
   if (pathname.startsWith('/admin/aspirantes')) return { title: 'Aspirantes', subtitle: 'Ruta de admisión, legalización y revisión de soportes.' };
   if (pathname.startsWith('/admin/convocatorias')) return { title: 'Convocatorias', subtitle: 'Gestión de cohortes, periodos de inscripción y cupos admitidos.' };
   if (pathname.startsWith('/admin/faq')) return { title: 'FAQ Pública', subtitle: 'Preguntas frecuentes que se muestran en la página principal del portal.' };

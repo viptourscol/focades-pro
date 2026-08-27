@@ -331,6 +331,7 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
 
   const p = aspirante.personas;
   const puntaje = aspirante.puntaje_total || 0;
+  const puntajeDetalle = Array.isArray(aspirante.puntaje_detalle) ? aspirante.puntaje_detalle : [];
   const hasBankCertificateUploaded = Boolean(getBankCertificatePathFromAspirante(aspirante));
   const legalizacionCompletada = hasBankCertificateUploaded && (etapa !== 'legalizacion' || !certBancarioRequerido);
   const legalizacionEnRevision = etapa === 'legalizacion' && certBancarioRequerido && hasBankCertificateUploaded;
@@ -751,6 +752,26 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
                 <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
                     <div className="h-full bg-accent transition-all duration-1000" style={{ width: `${puntaje}%` }}></div>
                 </div>
+
+                {puntajeDetalle.length > 0 && (
+                  <div className="w-full mt-6 pt-5 border-t border-slate-100 space-y-2">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-2">
+                      Desglose
+                      {aspirante?.puntaje_config_version ? ` · v${aspirante.puntaje_config_version}` : ''}
+                    </p>
+                    {puntajeDetalle.map((d) => (
+                      <div key={d.clave} className="flex items-baseline justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-slate-600 truncate">{d.label}</p>
+                          <p className="text-[10px] text-slate-400 truncate">{d.valor}</p>
+                        </div>
+                        <span className="text-xs font-black text-slate-700 shrink-0">
+                          {d.puntos}<span className="text-slate-300">/{d.max}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* REVIEW CHECKLIST */}

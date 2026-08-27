@@ -2465,8 +2465,6 @@ const Registro = () => {
         email,
       };
 
-      const puntaje = Number(formData.puntaje_icfes || 0);
-      const puntajeTotal = Number.isFinite(puntaje) ? Math.max(0, Math.min(100, Math.round((puntaje / 500) * 100))) : 0;
       const firmaHashDatos = await sha256Text(
         JSON.stringify({
           radicado,
@@ -2520,7 +2518,6 @@ const Registro = () => {
       const inscripcionPayload = {
         radicado,
         convocatoria_id: activeConv?.id || null,
-        puntaje_total: puntajeTotal,
         persona: personaPayload,
         inscripcion_fields: inscripcionFormFields,
         soportes,

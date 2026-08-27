@@ -363,11 +363,23 @@ Deno.serve(async (req) => {
       const updateData: any = {}
       for (const [key, value] of Object.entries(profile_data)) {
         if (allowedFields.includes(key)) {
-          // Omitir valores vacíos para evitar errores de tipo en PostgreSQL
+          // Omitir valores vacíos/null/undefined
           if (value === '' || value === null || value === undefined) {
             continue
           }
-          updateData[key] = value
+          
+          // Para campos numéricos específicos, asegurar que sean números o null
+          const numericFields = ['semestre_ingreso', 'semestre_actual', 'puntaje_icfes', 'ano_graduacion', 'año_convocatoria']
+          if (numericFields.includes(key)) {
+            const parsed = typeof value === 'string' ? parseInt(value) : value
+            if (isNaN(parsed)) {
+              console.warn(`Campo numérico ${key} tiene valor inválido: ${value}, omitiendo`)
+              continue
+            }
+            updateData[key] = parsed
+          } else {
+            updateData[key] = value
+          }
         }
       }
 

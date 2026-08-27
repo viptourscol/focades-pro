@@ -432,6 +432,11 @@ const BeneficiarioOnboardingCompleto = () => {
         if (!formData.tipo_educacion) newErrors.tipo_educacion = 'Campo requerido';
         if (!formData.semestre_ingreso) newErrors.semestre_ingreso = 'Campo requerido';
         if (!formData.semestre_actual) newErrors.semestre_actual = 'Campo requerido';
+        // Validar rango de semestre_actual
+        const semestreActual = parseInt(formData.semestre_actual);
+        if (formData.semestre_actual && (isNaN(semestreActual) || semestreActual < 1 || semestreActual > 10)) {
+          newErrors.semestre_actual = 'El semestre debe estar entre 1 y 10';
+        }
         if (!formData.modalidad) newErrors.modalidad = 'Campo requerido';
         if (!formData.dpto_institucion) newErrors.dpto_institucion = 'Campo requerido';
         if (!formData.municipio_institucion) newErrors.municipio_institucion = 'Campo requerido';
@@ -608,52 +613,59 @@ const BeneficiarioOnboardingCompleto = () => {
 
   const updateProfile = async () => {
     try {
+      // Limpiar campos numéricos vacíos (convertir strings vacíos a null)
+      const cleanNumericField = (value) => {
+        if (value === '' || value === null || value === undefined) return null;
+        const parsed = parseInt(value);
+        return isNaN(parsed) ? null : parsed;
+      };
+
       const result = await supabase.functions.invoke('auth-credentials', {
         body: {
           method: 'update-profile',
           beneficiario_id: beneficiarioId,
           profile_data: {
-            genero: formData.genero,
-            fecha_nacimiento: formData.fecha_nacimiento,
-            telefono: formData.telefono,
-            direccion_residencia: formData.direccion_residencia,
-            barrio_corregimiento: formData.barrio_corregimiento,
-            dpto_residencia: formData.dpto_residencia,
-            municipio_residencia: formData.municipio_residencia,
-            zona_residencia: formData.zona_residencia,
-            pais_nacimiento: formData.pais_nacimiento,
-            dpto_nacimiento: formData.dpto_nacimiento,
-            municipio_nacimiento: formData.municipio_nacimiento,
-            sisben_grupo: formData.sisben_grupo,
-            recibe_subsidio: formData.recibe_subsidio,
-            cual_subsidio: formData.cual_subsidio,
-            enfoque_diferencial: formData.enfoque_diferencial,
-            labora_actualmente: formData.labora_actualmente,
-            nombre_padre: formData.nombre_padre,
-            documento_padre: formData.documento_padre,
-            ocupacion_padre: formData.ocupacion_padre,
-            ingresos_padre: formData.ingresos_padre,
-            nombre_madre: formData.nombre_madre,
-            documento_madre: formData.documento_madre,
-            ocupacion_madre: formData.ocupacion_madre,
-            ingresos_madre: formData.ingresos_madre,
-            titulo_obtenido: formData.titulo_obtenido,
-            ano_graduacion: formData.ano_graduacion,
-            establecimiento_educativo: formData.establecimiento_educativo,
-            puntaje_icfes: formData.puntaje_icfes,
-            institucion_superior: formData.institucion_superior,
-            programa_academico: formData.programa_academico,
-            tipo_educacion: formData.tipo_educacion,
-            semestre_ingreso: formData.semestre_ingreso,
-            semestre_actual: formData.semestre_actual,
-            dpto_institucion: formData.dpto_institucion,
-            municipio_institucion: formData.municipio_institucion,
-            modalidad: formData.modalidad,
-            modalidad_beca: formData.modalidad_beca,
-            año_convocatoria: formData.año_convocatoria,
-            nombre_banco: formData.nombre_banco,
-            numero_cuenta: formData.numero_cuenta,
-            tipo_cuenta_bancaria: formData.tipo_cuenta_bancaria,
+            genero: formData.genero || null,
+            fecha_nacimiento: formData.fecha_nacimiento || null,
+            telefono: formData.telefono || null,
+            direccion_residencia: formData.direccion_residencia || null,
+            barrio_corregimiento: formData.barrio_corregimiento || null,
+            dpto_residencia: formData.dpto_residencia || null,
+            municipio_residencia: formData.municipio_residencia || null,
+            zona_residencia: formData.zona_residencia || null,
+            pais_nacimiento: formData.pais_nacimiento || null,
+            dpto_nacimiento: formData.dpto_nacimiento || null,
+            municipio_nacimiento: formData.municipio_nacimiento || null,
+            sisben_grupo: formData.sisben_grupo || null,
+            recibe_subsidio: formData.recibe_subsidio || null,
+            cual_subsidio: formData.cual_subsidio || null,
+            enfoque_diferencial: formData.enfoque_diferencial || null,
+            labora_actualmente: formData.labora_actualmente || null,
+            nombre_padre: formData.nombre_padre || null,
+            documento_padre: formData.documento_padre || null,
+            ocupacion_padre: formData.ocupacion_padre || null,
+            ingresos_padre: formData.ingresos_padre || null,
+            nombre_madre: formData.nombre_madre || null,
+            documento_madre: formData.documento_madre || null,
+            ocupacion_madre: formData.ocupacion_madre || null,
+            ingresos_madre: formData.ingresos_madre || null,
+            titulo_obtenido: formData.titulo_obtenido || null,
+            ano_graduacion: cleanNumericField(formData.ano_graduacion),
+            establecimiento_educativo: formData.establecimiento_educativo || null,
+            puntaje_icfes: cleanNumericField(formData.puntaje_icfes),
+            institucion_superior: formData.institucion_superior || null,
+            programa_academico: formData.programa_academico || null,
+            tipo_educacion: formData.tipo_educacion || null,
+            semestre_ingreso: cleanNumericField(formData.semestre_ingreso),
+            semestre_actual: cleanNumericField(formData.semestre_actual),
+            dpto_institucion: formData.dpto_institucion || null,
+            municipio_institucion: formData.municipio_institucion || null,
+            modalidad: formData.modalidad || null,
+            modalidad_beca: formData.modalidad_beca || null,
+            año_convocatoria: cleanNumericField(formData.año_convocatoria),
+            nombre_banco: formData.nombre_banco || null,
+            numero_cuenta: formData.numero_cuenta || null,
+            tipo_cuenta_bancaria: formData.tipo_cuenta_bancaria || null,
           },
         },
       });
@@ -1722,7 +1734,7 @@ const BeneficiarioOnboardingCompleto = () => {
             onChange={(e) => setFormData({ ...formData, semestre_actual: e.target.value })}
             className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none"
             min="1"
-            max="20"
+            max="10"
             placeholder="5"
           />
           {errors.semestre_actual && <p className="text-red-500 text-sm mt-1">{errors.semestre_actual}</p>}

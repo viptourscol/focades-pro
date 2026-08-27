@@ -25,6 +25,42 @@ const CAMPO_LABELS = {
   semestre_ingreso: 'Semestre de ingreso',
 };
 
+// Los campos del simulador se derivan de las reglas para que siempre reflejen
+// las mismas opciones que ve el aspirante en el formulario.
+const construirCamposSimulador = (reglas) => {
+  if (!reglas?.criterios) return [];
+  const opcionesIngreso = Object.keys(reglas.smlv_por_rango_ingreso || {});
+
+  return reglas.criterios.flatMap((criterio) => {
+    if (criterio.campo === '__ingresos_familiares_smlv') {
+      return ['ingresos_padre', 'ingresos_madre'].map((campo) => ({
+        campo,
+        label: CAMPO_LABELS[campo] || campo,
+        tipo: 'select',
+        opciones: opcionesIngreso,
+      }));
+    }
+
+    if (criterio.tipo === 'exacto') {
+      return [{
+        campo: criterio.campo,
+        label: criterio.label,
+        tipo: 'select',
+        opciones: (criterio.reglas || []).map((r) => r.valor),
+      }];
+    }
+
+    const limites = (criterio.reglas || []).flatMap((r) => [Number(r.desde), Number(r.hasta)]).filter(Number.isFinite);
+    return [{
+      campo: criterio.campo,
+      label: criterio.label,
+      tipo: 'number',
+      min: limites.length ? Math.min(...limites) : 0,
+      max: limites.length ? Math.max(...limites) : undefined,
+    }];
+  });
+};
+
 export default function AdminConfiguracionPuntaje() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -70,6 +106,8 @@ export default function AdminConfiguracionPuntaje() {
     () => JSON.stringify(reglas) !== JSON.stringify(reglasOriginales),
     [reglas, reglasOriginales]
   );
+
+  const camposSimulador = useMemo(() => construirCamposSimulador(reglas), [reglas]);
 
   const sumaValida = sumaMaximos === 100;
 
@@ -247,23 +285,39 @@ export default function AdminConfiguracionPuntaje() {
         </div>
 
         <div className="space-y-4">
-          <div className="bg-white border border-border rounded-2xl p-5 sticky top-4">
+          <div className="bg-white border border-border rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-4">
               <FlaskConical className="text-secondary" size={18} />
               <h3 className="font-bold text-primary text-sm uppercase tracking-wide">Simulador</h3>
             </div>
 
             <div className="space-y-2 mb-4">
-              {Object.entries(perfil).map(([campo, valor]) => (
-                <label key={campo} className="block">
+              {camposSimulador.map((campo) => (
+                <label key={campo.campo} className="block">
                   <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1">
-                    {CAMPO_LABELS[campo] || campo}
+                    {campo.label}
                   </span>
-                  <input
-                    value={valor}
-                    onChange={(e) => setPerfil((p) => ({ ...p, [campo]: e.target.value }))}
-                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs"
-                  />
+                  {campo.tipo === 'select' ? (
+                    <select
+                      value={perfil[campo.campo] ?? ''}
+                      onChange={(e) => setPerfil((p) => ({ ...p, [campo.campo]: e.target.value }))}
+                      className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white"
+                    >
+                      <option value="">Sin dato</option>
+                      {campo.opciones.map((op) => (
+                        <option key={op} value={op}>{op}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="number"
+                      min={campo.min}
+                      max={campo.max}
+                      value={perfil[campo.campo] ?? ''}
+                      onChange={(e) => setPerfil((p) => ({ ...p, [campo.campo]: e.target.value }))}
+                      className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs"
+                    />
+                  )}
                 </label>
               ))}
             </div>

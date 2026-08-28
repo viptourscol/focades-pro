@@ -291,9 +291,17 @@ const BeneficiarioActualizacion = () => {
             .maybeSingle();
           
           if (prevUpdate) {
+            console.log('📋 Actualización previa cargada:', {
+              id: prevUpdate.id,
+              estado: prevUpdate.estado,
+              campos_a_corregir: prevUpdate.campos_a_corregir,
+              documentos_a_corregir: prevUpdate.documentos_a_corregir,
+              marcado_subsanacion_at: prevUpdate.marcado_subsanacion_at,
+            });
             setPreviousUpdate(prevUpdate);
 
             if (prevUpdate.estado === 'subsanacion') {
+              console.log('✅ Modo subsanación activado');
               const payloadPrevio = prevUpdate.payload_formulario || {};
               setSubsanacionForm({
                 email: prevUpdate.email || '',

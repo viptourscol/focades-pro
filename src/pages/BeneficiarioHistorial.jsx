@@ -9,6 +9,7 @@ import {
   MapPin,
   Phone,
   XCircle,
+  AlertTriangle,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import DocViewerModal from '../components/DocViewerModal';
@@ -45,6 +46,14 @@ const estadoMeta = (estado) => {
     };
   }
 
+  if (estado === 'subsanacion') {
+    return {
+      label: 'Subsanación',
+      badge: 'bg-blue-100 text-blue-700 border-blue-200',
+      icon: <AlertTriangle size={14} className="text-blue-600" />,
+    };
+  }
+
   return {
     label: 'En revisión',
     badge: 'bg-amber-100 text-amber-700 border-amber-200',
@@ -53,6 +62,21 @@ const estadoMeta = (estado) => {
 };
 
 const DOCUMENT_LABELS = {
+  certificado_bancario: 'Certificado bancario',
+  certificado_notas: 'Certificado de notas',
+  certificado_matricula: 'Certificado de matrícula',
+};
+
+const CAMPO_LABELS_SUBSANACION = {
+  email: 'Correo',
+  telefono: 'Teléfono',
+  direccion: 'Dirección',
+  semestre_actual: 'Semestre que actualiza',
+  promedio_semestre_anterior: 'Promedio semestre anterior',
+  datos_bancarios: 'Datos bancarios',
+};
+
+const DOCUMENTO_LABELS_SUBSANACION = {
   certificado_bancario: 'Certificado bancario',
   certificado_notas: 'Certificado de notas',
   certificado_matricula: 'Certificado de matrícula',
@@ -229,6 +253,27 @@ const BeneficiarioHistorial = () => {
                     {meta.label}
                   </div>
                 </div>
+
+                {row.estado === 'subsanacion' && (
+                  <div className="mt-4 p-4 rounded-xl border border-blue-300 bg-blue-50 text-blue-900 flex items-start gap-3">
+                    <AlertTriangle size={16} className="flex-shrink-0 mt-0.5 text-blue-600" />
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm">Debes corregir tu actualización</p>
+                      <p className="text-xs text-blue-800 mt-1">El equipo administrativo ha solicitado correcciones en tu actualización. Abre la página de actualización para completarlas.</p>
+                      {(Array.isArray(row.campos_a_corregir) && row.campos_a_corregir.length > 0 || Array.isArray(row.documentos_a_corregir) && row.documentos_a_corregir.length > 0) && (
+                        <div className="text-xs text-blue-700 mt-2 space-y-1">
+                          {Array.isArray(row.campos_a_corregir) && row.campos_a_corregir.length > 0 && (
+                            <p><strong>Campos a corregir:</strong> {row.campos_a_corregir.map((c) => CAMPO_LABELS_SUBSANACION[c] || c).join(', ')}</p>
+                          )}
+                          {Array.isArray(row.documentos_a_corregir) && row.documentos_a_corregir.length > 0 && (
+                            <p><strong>Documentos a reemplazar:</strong> {row.documentos_a_corregir.map((d) => DOCUMENTO_LABELS_SUBSANACION[d] || d).join(', ')}</p>
+                          )}
+                        </div>
+                      )}
+                      <p className="text-xs text-blue-700 mt-2 opacity-75">Marcada para subsanación: {formatDateTime(row.marcado_subsanacion_at)}</p>
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-4 grid grid-cols-2 xl:grid-cols-4 gap-2">
                   <DataPill icon={<CalendarDays size={12} />} label="Ventana" value={windowInfo?.nombre || 'No definida'} />

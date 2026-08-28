@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   CalendarDays,
   CheckCircle2,
@@ -103,6 +104,7 @@ const DataPill = ({ icon, label, value }) => {
 };
 
 const BeneficiarioHistorial = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [docsByUpdate, setDocsByUpdate] = useState({});
@@ -259,7 +261,7 @@ const BeneficiarioHistorial = () => {
                     <AlertTriangle size={16} className="flex-shrink-0 mt-0.5 text-blue-600" />
                     <div className="flex-1">
                       <p className="font-semibold text-sm">Debes corregir tu actualización</p>
-                      <p className="text-xs text-blue-800 mt-1">El equipo administrativo ha solicitado correcciones en tu actualización. Abre la página de actualización para completarlas.</p>
+                      <p className="text-xs text-blue-800 mt-1">El equipo administrativo ha solicitado correcciones en tu actualización.</p>
                       {(Array.isArray(row.campos_a_corregir) && row.campos_a_corregir.length > 0 || Array.isArray(row.documentos_a_corregir) && row.documentos_a_corregir.length > 0) && (
                         <div className="text-xs text-blue-700 mt-2 space-y-1">
                           {Array.isArray(row.campos_a_corregir) && row.campos_a_corregir.length > 0 && (
@@ -271,6 +273,13 @@ const BeneficiarioHistorial = () => {
                         </div>
                       )}
                       <p className="text-xs text-blue-700 mt-2 opacity-75">Marcada para subsanación: {formatDateTime(row.marcado_subsanacion_at)}</p>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/beneficiario/actualizacion')}
+                        className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 hover:scale-105 transition-all duration-200"
+                      >
+                        Corregir ahora
+                      </button>
                     </div>
                   </div>
                 )}

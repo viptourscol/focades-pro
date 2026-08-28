@@ -287,9 +287,14 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
           p_documentos: documentosACorregir,
           p_observacion: String(reviewObs || '').trim(),
         });
-        if (error) throw error;
+        if (error) {
+          console.error('RPC admin_marcar_subsanacion error:', error);
+          throw error;
+        }
+        console.log('✅ Subsanación marcada exitosamente para actualización', update.id);
         return { ok: true };
       } catch (err) {
+        console.error('❌ Error al marcar subsanación:', err);
         return { ok: false, error: err?.message || 'Ocurrió un error al marcar la subsanación.' };
       }
     }

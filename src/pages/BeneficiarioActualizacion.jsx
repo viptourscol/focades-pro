@@ -287,14 +287,20 @@ const BeneficiarioActualizacion = () => {
             ventana_nombre: ventanaData.nombre,
           });
           
-          const { data: prevUpdate } = await supabase
-            .from('portal_actualizaciones')
-            .select('id, estado, created_at, observacion_admin, campos_a_corregir, documentos_a_corregir, marcado_subsanacion_at, semestre_actual, promedio_semestre_anterior, email, telefono, direccion, payload_formulario')
-            .eq('beneficiario_id', beneficiarioId)
-            .eq('ventana_id', ventanaData.id)
-            .in('estado', ['en_revision', 'aprobada', 'rechazada', 'subsanacion'])
-            .order('created_at', { ascending: false })
-            .maybeSingle();
+          // Usar Edge Function para evitar bloqueo de RLS
+          const { data: result, error: invokeError } = await supabase.functions.invoke('get-beneficiario-actualizacion', {
+            body: {
+              beneficiario_id: beneficiarioId,
+              ventana_id: ventanaData.id,
+            },
+          });
+
+          if (invokeError) {
+            console.error('❌ Error invocando Edge Function:', invokeError);
+            throw invokeError;
+          }
+
+          const prevUpdate = result?.actualizacion || null;
           
           if (prevUpdate) {
             console.log('📋 Actualización previa cargada:', {

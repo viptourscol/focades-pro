@@ -11,6 +11,7 @@ import AdminBeneficiarioDetalle from './pages/AdminBeneficiarioDetalle';
 import AdminActualizaciones from './pages/AdminActualizaciones';
 import AdminVentanasActualizacion from './pages/AdminVentanasActualizacion';
 import AdminConfiguracionPuntaje from './pages/AdminConfiguracionPuntaje';
+import AdminDocumentacion from './pages/AdminDocumentacion';
 import Registro from './pages/Registro';
 import TicketsAdmin from './pages/TicketsAdmin';
 import PortalConfig from './pages/PortalConfig';
@@ -330,6 +331,7 @@ function App() {
           <Route path="aspirantes/configuracion-puntaje" element={<AdminConfiguracionPuntaje />} />
           <Route path="convocatorias" element={<AdminConvocatorias />} />
           <Route path="faq" element={<AdminFaq />} />
+          <Route path="documentacion" element={<AdminDocumentacion />} />
           <Route path="tickets" element={<TicketsAdmin />} />
           <Route path="configuracion" element={<PortalConfig />} />
           <Route

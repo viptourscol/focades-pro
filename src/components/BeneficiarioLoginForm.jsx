@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { showErrorAlert } from '../lib/alerts';
+import { showErrorAlert, showSuccessAlert } from '../lib/alerts';
 import { Lock, LogIn, AlertCircle, Mail, Eye, EyeOff } from 'lucide-react';
 
 export const BeneficiarioLoginForm = ({ onSuccess, isLoading, setIsLoading }) => {
@@ -119,10 +119,9 @@ export const BeneficiarioLoginForm = ({ onSuccess, isLoading, setIsLoading }) =>
       setShowPasswordReset(false);
       setResetEmail('');
       
-      await showErrorAlert({
+      await showSuccessAlert({
         title: 'Correo enviado',
         text: data.message || 'Si el correo está registrado, recibirás un link de recuperación en tu bandeja de entrada.',
-        icon: 'success',
       });
     } catch (error) {
       await showErrorAlert({

@@ -20,6 +20,15 @@ export default function AdminTokensActivacion() {
   const [sendingEmails, setSendingEmails] = useState(false);
   const [sendProgress, setSendProgress] = useState({ current: 0, total: 0 });
 
+  // Estados para reenvío masivo de tokens vencidos
+  const [showExpiredTokens, setShowExpiredTokens] = useState(false);
+  const [expiredTokens, setExpiredTokens] = useState([]);
+  const [loadingExpired, setLoadingExpired] = useState(false);
+  const [selectedExpiredIds, setSelectedExpiredIds] = useState(new Set());
+  const [resendingExpired, setResendingExpired] = useState(false);
+  const [resendProgress, setResendProgress] = useState({ current: 0, total: 0 });
+  const [resendResults, setResendResults] = useState(null);
+
   useEffect(() => {
     loadBeneficiarios();
   }, []);
@@ -371,6 +380,113 @@ export default function AdminTokensActivacion() {
     await loadPendingEmails();
   };
 
+  const loadExpiredTokens = async () => {
+    setLoadingExpired(true);
+    setResendResults(null);
+    try {
+      const { data: credentials, error: credsError } = await supabase
+        .from('portal_auth_credentials')
+        .select(`
+          beneficiario_id,
+          setup_token_expires_at,
+          setup_completed_at,
+          portal_beneficiarios (
+            id,
+            nombre_completo,
+            email,
+            n_documento
+          )
+        `)
+        .not('setup_token', 'is', null)
+        .lt('setup_token_expires_at', new Date().toISOString())
+        .is('setup_completed_at', null);
+
+      if (credsError) throw credsError;
+
+      const expired = (credentials || [])
+        .filter((c) => c.portal_beneficiarios)
+        .map((c) => ({
+          id: c.beneficiario_id,
+          ...c.portal_beneficiarios,
+          token_expired_at: c.setup_token_expires_at,
+        }));
+
+      setExpiredTokens(expired);
+      setSelectedExpiredIds(new Set(expired.map((b) => b.id)));
+    } catch (error) {
+      console.error('Error cargando tokens vencidos:', error);
+      showErrorAlert({ title: 'Error', text: 'No se pudieron cargar los tokens vencidos' });
+    } finally {
+      setLoadingExpired(false);
+    }
+  };
+
+  const handleShowExpiredTokens = async () => {
+    setShowExpiredTokens(true);
+    await loadExpiredTokens();
+  };
+
+  const handleToggleExpiredSelection = (id) => {
+    const next = new Set(selectedExpiredIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedExpiredIds(next);
+  };
+
+  const handleSelectAllExpired = () => {
+    if (selectedExpiredIds.size === expiredTokens.length) {
+      setSelectedExpiredIds(new Set());
+    } else {
+      setSelectedExpiredIds(new Set(expiredTokens.map((b) => b.id)));
+    }
+  };
+
+  const handleResendExpiredTokens = async () => {
+    if (selectedExpiredIds.size === 0) return;
+
+    const confirmed = await showConfirmAlert({
+      title: '¿Reenviar tokens vencidos?',
+      text: `Se generará un nuevo token de activación y se enviará el correo a ${selectedExpiredIds.size} beneficiario${selectedExpiredIds.size > 1 ? 's' : ''}.`,
+      confirmButtonText: 'Sí, reenviar',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!confirmed) return;
+
+    setResendingExpired(true);
+    setResendProgress({ current: 0, total: selectedExpiredIds.size });
+
+    let exitosos = 0;
+    let fallidos = 0;
+    let current = 0;
+
+    for (const beneficiarioId of selectedExpiredIds) {
+      current += 1;
+      setResendProgress({ current, total: selectedExpiredIds.size });
+
+      try {
+        const { data, error } = await supabase.functions.invoke('auth-credentials', {
+          body: {
+            method: 'admin-resend-token',
+            beneficiario_id: beneficiarioId,
+            admin_api_key: ADMIN_API_KEY,
+          },
+        });
+
+        if (error || !data?.ok) throw new Error(data?.error || error?.message || 'Error desconocido');
+        exitosos += 1;
+      } catch (error) {
+        console.error(`Error reenviando token para beneficiario ${beneficiarioId}:`, error);
+        fallidos += 1;
+      }
+    }
+
+    setResendingExpired(false);
+    setResendResults({ exitosos, fallidos, total: selectedExpiredIds.size });
+    setSelectedExpiredIds(new Set());
+    await loadExpiredTokens();
+    await loadBeneficiarios();
+  };
+
   const getEstadoBadge = (estado) => {
     switch (estado) {
       case 'activado':
@@ -441,6 +557,13 @@ export default function AdminTokensActivacion() {
         </div>
         <div className="flex gap-2">
           <button
+            onClick={handleShowExpiredTokens}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors font-semibold"
+          >
+            <AlertCircle size={18} />
+            Reenviar Tokens Vencidos
+          </button>
+          <button
             onClick={handleShowPendingEmails}
             className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors font-semibold"
           >
@@ -456,6 +579,164 @@ export default function AdminTokensActivacion() {
           </button>
         </div>
       </div>
+
+      {/* Modal de Tokens Vencidos */}
+      {showExpiredTokens && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-slate-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-primary">Reenviar Tokens Vencidos</h2>
+                  <p className="text-sm text-slate-600 mt-1">
+                    Se generará un token nuevo y se enviará el correo de activación a cada beneficiario seleccionado
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowExpiredTokens(false);
+                    setSelectedExpiredIds(new Set());
+                    setResendResults(null);
+                  }}
+                  disabled={resendingExpired}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <XCircle size={28} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {loadingExpired ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <Loader2 className="animate-spin mx-auto mb-4 text-primary" size={32} />
+                    <p className="text-slate-600">Buscando tokens vencidos...</p>
+                  </div>
+                </div>
+              ) : resendResults ? (
+                <div className="text-center py-12">
+                  <CheckCircle2 className="mx-auto mb-4 text-green-500" size={48} />
+                  <h3 className="text-lg font-semibold text-slate-900 mb-2">Reenvío completado</h3>
+                  <p className="text-slate-600">
+                    {resendResults.exitosos} de {resendResults.total} tokens reenviados correctamente.
+                    {resendResults.fallidos > 0 && (
+                      <span className="block text-red-600 mt-1">{resendResults.fallidos} fallaron, revisa el listado nuevamente.</span>
+                    )}
+                  </p>
+                </div>
+              ) : expiredTokens.length === 0 ? (
+                <div className="text-center py-12">
+                  <CheckCircle2 className="mx-auto mb-4 text-green-500" size={48} />
+                  <h3 className="text-lg font-semibold text-slate-900 mb-2">¡Todo al día!</h3>
+                  <p className="text-slate-600">
+                    No hay beneficiarios con tokens vencidos pendientes de activar.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-200">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedExpiredIds.size === expiredTokens.length && expiredTokens.length > 0}
+                        onChange={handleSelectAllExpired}
+                        className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary"
+                      />
+                      <span className="text-sm font-semibold text-slate-700">
+                        {selectedExpiredIds.size > 0
+                          ? `${selectedExpiredIds.size} seleccionado${selectedExpiredIds.size > 1 ? 's' : ''}`
+                          : 'Seleccionar todos'}
+                      </span>
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      Total: {expiredTokens.length} token{expiredTokens.length !== 1 ? 's' : ''} vencido{expiredTokens.length !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {expiredTokens.map((beneficiario) => (
+                      <div
+                        key={beneficiario.id}
+                        className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                          selectedExpiredIds.has(beneficiario.id)
+                            ? 'border-primary bg-primary/5'
+                            : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                        onClick={() => !resendingExpired && handleToggleExpiredSelection(beneficiario.id)}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedExpiredIds.has(beneficiario.id)}
+                          onChange={() => {}}
+                          disabled={resendingExpired}
+                          className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary"
+                        />
+                        <div className="flex-1">
+                          <div className="font-semibold text-slate-900">{beneficiario.nombre_completo}</div>
+                          <div className="text-sm text-slate-600 mt-1">{beneficiario.email}</div>
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-orange-100 text-orange-700">
+                              <AlertCircle size={12} />
+                              Vencido {new Date(beneficiario.token_expired_at).toLocaleString('es-CO')}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {expiredTokens.length > 0 && !resendResults && (
+              <div className="p-6 border-t border-slate-200 bg-slate-50">
+                {resendingExpired ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-sm text-slate-700">
+                      <span>Reenviando tokens...</span>
+                      <span className="font-semibold">{resendProgress.current} / {resendProgress.total}</span>
+                    </div>
+                    <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+                      <div
+                        className="bg-orange-500 h-full transition-all duration-300 rounded-full"
+                        style={{ width: `${(resendProgress.current / resendProgress.total) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm text-slate-600">
+                      {selectedExpiredIds.size > 0
+                        ? `${selectedExpiredIds.size} beneficiario${selectedExpiredIds.size > 1 ? 's' : ''} seleccionado${selectedExpiredIds.size > 1 ? 's' : ''}`
+                        : 'Selecciona beneficiarios para reenviar'}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setShowExpiredTokens(false);
+                          setSelectedExpiredIds(new Set());
+                        }}
+                        className="px-5 py-2.5 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors font-semibold"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={handleResendExpiredTokens}
+                        disabled={selectedExpiredIds.size === 0}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Send size={18} />
+                        Reenviar {selectedExpiredIds.size > 0 ? `(${selectedExpiredIds.size})` : ''}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modal de Emails Pendientes */}
       {showPendingEmails && (

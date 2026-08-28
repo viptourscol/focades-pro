@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
     // 1. Obtener actualizaciones
     const { data: actualizaciones, error: actualizacionesError } = await supabase
       .from('portal_actualizaciones')
-      .select('id,ventana_id,estado,semestre_actual,promedio_semestre_anterior,email,telefono,direccion,observacion_admin,revisado_at,created_at,updated_at')
+      .select('id,ventana_id,estado,semestre_actual,promedio_semestre_anterior,email,telefono,direccion,observacion_admin,revisado_at,created_at,updated_at,campos_a_corregir,documentos_a_corregir,marcado_subsanacion_at,subsanado_at')
       .eq('beneficiario_id', beneficiario_id)
       .order('created_at', { ascending: false })
       .limit(50)

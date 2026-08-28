@@ -177,6 +177,28 @@ const BeneficiarioActualizacion = () => {
   const [banksError, setBanksError] = useState('');
   const [cuentaBancariaConfirm, setCuentaBancariaConfirm] = useState('');
 
+  // Estado de subsanación: edición puntual de una actualización marcada por el admin.
+  const [subsanacionForm, setSubsanacionForm] = useState({
+    email: '',
+    telefono: '',
+    direccion: '',
+    semestre_actual: '',
+    promedio_semestre_anterior: '',
+    banco: '',
+    tipo_cuenta: '',
+    cuenta_bancaria: '',
+    fecha_expedicion_cert_bancario: '',
+  });
+  const [subsanacionFiles, setSubsanacionFiles] = useState({
+    certificado_bancario: null,
+    certificado_notas: null,
+    certificado_matricula: null,
+  });
+  const [subsanacionDocsActuales, setSubsanacionDocsActuales] = useState([]);
+  const [subsanacionCuentaConfirm, setSubsanacionCuentaConfirm] = useState('');
+  const [subsanacionSaving, setSubsanacionSaving] = useState(false);
+  const [subsanacionDone, setSubsanacionDone] = useState(false);
+
   useEffect(() => {
     let mounted = true;
 
@@ -261,15 +283,36 @@ const BeneficiarioActualizacion = () => {
         try {
           const { data: prevUpdate } = await supabase
             .from('portal_actualizaciones')
-            .select('id, estado, created_at, observacion_admin')
+            .select('id, estado, created_at, observacion_admin, campos_a_corregir, documentos_a_corregir, semestre_actual, promedio_semestre_anterior, email, telefono, direccion, payload_formulario')
             .eq('beneficiario_id', beneficiarioId)
             .eq('ventana_id', ventanaData.id)
-            .in('estado', ['en_revision', 'aprobada', 'rechazada'])
+            .in('estado', ['en_revision', 'aprobada', 'rechazada', 'subsanacion'])
             .order('created_at', { ascending: false })
             .maybeSingle();
           
           if (prevUpdate) {
             setPreviousUpdate(prevUpdate);
+
+            if (prevUpdate.estado === 'subsanacion') {
+              const payloadPrevio = prevUpdate.payload_formulario || {};
+              setSubsanacionForm({
+                email: prevUpdate.email || '',
+                telefono: prevUpdate.telefono || '',
+                direccion: prevUpdate.direccion || '',
+                semestre_actual: String(prevUpdate.semestre_actual || ''),
+                promedio_semestre_anterior: String(prevUpdate.promedio_semestre_anterior ?? ''),
+                banco: payloadPrevio.banco || '',
+                tipo_cuenta: payloadPrevio.tipo_cuenta || '',
+                cuenta_bancaria: payloadPrevio.cuenta_bancaria || '',
+                fecha_expedicion_cert_bancario: payloadPrevio.fecha_expedicion_cert_bancario || '',
+              });
+
+              const { data: docsPrevios } = await supabase
+                .from('portal_actualizacion_documentos')
+                .select('tipo_documento, nombre_original')
+                .eq('actualizacion_id', prevUpdate.id);
+              if (docsPrevios) setSubsanacionDocsActuales(docsPrevios);
+            }
           }
         } catch (err) {
           // Error consultando actualización previa
@@ -329,12 +372,17 @@ const BeneficiarioActualizacion = () => {
     if (!profile) return false;
     if (profile.estado_beneficiario !== 'activo') return false;
     if (!windowInfo) return false;
-    // No puede actualizar si ya existe envío en revisión o aprobado
-    if (previousUpdate && ['en_revision', 'aprobada'].includes(previousUpdate.estado)) {
+    // No puede enviar una actualización nueva si ya existe una en revisión, aprobada
+    // o pendiente de subsanación (esta última se corrige, no se reenvía desde cero).
+    if (previousUpdate && ['en_revision', 'aprobada', 'subsanacion'].includes(previousUpdate.estado)) {
       return false;
     }
     return true;
   }, [profile, windowInfo, previousUpdate]);
+
+  const isSubsanacionMode = previousUpdate?.estado === 'subsanacion';
+  const camposASubsanar = Array.isArray(previousUpdate?.campos_a_corregir) ? previousUpdate.campos_a_corregir : [];
+  const documentosASubsanar = Array.isArray(previousUpdate?.documentos_a_corregir) ? previousUpdate.documentos_a_corregir : [];
 
   const validateFile = (file, label) => {
     if (!file) {
@@ -400,7 +448,6 @@ const BeneficiarioActualizacion = () => {
         return;
       }
 
-      const minPromedio = Number(config?.promedio_minimo || 3.5);
       const promedio = Number(String(form.promedio_semestre_anterior || '').replace(',', '.'));
 
       if (!Number.isFinite(promedio)) {
@@ -411,9 +458,9 @@ const BeneficiarioActualizacion = () => {
         throw new Error('El promedio debe estar entre 0 y 5.');
       }
 
-      if (promedio < minPromedio) {
-        throw new Error(`El promedio no puede ser menor a ${minPromedio}.`);
-      }
+      // No se bloquea el envío si el promedio está por debajo del mínimo vigente:
+      // el beneficiario debe poder reportarlo igualmente para dejar trazabilidad,
+      // y la actualización queda en revisión administrativa por ese motivo.
 
       const accountNumber = normalizeAccountNumber(form.cuenta_bancaria);
       const accountConfirm = normalizeAccountNumber(cuentaBancariaConfirm);
@@ -575,6 +622,112 @@ const BeneficiarioActualizacion = () => {
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSubsanar = async () => {
+    if (!profile || !previousUpdate || previousUpdate.estado !== 'subsanacion') return;
+
+    try {
+      if (camposASubsanar.includes('email')) {
+        const email = String(subsanacionForm.email || '').trim();
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          throw new Error('Ingresa un correo electrónico válido.');
+        }
+      }
+      if (camposASubsanar.includes('telefono') && !String(subsanacionForm.telefono || '').trim()) {
+        throw new Error('El teléfono es obligatorio.');
+      }
+      if (camposASubsanar.includes('direccion') && !String(subsanacionForm.direccion || '').trim()) {
+        throw new Error('La dirección es obligatoria.');
+      }
+      if (camposASubsanar.includes('semestre_actual')) {
+        const semestre = Number(subsanacionForm.semestre_actual);
+        if (!Number.isInteger(semestre) || semestre < 1 || semestre > 10) {
+          throw new Error('El semestre debe ser un número entre 1 y 10.');
+        }
+      }
+      if (camposASubsanar.includes('promedio_semestre_anterior')) {
+        const promedio = Number(String(subsanacionForm.promedio_semestre_anterior || '').replace(',', '.'));
+        if (!Number.isFinite(promedio) || promedio < 0 || promedio > 5) {
+          throw new Error('El promedio debe ser un número entre 0 y 5.');
+        }
+      }
+
+      let cuentaNormalizada = '';
+      if (camposASubsanar.includes('datos_bancarios')) {
+        if (!String(subsanacionForm.banco || '').trim()) throw new Error('Selecciona o escribe el banco.');
+        if (!String(subsanacionForm.tipo_cuenta || '').trim()) throw new Error('Selecciona el tipo de cuenta.');
+
+        cuentaNormalizada = normalizeAccountNumber(subsanacionForm.cuenta_bancaria);
+        if (!cuentaNormalizada || cuentaNormalizada.length < 6 || cuentaNormalizada.length > 20) {
+          throw new Error('El número de cuenta debe tener entre 6 y 20 dígitos.');
+        }
+        const confirmNormalizada = normalizeAccountNumber(subsanacionCuentaConfirm);
+        if (cuentaNormalizada !== confirmNormalizada) {
+          throw new Error('Los números de cuenta no coinciden. Verifica e inténtalo nuevamente.');
+        }
+        if (!subsanacionForm.fecha_expedicion_cert_bancario) {
+          throw new Error('Debes indicar la fecha de expedición del certificado bancario.');
+        }
+      }
+
+      const documentosFaltantes = documentosASubsanar.filter((tipo) => !subsanacionFiles[tipo]);
+      if (documentosFaltantes.length > 0) {
+        throw new Error('Debes adjuntar todos los documentos solicitados por el equipo administrativo.');
+      }
+
+      setSubsanacionSaving(true);
+
+      const fileToBase64 = (file) =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+      const filesBase64 = {};
+      for (const tipo of documentosASubsanar) {
+        const file = subsanacionFiles[tipo];
+        // eslint-disable-next-line no-await-in-loop
+        filesBase64[tipo] = { data: await fileToBase64(file), name: file.name };
+      }
+
+      const { data: result, error: invokeError } = await supabase.functions.invoke('subsanar-actualizacion-beneficiario', {
+        body: {
+          beneficiario_id: profile.id,
+          actualizacion_id: previousUpdate.id,
+          form_data: {
+            email: subsanacionForm.email,
+            telefono: subsanacionForm.telefono,
+            direccion: subsanacionForm.direccion,
+            semestre_actual: subsanacionForm.semestre_actual,
+            promedio_semestre_anterior: subsanacionForm.promedio_semestre_anterior,
+            banco: subsanacionForm.banco,
+            tipo_cuenta: subsanacionForm.tipo_cuenta,
+            cuenta_bancaria: cuentaNormalizada || normalizeAccountNumber(subsanacionForm.cuenta_bancaria),
+            fecha_expedicion_cert_bancario: subsanacionForm.fecha_expedicion_cert_bancario,
+          },
+          files_base64: filesBase64,
+        },
+      });
+
+      if (invokeError) {
+        throw new Error(invokeError.message || 'Error al comunicarse con el servidor.');
+      }
+      if (!result?.ok) {
+        throw new Error(result?.error || 'No se pudo enviar la corrección.');
+      }
+
+      setSubsanacionDone(true);
+    } catch (error) {
+      await showErrorAlert({
+        title: 'No se pudo enviar la corrección',
+        text: error.message || 'Ocurrió un error inesperado.',
+      });
+    } finally {
+      setSubsanacionSaving(false);
     }
   };
 
@@ -780,6 +933,36 @@ const BeneficiarioActualizacion = () => {
           </div>
         )}
 
+        {isSubsanacionMode && !subsanacionDone && (
+          <SubsanacionCard
+            previousUpdate={previousUpdate}
+            camposASubsanar={camposASubsanar}
+            documentosASubsanar={documentosASubsanar}
+            subsanacionForm={subsanacionForm}
+            setSubsanacionForm={setSubsanacionForm}
+            subsanacionFiles={subsanacionFiles}
+            setSubsanacionFiles={setSubsanacionFiles}
+            subsanacionDocsActuales={subsanacionDocsActuales}
+            subsanacionCuentaConfirm={subsanacionCuentaConfirm}
+            setSubsanacionCuentaConfirm={setSubsanacionCuentaConfirm}
+            saving={subsanacionSaving}
+            onSubmit={handleSubsanar}
+            banksOptions={banksOptions}
+            loadingBanks={loadingBanks}
+            validateAndSetFile={validateAndSetFile}
+          />
+        )}
+
+        {subsanacionDone && (
+          <div className="mt-6 p-8 rounded-2xl bg-blue-50 border border-blue-200 flex flex-col items-center text-center gap-3">
+            <CheckCircle2 className="text-blue-600" size={56} />
+            <h3 className="text-2xl font-extrabold text-blue-800">¡Corrección enviada!</h3>
+            <p className="text-sm text-blue-700 max-w-md">
+              Tu actualización volvió a quedar en <strong>revisión administrativa</strong> con los cambios que realizaste.
+            </p>
+          </div>
+        )}
+
         {!canUpdate && !previousUpdate && profile && (
           <div className={`mt-4 p-4 rounded-xl border flex items-start gap-3 text-sm ${
             profile.estado_beneficiario === 'suspendido'
@@ -819,7 +1002,7 @@ const BeneficiarioActualizacion = () => {
           </div>
         )}
 
-        {!submitDone && (
+        {!submitDone && !isSubsanacionMode && (
           <>
             <div className="mt-5">
               <p className="text-xs uppercase tracking-wide font-black text-slate-500 mb-2">Datos Personales</p>
@@ -1171,6 +1354,200 @@ const FileInput = ({ label, file, onChange, disabled = false }) => {
         onChange={(event) => onChange(event.target.files?.[0] || null)}
       />
     </label>
+  );
+};
+
+const CAMPO_LABELS_SUBSANACION = {
+  email: 'Correo',
+  telefono: 'Teléfono',
+  direccion: 'Dirección',
+  semestre_actual: 'Semestre que actualiza',
+  promedio_semestre_anterior: 'Promedio semestre anterior',
+  datos_bancarios: 'Datos bancarios',
+};
+
+const DOCUMENTO_LABELS_SUBSANACION = {
+  certificado_bancario: 'Certificado bancario',
+  certificado_notas: 'Certificado de notas',
+  certificado_matricula: 'Certificado de matrícula',
+};
+
+const SubsanacionCard = ({
+  previousUpdate,
+  camposASubsanar,
+  documentosASubsanar,
+  subsanacionForm,
+  setSubsanacionForm,
+  subsanacionFiles,
+  setSubsanacionFiles,
+  subsanacionDocsActuales,
+  subsanacionCuentaConfirm,
+  setSubsanacionCuentaConfirm,
+  saving,
+  onSubmit,
+  banksOptions,
+  loadingBanks,
+  validateAndSetFile,
+}) => {
+  const nombreDocActual = (tipo) =>
+    subsanacionDocsActuales.find((d) => d.tipo_documento === tipo)?.nombre_original;
+
+  return (
+    <div className="mt-4 rounded-2xl border-2 border-blue-300 bg-blue-50/60 p-5 space-y-5 animate-slide-up">
+      <div className="flex items-start gap-3">
+        <div className="flex-shrink-0 mt-0.5 w-8 h-8 rounded-full bg-blue-200 flex items-center justify-center">
+          <AlertCircle size={16} className="text-blue-700" />
+        </div>
+        <div>
+          <h3 className="font-extrabold text-blue-900">Debes corregir tu actualización</h3>
+          <p className="text-xs text-blue-700 mt-0.5">
+            El equipo administrativo revisó tu envío y solicita ajustar lo siguiente antes de continuar.
+          </p>
+        </div>
+      </div>
+
+      {previousUpdate?.observacion_admin && (
+        <div className="p-3 rounded-xl bg-white border border-blue-200 text-sm text-blue-900">
+          <p className="text-xs font-bold uppercase tracking-wide text-blue-500 mb-1">Observación del equipo</p>
+          {previousUpdate.observacion_admin}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-1.5">
+        {camposASubsanar.map((campo) => (
+          <span key={campo} className="text-[11px] font-bold px-2 py-1 rounded-full bg-blue-100 text-blue-700 ring-1 ring-blue-200">
+            {CAMPO_LABELS_SUBSANACION[campo] || campo}
+          </span>
+        ))}
+        {documentosASubsanar.map((doc) => (
+          <span key={doc} className="text-[11px] font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-700 ring-1 ring-amber-200">
+            {DOCUMENTO_LABELS_SUBSANACION[doc] || doc}
+          </span>
+        ))}
+      </div>
+
+      {(camposASubsanar.includes('email') || camposASubsanar.includes('telefono') || camposASubsanar.includes('direccion') || camposASubsanar.includes('semestre_actual')) && (
+        <div className="grid md:grid-cols-2 gap-3">
+          {camposASubsanar.includes('email') && (
+            <Input label="Correo" required value={subsanacionForm.email} onChange={(v) => setSubsanacionForm((p) => ({ ...p, email: v }))} />
+          )}
+          {camposASubsanar.includes('telefono') && (
+            <Input label="Teléfono" required value={subsanacionForm.telefono} onChange={(v) => setSubsanacionForm((p) => ({ ...p, telefono: v }))} />
+          )}
+          {camposASubsanar.includes('direccion') && (
+            <Input label="Dirección" required value={subsanacionForm.direccion} onChange={(v) => setSubsanacionForm((p) => ({ ...p, direccion: v }))} />
+          )}
+          {camposASubsanar.includes('semestre_actual') && (
+            <SemestreInput value={subsanacionForm.semestre_actual} onChange={(v) => setSubsanacionForm((p) => ({ ...p, semestre_actual: v }))} />
+          )}
+        </div>
+      )}
+
+      {camposASubsanar.includes('promedio_semestre_anterior') && (
+        <PromedioInput
+          value={subsanacionForm.promedio_semestre_anterior}
+          onChange={(v) => setSubsanacionForm((p) => ({ ...p, promedio_semestre_anterior: v }))}
+        />
+      )}
+
+      {camposASubsanar.includes('datos_bancarios') && (
+        <div className="rounded-xl border border-blue-200 bg-white p-4 space-y-3">
+          <p className="text-xs uppercase tracking-wide font-bold text-slate-600">Datos bancarios</p>
+          <div className="grid md:grid-cols-3 gap-3">
+            <label className="grid gap-1 text-sm">
+              <span className="text-xs uppercase tracking-wide font-bold text-slate-600">Banco *</span>
+              <input
+                value={subsanacionForm.banco}
+                onChange={(e) => setSubsanacionForm((p) => ({ ...p, banco: e.target.value }))}
+                placeholder={loadingBanks ? 'Cargando bancos…' : 'Selecciona o escribe banco'}
+                list="bancos-colombia-list-subsanacion"
+                className="border border-border rounded-lg px-3 py-2 transition-all duration-200 focus:ring-2 focus:ring-secondary/25 focus:border-secondary"
+              />
+              <datalist id="bancos-colombia-list-subsanacion">
+                {banksOptions.map((bankName) => <option key={bankName} value={bankName} />)}
+              </datalist>
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-xs uppercase tracking-wide font-bold text-slate-600">Tipo de cuenta *</span>
+              <select
+                value={subsanacionForm.tipo_cuenta}
+                onChange={(e) => setSubsanacionForm((p) => ({ ...p, tipo_cuenta: e.target.value }))}
+                className="border border-border rounded-lg px-3 py-2 transition-all duration-200 focus:ring-2 focus:ring-secondary/25 focus:border-secondary"
+              >
+                <option value="">Seleccionar…</option>
+                <option value="Ahorros">Ahorros</option>
+                <option value="Corriente">Corriente</option>
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-xs uppercase tracking-wide font-bold text-slate-600">Número de cuenta *</span>
+              <input
+                value={subsanacionForm.cuenta_bancaria}
+                onChange={(e) => setSubsanacionForm((p) => ({ ...p, cuenta_bancaria: normalizeAccountNumber(e.target.value) }))}
+                placeholder="Solo números"
+                inputMode="numeric"
+                className="border border-border rounded-lg px-3 py-2 transition-all duration-200 focus:ring-2 focus:ring-secondary/25 focus:border-secondary"
+              />
+            </label>
+          </div>
+          <div className="grid md:grid-cols-2 gap-3">
+            <label className="grid gap-1 text-sm">
+              <span className="text-xs uppercase tracking-wide font-bold text-slate-600">Confirmar número de cuenta *</span>
+              <input
+                value={subsanacionCuentaConfirm}
+                onChange={(e) => setSubsanacionCuentaConfirm(normalizeAccountNumber(e.target.value))}
+                placeholder="Repite el número"
+                inputMode="numeric"
+                className="border border-border rounded-lg px-3 py-2 transition-all duration-200 focus:ring-2 focus:ring-secondary/25 focus:border-secondary"
+              />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-xs uppercase tracking-wide font-bold text-slate-600">Fecha expedición cert. bancario *</span>
+              <input
+                type="date"
+                value={subsanacionForm.fecha_expedicion_cert_bancario}
+                onChange={(e) => setSubsanacionForm((p) => ({ ...p, fecha_expedicion_cert_bancario: e.target.value }))}
+                max={new Date().toISOString().split('T')[0]}
+                className="border border-border rounded-lg px-3 py-2 transition-all duration-200 focus:ring-2 focus:ring-secondary/25 focus:border-secondary"
+              />
+            </label>
+          </div>
+        </div>
+      )}
+
+      {documentosASubsanar.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-wide font-bold text-slate-600">Documentos a reemplazar</p>
+          <div className="grid md:grid-cols-3 gap-3">
+            {documentosASubsanar.map((tipo) => (
+              <div key={tipo}>
+                {nombreDocActual(tipo) && !subsanacionFiles[tipo] && (
+                  <p className="text-[11px] text-slate-500 mb-1 truncate">Actual: {nombreDocActual(tipo)}</p>
+                )}
+                <FileInput
+                  label={`${DOCUMENTO_LABELS_SUBSANACION[tipo]} (PDF sin contraseña)`}
+                  file={subsanacionFiles[tipo]}
+                  onChange={(file) =>
+                    validateAndSetFile(file, DOCUMENTO_LABELS_SUBSANACION[tipo], (f) =>
+                      setSubsanacionFiles((prev) => ({ ...prev, [tipo]: f }))
+                    )
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <button
+        onClick={onSubmit}
+        disabled={saving}
+        className="w-full md:w-auto inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-all disabled:opacity-50"
+      >
+        {saving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+        {saving ? 'Enviando corrección…' : 'Enviar corrección a revisión'}
+      </button>
+    </div>
   );
 };
 

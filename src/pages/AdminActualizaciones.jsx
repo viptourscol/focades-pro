@@ -63,6 +63,7 @@ const estadoClassName = (status) => {
   if (status === 'aprobada') return 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200';
   if (status === 'en_revision') return 'bg-amber-100 text-amber-700 ring-1 ring-amber-200';
   if (status === 'rechazada') return 'bg-red-100 text-red-700 ring-1 ring-red-200';
+  if (status === 'subsanacion') return 'bg-blue-100 text-blue-700 ring-1 ring-blue-200';
   return 'bg-slate-100 text-slate-600 ring-1 ring-slate-200';
 };
 
@@ -70,6 +71,7 @@ const estadoLabel = (status) => {
   if (status === 'aprobada') return 'Aprobada';
   if (status === 'en_revision') return 'En revisión';
   if (status === 'rechazada') return 'Rechazada';
+  if (status === 'subsanacion') return 'Subsanación';
   return status || '—';
 };
 
@@ -108,13 +110,34 @@ const DocRow = ({ doc, onView }) => (
 
 // ─── UpdateModal ─────────────────────────────────────────────────────────────
 
-const UPDATE_STATUS_OPTIONS = ['en_revision', 'aprobada', 'rechazada'];
+const UPDATE_STATUS_OPTIONS = ['en_revision', 'aprobada', 'rechazada', 'subsanacion'];
+
+const CAMPOS_CORREGIBLES = [
+  { value: 'email', label: 'Correo' },
+  { value: 'telefono', label: 'Teléfono' },
+  { value: 'direccion', label: 'Dirección' },
+  { value: 'semestre_actual', label: 'Semestre que actualiza' },
+  { value: 'promedio_semestre_anterior', label: 'Promedio semestre anterior' },
+  { value: 'datos_bancarios', label: 'Datos bancarios (banco, tipo y número de cuenta, fecha certificado)' },
+];
+
+const DOCUMENTOS_CORREGIBLES = [
+  { value: 'certificado_bancario', label: 'Certificado bancario' },
+  { value: 'certificado_notas', label: 'Certificado de notas' },
+  { value: 'certificado_matricula', label: 'Certificado de matrícula' },
+];
 
 const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasMap, onClose, onSaved }) => {
   const [docs, setDocs] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(true);
   const [reviewEstado, setReviewEstado] = useState(update.estado || 'en_revision');
   const [reviewObs, setReviewObs] = useState(update.observacion_admin || '');
+  const [camposACorregir, setCamposACorregir] = useState(
+    Array.isArray(update.campos_a_corregir) ? update.campos_a_corregir : []
+  );
+  const [documentosACorregir, setDocumentosACorregir] = useState(
+    Array.isArray(update.documentos_a_corregir) ? update.documentos_a_corregir : []
+  );
   const [saving, setSaving] = useState(false);
   const [notifying, setNotifying] = useState(false);
   const [notifyMessage, setNotifyMessage] = useState('');
@@ -247,6 +270,30 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
       return { ok: false };
     }
 
+    if (reviewEstado === 'subsanacion') {
+      if (camposACorregir.length === 0 && documentosACorregir.length === 0) {
+        await showErrorAlert({ title: 'Selecciona qué corregir', text: 'Marca al menos un campo o un documento que el beneficiario deba corregir.' });
+        return { ok: false };
+      }
+      if (!String(reviewObs || '').trim()) {
+        await showErrorAlert({ title: 'Observación requerida', text: 'Explica en la observación qué debe corregir el beneficiario.' });
+        return { ok: false };
+      }
+
+      try {
+        const { error } = await supabase.rpc('admin_marcar_subsanacion', {
+          p_actualizacion_id: update.id,
+          p_campos: camposACorregir,
+          p_documentos: documentosACorregir,
+          p_observacion: String(reviewObs || '').trim(),
+        });
+        if (error) throw error;
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: err?.message || 'Ocurrió un error al marcar la subsanación.' };
+      }
+    }
+
     try {
       const { session } = await getSafeSession();
       const { error } = await supabase
@@ -276,7 +323,7 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
       }
 
       // Para estados críticos, enviar notificación automática al guardar.
-      const shouldAutoNotify = ['rechazada', 'aprobada'].includes(String(reviewEstado || '').toLowerCase());
+      const shouldAutoNotify = ['rechazada', 'aprobada', 'subsanacion'].includes(String(reviewEstado || '').toLowerCase());
       if (shouldAutoNotify && beneficiario?.email) {
         await notifyBeneficiario({ skipPersist: true, silentSuccess: true });
       }
@@ -452,6 +499,33 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
             </Link>
           </section>
 
+          {/* Historial de subsanación */}
+          {(update.estado === 'subsanacion' || update.subsanado_at) && (
+            <section className="rounded-2xl border border-blue-200 bg-blue-50 p-4 space-y-2">
+              <p className="text-xs font-bold text-blue-800 uppercase tracking-wide">
+                {update.estado === 'subsanacion' ? 'Pendiente de subsanación' : 'Subsanada por el beneficiario'}
+              </p>
+              {Array.isArray(update.campos_a_corregir) && update.campos_a_corregir.length > 0 && (
+                <p className="text-xs text-blue-700">
+                  <span className="font-semibold">Campos solicitados:</span>{' '}
+                  {update.campos_a_corregir.map((c) => CAMPOS_CORREGIBLES.find((x) => x.value === c)?.label || c).join(', ')}
+                </p>
+              )}
+              {Array.isArray(update.documentos_a_corregir) && update.documentos_a_corregir.length > 0 && (
+                <p className="text-xs text-blue-700">
+                  <span className="font-semibold">Documentos solicitados:</span>{' '}
+                  {update.documentos_a_corregir.map((d) => DOCUMENTOS_CORREGIBLES.find((x) => x.value === d)?.label || d).join(', ')}
+                </p>
+              )}
+              {update.marcado_subsanacion_at && (
+                <p className="text-[11px] text-blue-500">Marcada: {formatDateTime(update.marcado_subsanacion_at)}</p>
+              )}
+              {update.subsanado_at && (
+                <p className="text-[11px] text-blue-500">Corregida por el beneficiario: {formatDateTime(update.subsanado_at)}</p>
+              )}
+            </section>
+          )}
+
           {/* Datos enviados */}
           <section>
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Datos de la actualización</p>
@@ -576,15 +650,62 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
                 ))}
               </select>
             </div>
+
+            {reviewEstado === 'subsanacion' && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 space-y-3">
+                <p className="text-xs font-bold text-blue-800">¿Qué debe corregir el beneficiario?</p>
+                <div>
+                  <p className="text-[11px] font-semibold text-blue-700 uppercase tracking-wide mb-1.5">Campos</p>
+                  <div className="space-y-1.5">
+                    {CAMPOS_CORREGIBLES.map((campo) => (
+                      <label key={campo.value} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={camposACorregir.includes(campo.value)}
+                          onChange={(e) => {
+                            setCamposACorregir((prev) =>
+                              e.target.checked ? [...prev, campo.value] : prev.filter((c) => c !== campo.value)
+                            );
+                          }}
+                          className="rounded border-slate-300"
+                        />
+                        {campo.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold text-blue-700 uppercase tracking-wide mb-1.5">Documentos a reemplazar</p>
+                  <div className="space-y-1.5">
+                    {DOCUMENTOS_CORREGIBLES.map((doc) => (
+                      <label key={doc.value} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={documentosACorregir.includes(doc.value)}
+                          onChange={(e) => {
+                            setDocumentosACorregir((prev) =>
+                              e.target.checked ? [...prev, doc.value] : prev.filter((d) => d !== doc.value)
+                            );
+                          }}
+                          className="rounded border-slate-300"
+                        />
+                        {doc.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
-                Observación {reviewEstado === 'rechazada' ? <span className="text-red-500">*</span> : '(opcional)'}
+                Observación {['rechazada', 'subsanacion'].includes(reviewEstado) ? <span className="text-red-500">*</span> : '(opcional)'}
               </label>
               <textarea
                 rows={3}
                 value={reviewObs}
                 onChange={(e) => setReviewObs(e.target.value)}
-                placeholder="Escribe aquí las observaciones de la revisión..."
+                placeholder={reviewEstado === 'subsanacion' ? 'Explica qué debe corregir el beneficiario (se muestra en su portal)...' : 'Escribe aquí las observaciones de la revisión...'}
                 className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-secondary"
               />
             </div>
@@ -624,6 +745,8 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
                 ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                 : reviewEstado === 'rechazada'
                 ? 'bg-red-600 hover:bg-red-700 text-white'
+                : reviewEstado === 'subsanacion'
+                ? 'bg-blue-600 hover:bg-blue-700 text-white'
                 : 'bg-secondary hover:brightness-110 text-white'
             }`}
           >
@@ -643,6 +766,13 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-40 transition-all"
           >
             <XCircle size={14} /> Rechazar
+          </button>
+          <button
+            onClick={() => { setReviewEstado('subsanacion'); }}
+            disabled={saving || notifying || reviewEstado === 'subsanacion'}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-40 transition-all"
+          >
+            <AlertTriangle size={14} /> Pedir subsanación
           </button>
           <button
             onClick={notifyBeneficiario}
@@ -1143,7 +1273,7 @@ const AdminActualizaciones = () => {
       const [{ data: updatesData }, { data: benefData }, { data: ventData }, { data: adminsData }, { data: convocData }] = await Promise.all([
         supabase
           .from('portal_actualizaciones')
-          .select('id,beneficiario_id,ventana_id,estado,semestre_actual,promedio_semestre_anterior,observacion_admin,revisado_at,created_at,updated_at,payload_formulario,email,telefono,direccion,revisado_por_user_id,revisor_asignado_user_id,revisor_asignado_at,checklist_revision')
+          .select('id,beneficiario_id,ventana_id,estado,semestre_actual,promedio_semestre_anterior,observacion_admin,revisado_at,created_at,updated_at,payload_formulario,email,telefono,direccion,revisado_por_user_id,revisor_asignado_user_id,revisor_asignado_at,checklist_revision,campos_a_corregir,documentos_a_corregir,marcado_subsanacion_at,subsanado_at')
           .order('created_at', { ascending: false })
           .limit(500),
         supabase

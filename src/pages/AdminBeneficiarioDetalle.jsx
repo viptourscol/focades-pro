@@ -5,7 +5,7 @@ import { showConfirmAlert, showErrorAlert, showSuccessAlert } from '../lib/alert
 import { invokeAdminTickets } from '../lib/adminTickets';
 import { getSafeSession, supabase } from '../lib/supabase';
 import DocViewerModal from '../components/DocViewerModal';
-import BitacoraCompact from '../components/BitacoraCompact';
+import BitacoraTimeline from '../components/BitacoraTimeline';
 
 const PAYMENT_RIGHTS_RPC_SESSION_KEY = 'focades-payment-rights-rpc-unavailable';
 const ADMIN_PAYMENT_RIGHTS_RPC = 'admin_beneficiario_payment_rights';
@@ -1456,7 +1456,7 @@ const AdminBeneficiarioDetalle = () => {
       {activeTab === 'bitacora' && (
       <section className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
         <SectionTitle title="Bitácora del beneficiario" subtitle="Registro cronológico de cambios, asignaciones y acciones durante todo su ciclo." />
-        <BitacoraCompact 
+        <BitacoraTimeline 
           rows={bitacoraRows}
           loading={loadingByTab.bitacora}
           formatDateTime={formatDateTime}

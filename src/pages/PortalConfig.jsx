@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronUp, Edit2, Eye, EyeOff, Loader2, Plus, Search, ShieldCheck, ShieldX, Trash2, UserPlus, X } from 'lucide-react';
+import {
+  ChevronDown, ChevronUp, Edit2, Eye, EyeOff, Loader2, Plus, Search,
+  ShieldCheck, ShieldX, Trash2, UserPlus, X, Megaphone,
+} from 'lucide-react';
 import { getSafeSession, supabase } from '../lib/supabase';
 import { showConfirmAlert, showErrorAlert, showSuccessAlert, showTextareaConfirmAlert } from '../lib/alerts';
 
@@ -23,22 +26,13 @@ const sanitizePathSegment = (value) =>
     .replace(/\s+/g, '-')
     .replace(/[^a-z0-9-_]/g, '');
 
-const emptyModal = {
+const emptyModalForm = {
   title: '',
   content: '',
   priority: 100,
-};
-
-const emptyBeneficiario = {
-  radicado_inscripcion: '',
-  nombre_completo: '',
-  tipo_documento: 'CC',
-  n_documento: '',
-  email: '',
-  telefono: '',
-  direccion: '',
-  semestre_actual: '1',
-  estado_beneficiario: 'activo',
+  visible_desde: '',
+  visible_hasta: '',
+  is_active: true,
 };
 
 const emptyAdminForm = {
@@ -57,14 +51,24 @@ const formatDateTime = (value) => {
   return parsed.toLocaleString('es-CO');
 };
 
+const formatDateForInput = (isoString) => {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
 const getAdminRoleLabel = (role) => (role === 'super_admin' ? 'Super admin' : 'Admin');
 
 const PortalConfig = () => {
   const [config, setConfig] = useState({ promedio_minimo: 3.5, cert_bancario_max_dias: 15 });
   const [news, setNews] = useState([]);
-  const [beneficiarios, setBeneficiarios] = useState([]);
+  const [modalAnuncios, setModalAnuncios] = useState([]);
   const [adminUsers, setAdminUsers] = useState([]);
   const [currentAdmin, setCurrentAdmin] = useState(null);
+
+  // Noticias
   const [newsForm, setNewsForm] = useState(emptyNews);
   const [newsFormOpen, setNewsFormOpen] = useState(false);
   const [editNewsId, setEditNewsId] = useState(null);
@@ -72,15 +76,21 @@ const PortalConfig = () => {
   const [newsImagePreview, setNewsImagePreview] = useState('');
   const [newsSaving, setNewsSaving] = useState(false);
   const [newsLoading, setNewsLoading] = useState(false);
-  const [modalForm, setModalForm] = useState(emptyModal);
-  const [beneficiarioForm, setBeneficiarioForm] = useState(emptyBeneficiario);
+
+  // Anuncios Modales
+  const [modalForm, setModalForm] = useState(emptyModalForm);
+  const [modalFormOpen, setModalFormOpen] = useState(false);
+  const [editModalId, setEditModalId] = useState(null);
+  const [modalSaving, setModalSaving] = useState(false);
+  const [modalLoading, setModalLoading] = useState(false);
+
+  // Administradores
   const [adminForm, setAdminForm] = useState(emptyAdminForm);
   const [adminUserQuery, setAdminUserQuery] = useState('');
   const [adminUserCandidates, setAdminUserCandidates] = useState([]);
   const [adminCandidateLoading, setAdminCandidateLoading] = useState(false);
   const [selectedAdminCandidateId, setSelectedAdminCandidateId] = useState('');
   const [configSaving, setConfigSaving] = useState(false);
-  const [beneficiarioSaving, setBeneficiarioSaving] = useState(false);
   const [adminSaving, setAdminSaving] = useState(false);
   const [adminActionUserId, setAdminActionUserId] = useState('');
 
@@ -89,10 +99,10 @@ const PortalConfig = () => {
       const { session } = await getSafeSession();
       const currentUserId = String(session?.user?.id || '').trim();
 
-      const [{ data: cfg }, { data: nws }, { data: beneficiariosData }, { data: adminsData }] = await Promise.all([
+      const [{ data: cfg }, { data: nws }, { data: modalsData }, { data: adminsData }] = await Promise.all([
         supabase.from('portal_configuracion').select('*').eq('is_active', true).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
         supabase.from('portal_noticias').select('*').order('sort_order', { ascending: true, nullsFirst: false }).order('publish_at', { ascending: false }).limit(50),
-        supabase.from('portal_beneficiarios').select('*').order('created_at', { ascending: false }).limit(50),
+        supabase.from('portal_modal_anuncios').select('*').order('priority', { ascending: false }).order('created_at', { ascending: false }),
         supabase
           .from('portal_admin_users')
           .select('user_id,nombre_completo,email,role,is_active,created_at,updated_at,deactivated_at,notes')
@@ -109,13 +119,13 @@ const PortalConfig = () => {
       }
 
       setNews(Array.isArray(nws) ? nws : []);
-      setBeneficiarios(Array.isArray(beneficiariosData) ? beneficiariosData : []);
+      setModalAnuncios(Array.isArray(modalsData) ? modalsData : []);
       const safeAdmins = Array.isArray(adminsData) ? adminsData : [];
       setAdminUsers(safeAdmins);
       setCurrentAdmin(safeAdmins.find((item) => item.user_id === currentUserId) || null);
     } catch {
       setNews([]);
-      setBeneficiarios([]);
+      setModalAnuncios([]);
       setAdminUsers([]);
       setCurrentAdmin(null);
     }
@@ -379,83 +389,124 @@ const PortalConfig = () => {
     setNewsLoading(false);
   };
 
-  const createModal = async () => {
-    await supabase.from('portal_modal_anuncios').insert({
-      ...modalForm,
-      is_active: true,
-      visible_desde: new Date().toISOString(),
-      visible_hasta: null,
-    });
-    setModalForm(emptyModal);
+  // ── Anuncios Modales al Iniciar ──────────────────────────────────────────
+  const openCreateModal = () => {
+    setEditModalId(null);
+    setModalForm(emptyModalForm);
+    setModalFormOpen(true);
   };
 
-  const createBeneficiario = async () => {
-    const email = String(beneficiarioForm.email || '').trim().toLowerCase();
+  const openEditModal = (item) => {
+    setEditModalId(item.id);
+    setModalForm({
+      title: item.title || '',
+      content: item.content || '',
+      priority: item.priority ?? 100,
+      visible_desde: formatDateForInput(item.visible_desde),
+      visible_hasta: formatDateForInput(item.visible_hasta),
+      is_active: item.is_active ?? true,
+    });
+    setModalFormOpen(true);
+  };
 
-    if (!beneficiarioForm.nombre_completo || !email || !beneficiarioForm.n_documento) {
+  const cancelModalForm = () => {
+    setModalFormOpen(false);
+    setEditModalId(null);
+    setModalForm(emptyModalForm);
+  };
+
+  const saveModal = async () => {
+    if (!modalForm.title.trim() || !modalForm.content.trim()) {
       await showErrorAlert({
-        title: 'Datos incompletos',
-        text: 'Debes registrar nombre completo, correo y número de documento del beneficiario.',
+        title: 'Campos requeridos',
+        text: 'Ingresa un título y contenido para el anuncio modal.',
       });
       return;
     }
 
     try {
-      setBeneficiarioSaving(true);
-      const { error } = await supabase.from('portal_beneficiarios').insert({
-        radicado_inscripcion: String(beneficiarioForm.radicado_inscripcion || '').trim() || null,
-        nombre_completo: String(beneficiarioForm.nombre_completo || '').trim(),
-        tipo_documento: String(beneficiarioForm.tipo_documento || 'CC').trim(),
-        n_documento: String(beneficiarioForm.n_documento || '').trim(),
-        email,
-        telefono: String(beneficiarioForm.telefono || '').trim() || null,
-        direccion: String(beneficiarioForm.direccion || '').trim() || null,
-        semestre_actual: Number(beneficiarioForm.semestre_actual || 1),
-        estado_beneficiario: String(beneficiarioForm.estado_beneficiario || 'activo').trim(),
-      });
+      setModalSaving(true);
+      const payload = {
+        title: modalForm.title.trim(),
+        content: modalForm.content.trim(),
+        priority: Number(modalForm.priority) || 100,
+        visible_desde: modalForm.visible_desde ? new Date(modalForm.visible_desde).toISOString() : new Date().toISOString(),
+        visible_hasta: modalForm.visible_hasta ? new Date(modalForm.visible_hasta).toISOString() : null,
+        is_active: Boolean(modalForm.is_active),
+        updated_at: new Date().toISOString(),
+      };
 
-      if (error) {
-        throw error;
+      if (editModalId) {
+        const { error } = await supabase
+          .from('portal_modal_anuncios')
+          .update(payload)
+          .eq('id', editModalId);
+
+        if (error) throw error;
+        await showSuccessAlert({
+          title: 'Anuncio actualizado',
+          text: 'Los cambios del anuncio modal fueron guardados.',
+        });
+      } else {
+        const { error } = await supabase
+          .from('portal_modal_anuncios')
+          .insert(payload);
+
+        if (error) throw error;
+        await showSuccessAlert({
+          title: 'Anuncio publicado',
+          text: 'El anuncio modal fue creado exitosamente.',
+        });
       }
 
-      setBeneficiarioForm(emptyBeneficiario);
+      cancelModalForm();
       await loadData();
-      await showSuccessAlert({
-        title: 'Beneficiario registrado',
-        text: 'El beneficiario quedó listo para vincularse con Google usando el mismo correo autorizado.',
-      });
     } catch (error) {
       await showErrorAlert({
-        title: 'No se pudo registrar',
-        text: error.message || 'Ocurrió un error al crear el beneficiario.',
+        title: 'Error al guardar',
+        text: error.message || 'No se pudo guardar el anuncio modal.',
       });
     } finally {
-      setBeneficiarioSaving(false);
+      setModalSaving(false);
     }
   };
 
-  const releaseBeneficiarioAccess = async (beneficiarioId) => {
-    try {
-      const { error } = await supabase
-        .from('portal_beneficiarios')
-        .update({ auth_user_id: null, updated_at: new Date().toISOString() })
-        .eq('id', beneficiarioId);
+  const deleteModal = async (id) => {
+    const confirmed = await showConfirmAlert({
+      title: '¿Eliminar anuncio modal?',
+      text: 'Esta acción no se puede deshacer.',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!confirmed) return;
 
-      if (error) {
-        throw error;
-      }
+    setModalLoading(true);
+    const { error } = await supabase
+      .from('portal_modal_anuncios')
+      .delete()
+      .eq('id', id);
 
-      await loadData();
-      await showSuccessAlert({
-        title: 'Vinculación liberada',
-        text: 'El beneficiario podrá volver a vincularse con su correo autorizado.',
-      });
-    } catch (error) {
-      await showErrorAlert({
-        title: 'No se pudo liberar',
-        text: error.message || 'Ocurrió un error al liberar la vinculación.',
-      });
+    if (error) {
+      await showErrorAlert({ title: 'Error al eliminar', text: error.message });
+    } else {
+      await showSuccessAlert({ title: 'Anuncio eliminado', text: 'El anuncio modal fue eliminado correctamente.' });
     }
+    await loadData();
+    setModalLoading(false);
+  };
+
+  const toggleModalActive = async (item) => {
+    setModalLoading(true);
+    const { error } = await supabase
+      .from('portal_modal_anuncios')
+      .update({ is_active: !item.is_active, updated_at: new Date().toISOString() })
+      .eq('id', item.id);
+
+    if (error) {
+      await showErrorAlert({ title: 'Error al cambiar estado', text: error.message });
+    }
+    await loadData();
+    setModalLoading(false);
   };
 
   const createOrActivateAdmin = async () => {
@@ -602,7 +653,9 @@ const PortalConfig = () => {
     <div className="space-y-6">
       <section className="bg-white border border-border rounded-2xl p-6">
         <h2 className="text-xl font-black text-primary">Configuración Portal Beneficiarios</h2>
-        <p className="text-sm text-slate-600 mt-1">Administra reglas, noticias y modal informativo. Las ventanas de actualización se gestionan en el módulo de Actualizaciones.</p>
+        <p className="text-sm text-slate-600 mt-1">
+          Administra reglas globales, administradores del sistema, noticias del portal y el modal informativo al iniciar.
+        </p>
       </section>
 
       <section className="bg-white border border-border rounded-2xl p-6 space-y-3">
@@ -750,92 +803,39 @@ const PortalConfig = () => {
         </div>
       </section>
 
-      <section className="bg-white border border-border rounded-2xl p-6 space-y-4">
-        <div>
-          <h3 className="font-bold text-primary">Beneficiarios autorizados</h3>
-          <p className="text-sm text-slate-600 mt-1">Registra el correo autorizado. Cuando el estudiante ingrese con Google usando ese mismo correo, el portal lo vinculará automáticamente.</p>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-3">
-          <Field label="Radicado" value={beneficiarioForm.radicado_inscripcion} onChange={(value) => setBeneficiarioForm((prev) => ({ ...prev, radicado_inscripcion: value }))} />
-          <Field label="Nombre completo" value={beneficiarioForm.nombre_completo} onChange={(value) => setBeneficiarioForm((prev) => ({ ...prev, nombre_completo: value }))} />
-          <Field label="Correo autorizado" type="email" value={beneficiarioForm.email} onChange={(value) => setBeneficiarioForm((prev) => ({ ...prev, email: value }))} />
-          <Field label="Número documento" value={beneficiarioForm.n_documento} onChange={(value) => setBeneficiarioForm((prev) => ({ ...prev, n_documento: value }))} />
-          <SelectField label="Tipo documento" value={beneficiarioForm.tipo_documento} onChange={(value) => setBeneficiarioForm((prev) => ({ ...prev, tipo_documento: value }))} options={['CC', 'TI', 'CE', 'PAS']} />
-          <Field label="Teléfono" value={beneficiarioForm.telefono} onChange={(value) => setBeneficiarioForm((prev) => ({ ...prev, telefono: value }))} />
-          <Field label="Dirección" value={beneficiarioForm.direccion} onChange={(value) => setBeneficiarioForm((prev) => ({ ...prev, direccion: value }))} />
-          <Field label="Semestre actual" value={beneficiarioForm.semestre_actual} onChange={(value) => setBeneficiarioForm((prev) => ({ ...prev, semestre_actual: value }))} />
-          <SelectField
-            label="Estado"
-            value={beneficiarioForm.estado_beneficiario}
-            onChange={(value) => setBeneficiarioForm((prev) => ({ ...prev, estado_beneficiario: value }))}
-            options={['activo', 'suspendido', 'retirado', 'condonado', 'egresado']}
-          />
-        </div>
-
-        <button type="button" onClick={createBeneficiario} disabled={beneficiarioSaving} className="bg-secondary text-white px-4 py-2 rounded-lg font-semibold disabled:opacity-50">
-          {beneficiarioSaving ? 'Guardando beneficiario...' : 'Registrar beneficiario'}
-        </button>
-
-        <div className="space-y-2">
-          {beneficiarios.length === 0 ? (
-            <p className="text-sm text-slate-500">Aún no hay beneficiarios cargados en el portal.</p>
-          ) : (
-            beneficiarios.map((item) => (
-              <div key={item.id} className="border border-border rounded-xl px-4 py-3 text-sm flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-semibold text-primary truncate">{item.nombre_completo || 'Sin nombre'}</p>
-                  <p className="text-slate-600 truncate">{item.email || 'Sin correo'} · {item.n_documento || 'Sin documento'}</p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Estado: {item.estado_beneficiario || 'No definido'} · Semestre: {item.semestre_actual || 'No definido'} · Vinculación: {item.auth_user_id ? 'Activa' : 'Pendiente'}
-                  </p>
-                </div>
-
-                {item.auth_user_id && (
-                  <button
-                    type="button"
-                    onClick={() => releaseBeneficiarioAccess(item.id)}
-                    className="shrink-0 border border-border rounded-lg px-3 py-2 font-semibold text-secondary hover:bg-slate-50"
-                  >
-                    Liberar vínculo
-                  </button>
-                )}
-              </div>
-            ))
-          )}
-        </div>
-      </section>
-
       {/* ══════════════════════════════════════════════════════════════ */}
-      {/* NOTICIAS – Administración completa                            */}
+      {/* MODAL ANUNCIOS – Administración completa                      */}
       {/* ══════════════════════════════════════════════════════════════ */}
       <section className="bg-white border border-border rounded-2xl p-6 space-y-5">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h3 className="font-bold text-primary">Noticias del portal</h3>
+            <div className="flex items-center gap-2">
+              <Megaphone size={18} className="text-secondary" />
+              <h3 className="font-bold text-primary">Modal importante al iniciar</h3>
+            </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Las noticias se muestran en la página pública de login y en el home del portal. Usa las flechas para cambiar el orden.
+              Avisos emergentes informativos que se muestran a los beneficiarios al ingresar al portal.
             </p>
           </div>
-          {!newsFormOpen && (
+          {!modalFormOpen && (
             <button
               type="button"
-              onClick={openCreateNews}
-              className="shrink-0 inline-flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-xl font-semibold text-sm"
+              onClick={openCreateModal}
+              className="shrink-0 inline-flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-xl font-semibold text-sm hover:brightness-110 transition"
             >
-              <Plus size={15} /> Nueva noticia
+              <Plus size={15} /> Nuevo anuncio modal
             </button>
           )}
         </div>
 
-        {/* Formulario crear / editar */}
-        {newsFormOpen && (
+        {/* Formulario crear / editar anuncio modal */}
+        {modalFormOpen && (
           <div className="border border-secondary/30 bg-secondary/5 rounded-2xl p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h4 className="font-bold text-secondary text-sm">
-                {editNewsId ? 'Editar noticia' : 'Nueva noticia'}
+                {editModalId ? 'Editar anuncio modal' : 'Nuevo anuncio modal'}
               </h4>
-              <button type="button" onClick={cancelNewsForm} className="text-slate-400 hover:text-slate-600">
+              <button type="button" onClick={cancelModalForm} className="text-slate-400 hover:text-slate-600">
                 <X size={18} />
               </button>
             </div>
@@ -843,88 +843,63 @@ const PortalConfig = () => {
             <div className="grid md:grid-cols-2 gap-3">
               <Field
                 label="Título *"
-                value={newsForm.title}
-                onChange={(v) => setNewsForm((p) => ({ ...p, title: v }))}
-              />
-              <label className="grid gap-1">
-                <span className="text-xs uppercase font-bold text-slate-500">Imagen de la noticia</span>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handleNewsImageFileChange}
-                  className="border border-border rounded-lg px-3 py-2 text-sm bg-white"
-                />
-                <span className="text-[11px] text-slate-400">Formatos: JPG, PNG, WEBP · Máximo {NEWS_IMAGE_MAX_MB}MB</span>
-              </label>
-              <Field
-                label="Texto del botón"
-                value={newsForm.button_label}
-                onChange={(v) => setNewsForm((p) => ({ ...p, button_label: v }))}
+                value={modalForm.title}
+                onChange={(v) => setModalForm((p) => ({ ...p, title: v }))}
               />
               <Field
-                label="URL del botón"
-                value={newsForm.button_url}
-                onChange={(v) => setNewsForm((p) => ({ ...p, button_url: v }))}
+                label="Prioridad (mayor número = mayor prioridad)"
+                type="number"
+                value={modalForm.priority}
+                onChange={(v) => setModalForm((p) => ({ ...p, priority: v }))}
+              />
+              <Field
+                label="Visible desde"
+                type="datetime-local"
+                value={modalForm.visible_desde}
+                onChange={(v) => setModalForm((p) => ({ ...p, visible_desde: v }))}
+              />
+              <Field
+                label="Visible hasta (opcional - dejar vacío para indefinido)"
+                type="datetime-local"
+                value={modalForm.visible_hasta}
+                onChange={(v) => setModalForm((p) => ({ ...p, visible_hasta: v }))}
               />
             </div>
 
             <label className="grid gap-1">
-              <span className="text-xs uppercase font-bold text-slate-500">Resumen (se muestra en la tarjeta)</span>
+              <span className="text-xs uppercase font-bold text-slate-500">Contenido del anuncio *</span>
               <textarea
-                value={newsForm.summary}
-                onChange={(e) => setNewsForm((p) => ({ ...p, summary: e.target.value }))}
-                className="border border-border rounded-lg px-3 py-2 text-sm"
-                rows={2}
-              />
-            </label>
-
-            <label className="grid gap-1">
-              <span className="text-xs uppercase font-bold text-slate-500">Contenido completo (opcional)</span>
-              <textarea
-                value={newsForm.content}
-                onChange={(e) => setNewsForm((p) => ({ ...p, content: e.target.value }))}
-                className="border border-border rounded-lg px-3 py-2 text-sm"
+                value={modalForm.content}
+                onChange={(e) => setModalForm((p) => ({ ...p, content: e.target.value }))}
+                className="border border-border rounded-lg px-3 py-2 text-sm bg-white"
                 rows={4}
+                placeholder="Escribe el mensaje informativo que verá el beneficiario al ingresar al portal..."
               />
             </label>
 
-            {newsPreviewSrc && (
-              <div className="rounded-xl overflow-hidden border border-border w-full max-h-40">
-                <img
-                  src={newsPreviewSrc}
-                  alt="Preview"
-                  className="w-full h-40 object-cover"
-                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                />
-              </div>
-            )}
+            <label className="inline-flex items-center gap-2 cursor-pointer pt-1">
+              <input
+                type="checkbox"
+                checked={modalForm.is_active}
+                onChange={(e) => setModalForm((p) => ({ ...p, is_active: e.target.checked }))}
+                className="rounded border-slate-300"
+              />
+              <span className="text-sm font-medium text-slate-700">Anuncio activo (visible al iniciar sesión)</span>
+            </label>
 
-            {(newsForm.image_url || newsImageFile) && (
+            <div className="flex items-center gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => {
-                  setNewsImageFile(null);
-                  setNewsForm((prev) => ({ ...prev, image_url: '' }));
-                }}
-                className="w-fit text-xs font-semibold text-red-600 border border-red-200 rounded-lg px-3 py-1.5 hover:bg-red-50"
+                onClick={saveModal}
+                disabled={modalSaving}
+                className="bg-secondary text-white px-5 py-2 rounded-xl font-bold text-sm disabled:opacity-50 hover:brightness-110 transition"
               >
-                Quitar imagen
-              </button>
-            )}
-
-            <div className="flex items-center gap-3 pt-1">
-              <button
-                type="button"
-                onClick={saveNews}
-                disabled={newsSaving}
-                className="bg-secondary text-white px-5 py-2 rounded-xl font-bold text-sm disabled:opacity-50"
-              >
-                {newsSaving ? 'Guardando...' : editNewsId ? 'Guardar cambios' : 'Publicar noticia'}
+                {modalSaving ? 'Guardando...' : editModalId ? 'Guardar cambios' : 'Publicar modal'}
               </button>
               <button
                 type="button"
-                onClick={cancelNewsForm}
-                className="border border-border px-4 py-2 rounded-xl font-semibold text-sm text-slate-600 hover:bg-slate-50"
+                onClick={cancelModalForm}
+                className="border border-border px-4 py-2 rounded-xl font-semibold text-sm text-slate-600 hover:bg-slate-50 transition"
               >
                 Cancelar
               </button>
@@ -932,95 +907,69 @@ const PortalConfig = () => {
           </div>
         )}
 
-        {/* Lista de noticias */}
-        {newsLoading && (
+        {/* Lista de anuncios modales */}
+        {modalLoading && (
           <p className="text-xs text-slate-500 animate-pulse">Actualizando...</p>
         )}
 
-        {!newsLoading && news.length === 0 && (
-          <p className="text-sm text-slate-500 py-2">Aún no hay noticias publicadas.</p>
+        {!modalLoading && modalAnuncios.length === 0 && (
+          <p className="text-sm text-slate-500 py-2">Aún no hay anuncios modales creados.</p>
         )}
 
         <div className="space-y-2">
-          {news.map((item, index) => (
+          {modalAnuncios.map((item) => (
             <div
               key={item.id}
-              className={`border rounded-2xl px-4 py-3 flex flex-col md:flex-row md:items-center gap-3 transition-opacity ${
-                item.is_active ? 'border-border bg-white' : 'border-border bg-slate-50 opacity-60'
+              className={`border rounded-2xl px-4 py-3.5 flex flex-col md:flex-row md:items-center gap-3 transition-all ${
+                item.is_active ? 'border-border bg-white shadow-sm' : 'border-border bg-slate-50 opacity-60'
               }`}
             >
-              {/* Orden */}
-              <div className="flex flex-col gap-1 shrink-0">
-                <button
-                  type="button"
-                  disabled={index === 0 || newsLoading}
-                  onClick={() => moveNews(index, -1)}
-                  className="p-1 rounded-lg border border-border hover:bg-slate-100 disabled:opacity-30"
-                  title="Subir"
-                >
-                  <ChevronUp size={14} />
-                </button>
-                <button
-                  type="button"
-                  disabled={index === news.length - 1 || newsLoading}
-                  onClick={() => moveNews(index, 1)}
-                  className="p-1 rounded-lg border border-border hover:bg-slate-100 disabled:opacity-30"
-                  title="Bajar"
-                >
-                  <ChevronDown size={14} />
-                </button>
-              </div>
-
-              {/* Imagen miniatura */}
-              {item.image_url ? (
-                <img
-                  src={item.image_url}
-                  alt=""
-                  className="w-16 h-12 rounded-xl object-cover border border-border shrink-0"
-                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                />
-              ) : (
-                <div className="w-16 h-12 rounded-xl bg-slate-100 border border-border shrink-0" />
-              )}
-
-              {/* Datos */}
+              {/* Info */}
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-primary text-sm truncate">{item.title || 'Sin título'}</p>
-                <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">
-                  {item.summary || item.content || 'Sin descripción'}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-semibold text-primary text-sm truncate">{item.title || 'Sin título'}</p>
+                  <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                    item.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {item.is_active ? <Eye size={12} /> : <EyeOff size={12} />}
+                    {item.is_active ? 'Activo' : 'Inactivo'}
+                  </span>
+                  <span className="text-[11px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
+                    Prioridad: {item.priority ?? 100}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 line-clamp-2 mt-1 whitespace-pre-wrap">
+                  {item.content || 'Sin contenido'}
                 </p>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Orden: #{item.sort_order ?? '—'} ·{' '}
-                  {item.is_active
-                    ? <span className="text-green-600 font-semibold">Visible</span>
-                    : <span className="text-slate-400">Oculta</span>
-                  }
-                </p>
+                <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-2 flex-wrap">
+                  <span>Desde: {formatDateTime(item.visible_desde)}</span>
+                  <span>Hasta: {item.visible_hasta ? formatDateTime(item.visible_hasta) : 'Indefinido'}</span>
+                </div>
               </div>
 
               {/* Acciones */}
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={() => toggleNewsActive(item)}
-                  className="p-2 rounded-lg border border-border hover:bg-slate-50"
-                  title={item.is_active ? 'Ocultar' : 'Mostrar'}
+                  onClick={() => toggleModalActive(item)}
+                  className="p-2 rounded-lg border border-border hover:bg-slate-50 transition-colors"
+                  title={item.is_active ? 'Desactivar modal' : 'Activar modal'}
                 >
                   {item.is_active ? <EyeOff size={15} className="text-slate-500" /> : <Eye size={15} className="text-secondary" />}
                 </button>
                 <button
                   type="button"
-                  onClick={() => openEditNews(item)}
-                  className="p-2 rounded-lg border border-border hover:bg-slate-50"
-                  title="Editar"
+                  onClick={() => openEditModal(item)}
+                  className="p-2 rounded-lg border border-border hover:bg-slate-50 transition-colors"
+                  title="Editar modal"
                 >
                   <Edit2 size={15} className="text-primary" />
                 </button>
                 <button
                   type="button"
-                  onClick={() => deleteNews(item.id)}
-                  className="p-2 rounded-lg border border-red-200 hover:bg-red-50"
-                  title="Eliminar"
+                  onClick={() => deleteModal(item.id)}
+                  className="p-2 rounded-lg border border-red-200 hover:bg-red-50 transition-colors"
+                  title="Eliminar modal"
                 >
                   <Trash2 size={15} className="text-red-500" />
                 </button>
@@ -1028,17 +977,6 @@ const PortalConfig = () => {
             </div>
           ))}
         </div>
-      </section>
-
-      <section className="bg-white border border-border rounded-2xl p-6 space-y-3">
-        <h3 className="font-bold text-primary">Modal importante al iniciar</h3>
-        <Field label="Título" value={modalForm.title} onChange={(value) => setModalForm((prev) => ({ ...prev, title: value }))} />
-        <label className="grid gap-1">
-          <span className="text-xs uppercase font-bold text-slate-500">Contenido</span>
-          <textarea value={modalForm.content} onChange={(event) => setModalForm((prev) => ({ ...prev, content: event.target.value }))} className="border border-border rounded-lg px-3 py-2" rows={4} />
-        </label>
-        <Field label="Prioridad" value={modalForm.priority} onChange={(value) => setModalForm((prev) => ({ ...prev, priority: value }))} />
-        <button type="button" onClick={createModal} className="bg-secondary text-white px-4 py-2 rounded-lg font-semibold">Publicar modal</button>
       </section>
 
     </div>

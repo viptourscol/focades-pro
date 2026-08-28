@@ -281,6 +281,12 @@ const BeneficiarioActualizacion = () => {
       // Consultar si existe actualización previa en esta ventana
       if (beneficiarioId && ventanaData?.id) {
         try {
+          console.log('🔍 Buscando actualización anterior con:', {
+            beneficiario_id: beneficiarioId,
+            ventana_id: ventanaData.id,
+            ventana_nombre: ventanaData.nombre,
+          });
+          
           const { data: prevUpdate } = await supabase
             .from('portal_actualizaciones')
             .select('id, estado, created_at, observacion_admin, campos_a_corregir, documentos_a_corregir, marcado_subsanacion_at, semestre_actual, promedio_semestre_anterior, email, telefono, direccion, payload_formulario')

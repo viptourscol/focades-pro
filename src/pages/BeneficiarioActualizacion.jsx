@@ -1367,12 +1367,13 @@ const Input = ({ label, value, onChange, disabled = false, placeholder = '', req
   </label>
 );
 
-const FileInput = ({ label, file, onChange, disabled = false }) => {
+const FileInput = ({ label, file, onChange, disabled = false, isPending = false }) => {
   const hasFile = Boolean(file);
-  const borderColorClass = disabled ? 'border-slate-200' : hasFile ? 'border-emerald-300' : 'border-red-300';
-  const bgColorClass = disabled ? 'bg-slate-100' : hasFile ? 'bg-emerald-50' : 'bg-red-50';
-  const textColorClass = disabled ? 'text-slate-500' : hasFile ? 'text-emerald-700' : 'text-red-700';
+  const borderColorClass = disabled ? 'border-slate-200' : hasFile ? 'border-emerald-300' : isPending ? 'border-blue-300' : 'border-red-300';
+  const bgColorClass = disabled ? 'bg-slate-100' : hasFile ? 'bg-emerald-50' : isPending ? 'bg-blue-50' : 'bg-red-50';
+  const textColorClass = disabled ? 'text-slate-500' : hasFile ? 'text-emerald-700' : isPending ? 'text-blue-700' : 'text-red-700';
   const hoverClass = disabled ? '' : 'hover:bg-opacity-70 cursor-pointer';
+  const bulletColor = disabled ? 'bg-slate-400' : hasFile ? 'bg-emerald-500' : isPending ? 'bg-blue-400' : 'bg-red-500';
 
   return (
     <label className={`border border-dashed rounded-xl p-3 text-sm transition-all duration-300 hover:shadow-sm ${borderColorClass} ${bgColorClass} ${hoverClass}`}>
@@ -1385,7 +1386,7 @@ const FileInput = ({ label, file, onChange, disabled = false }) => {
           </span>
         ) : (
           <span className="flex items-center gap-1">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500"></span>
+            <span className={`inline-block w-1.5 h-1.5 rounded-full ${bulletColor}`}></span>
             Seleccionar PDF
           </span>
         )}
@@ -1576,6 +1577,7 @@ const SubsanacionCard = ({
                       setSubsanacionFiles((prev) => ({ ...prev, [tipo]: f }))
                     )
                   }
+                  isPending={true}
                 />
               </div>
             ))}

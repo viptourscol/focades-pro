@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BookOpen, ClipboardList, FileDown, Plus, Pencil, Trash2, X, Eye, EyeOff,
-  Loader2, Save, GripVertical, ListChecks, Lightbulb, UploadCloud, ExternalLink, Download,
+  Loader2, Save, ListChecks, Lightbulb, UploadCloud, ExternalLink, Download, MonitorPlay,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from '../lib/alerts';
+import { PreviewRequisitos, PreviewGuia, PreviewDocumento, ICONOS_GUIA } from '../components/DocumentacionPreview';
 
 const MODALIDADES = [
   { value: 'general', label: 'Requisitos Generales' },
@@ -20,10 +21,12 @@ const TIPOS_DOCUMENTO = [
   { value: 'otros', label: 'Otros' },
 ];
 
-const ICONOS_GUIA = [
-  'FileText', 'UserPlus', 'Upload', 'CheckCircle', 'Mail', 'Clock',
-  'Award', 'Search', 'Send', 'ClipboardList', 'ShieldCheck', 'Bell',
-];
+const ICONOS_DISPONIBLES = Object.keys(ICONOS_GUIA);
+
+const ICONO_LABELS = {
+  Mail: 'Correo', User: 'Persona', Home: 'Hogar', GraduationCap: 'Graduación',
+  School: 'Institución', FileUp: 'Subir archivo', PenTool: 'Firma', Clock: 'Tiempo',
+};
 
 const TABS = [
   { id: 'requisitos', label: 'Requisitos', icon: ClipboardList },
@@ -35,7 +38,7 @@ const EMPTY_REQUISITO = {
   modalidad: 'general', titulo: '', descripcion: '', orden: 0, requisitos: [], activo: true,
 };
 const EMPTY_PASO = {
-  paso_numero: 1, titulo: '', descripcion: '', icono: 'FileText', detalles: [],
+  paso_numero: 1, titulo: '', descripcion: '', icono: 'FileUp', detalles: [],
   consejos: [], duracion_estimada: '5 minutos', imagen_url: '', orden: 0, activo: true,
 };
 const EMPTY_DOCUMENTO = {
@@ -145,14 +148,14 @@ function ListaRequisitos({ items, onChange }) {
   );
 }
 
-function Modal({ title, onClose, onSave, saving, error, children, wide }) {
+function Modal({ title, onClose, onSave, saving, error, children, preview }) {
   return (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
       onClick={onClose}
     >
       <div
-        className={`bg-white rounded-3xl shadow-2xl w-full ${wide ? 'max-w-3xl' : 'max-w-2xl'} max-h-[90vh] flex flex-col overflow-hidden`}
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
@@ -162,11 +165,26 @@ function Modal({ title, onClose, onSave, saving, error, children, wide }) {
           </button>
         </div>
 
-        <div className="overflow-y-auto flex-1 p-6 space-y-4">
-          {error && (
-            <div className="rounded-xl bg-red-50 text-red-700 text-sm px-4 py-3 ring-1 ring-red-200">{error}</div>
-          )}
-          {children}
+        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-2">
+          <div className="overflow-y-auto p-6 space-y-4 lg:border-r border-border">
+            {error && (
+              <div className="rounded-xl bg-red-50 text-red-700 text-sm px-4 py-3 ring-1 ring-red-200">{error}</div>
+            )}
+            {children}
+          </div>
+
+          <div className="overflow-y-auto p-6 bg-slate-50/60">
+            <div className="flex items-center gap-2 mb-3">
+              <MonitorPlay size={15} className="text-secondary" />
+              <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                Vista previa
+              </h4>
+            </div>
+            <p className="text-[11px] text-slate-400 mb-4 leading-relaxed">
+              Así se verá este contenido en el portal público. Se actualiza mientras editas.
+            </p>
+            {preview}
+          </div>
         </div>
 
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border bg-slate-50">
@@ -588,7 +606,8 @@ export default function AdminDocumentacion() {
       {modal?.tipo === 'requisitos' && (
         <Modal
           title={modal.editandoId ? 'Editar grupo de requisitos' : 'Nuevo grupo de requisitos'}
-          onClose={cerrarModal} onSave={guardar} saving={saving} error={formError} wide
+          onClose={cerrarModal} onSave={guardar} saving={saving} error={formError}
+          preview={<PreviewRequisitos data={form} />}
         >
           <div className="grid grid-cols-2 gap-4">
             <Campo label="Modalidad">
@@ -648,7 +667,8 @@ export default function AdminDocumentacion() {
       {modal?.tipo === 'guia' && (
         <Modal
           title={modal.editandoId ? 'Editar paso de la guía' : 'Nuevo paso de la guía'}
-          onClose={cerrarModal} onSave={guardar} saving={saving} error={formError} wide
+          onClose={cerrarModal} onSave={guardar} saving={saving} error={formError}
+          preview={<PreviewGuia data={form} />}
         >
           <div className="grid grid-cols-3 gap-4">
             <Campo label="N.º de paso">
@@ -664,7 +684,9 @@ export default function AdminDocumentacion() {
                 onChange={(e) => setForm({ ...form, icono: e.target.value })}
                 className={inputCls}
               >
-                {ICONOS_GUIA.map((i) => <option key={i} value={i}>{i}</option>)}
+                {ICONOS_DISPONIBLES.map((i) => (
+                  <option key={i} value={i}>{ICONO_LABELS[i] || i}</option>
+                ))}
               </select>
             </Campo>
             <Campo label="Duración estimada">
@@ -727,6 +749,7 @@ export default function AdminDocumentacion() {
         <Modal
           title={modal.editandoId ? 'Editar documento' : 'Nuevo documento'}
           onClose={cerrarModal} onSave={guardar} saving={saving} error={formError}
+          preview={<PreviewDocumento data={form} />}
         >
           <Campo label="Tipo">
             <select

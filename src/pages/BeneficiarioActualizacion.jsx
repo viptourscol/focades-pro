@@ -228,6 +228,7 @@ const BeneficiarioActualizacion = () => {
           .maybeSingle();
         
         profileData = data;
+        beneficiarioId = data?.id || null;
       }
 
       if (!profileData) {
@@ -360,6 +361,30 @@ const BeneficiarioActualizacion = () => {
     }
 
     try {
+      // Campos obligatorios de datos personales y bancarios
+      const email = String(form.email || '').trim();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!email || !emailRegex.test(email)) {
+        throw new Error('Ingresa un correo electrónico válido.');
+      }
+      if (!String(form.telefono || '').trim()) {
+        throw new Error('El teléfono es obligatorio.');
+      }
+      if (!String(form.direccion || '').trim()) {
+        throw new Error('La dirección es obligatoria.');
+      }
+      if (!String(form.banco || '').trim()) {
+        throw new Error('Selecciona o escribe el banco.');
+      }
+      if (!String(form.tipo_cuenta || '').trim()) {
+        throw new Error('Selecciona el tipo de cuenta.');
+      }
+
+      const semestre = Number(form.semestre_actual);
+      if (!Number.isInteger(semestre) || semestre < 1 || semestre > 10) {
+        throw new Error('El semestre que actualiza debe ser un número entre 1 y 10.');
+      }
+
       // Validación detallada de documentos
       const documentosFaltantes = [];
       if (!files.certificado_bancario) documentosFaltantes.push('Certificado Bancario');
@@ -380,6 +405,10 @@ const BeneficiarioActualizacion = () => {
 
       if (!Number.isFinite(promedio)) {
         throw new Error('Ingresa un promedio válido para el semestre anterior.');
+      }
+
+      if (promedio < 0 || promedio > 5) {
+        throw new Error('El promedio debe estar entre 0 y 5.');
       }
 
       if (promedio < minPromedio) {
@@ -796,10 +825,14 @@ const BeneficiarioActualizacion = () => {
               <p className="text-xs uppercase tracking-wide font-black text-slate-500 mb-2">Datos Personales</p>
             </div>
             <div className="mt-5 grid md:grid-cols-2 gap-3">
-              <Input label="Correo" value={form.email} onChange={(value) => setForm((prev) => ({ ...prev, email: value }))} disabled={!canUpdate} />
-              <Input label="Teléfono" value={form.telefono} onChange={(value) => setForm((prev) => ({ ...prev, telefono: value }))} disabled={!canUpdate} />
-              <Input label="Dirección" value={form.direccion} onChange={(value) => setForm((prev) => ({ ...prev, direccion: value }))} disabled={!canUpdate} />
-              <Input label="Semestre que actualiza" value={form.semestre_actual} onChange={(value) => setForm((prev) => ({ ...prev, semestre_actual: value }))} disabled={!canUpdate} />
+              <Input label="Correo" value={form.email} onChange={(value) => setForm((prev) => ({ ...prev, email: value }))} disabled={!canUpdate} required />
+              <Input label="Teléfono" value={form.telefono} onChange={(value) => setForm((prev) => ({ ...prev, telefono: value }))} disabled={!canUpdate} required />
+              <Input label="Dirección" value={form.direccion} onChange={(value) => setForm((prev) => ({ ...prev, direccion: value }))} disabled={!canUpdate} required />
+              <SemestreInput
+                value={form.semestre_actual}
+                onChange={(value) => setForm((prev) => ({ ...prev, semestre_actual: value }))}
+                disabled={!canUpdate}
+              />
             </div>
 
             {/* Campo de Promedio con validación en tiempo real */}
@@ -817,7 +850,7 @@ const BeneficiarioActualizacion = () => {
               <p className="text-xs uppercase tracking-wide font-bold text-slate-600 mb-2">Datos Bancarios</p>
               <div className="grid md:grid-cols-3 gap-3">
                 <label className="grid gap-1 text-sm">
-                  <span className="text-xs uppercase tracking-wide font-bold text-slate-600">Banco</span>
+                  <span className="text-xs uppercase tracking-wide font-bold text-slate-600">Banco *</span>
                   <input
                     value={form.banco}
                     onChange={(event) => setForm((prev) => ({ ...prev, banco: event.target.value }))}
@@ -835,7 +868,7 @@ const BeneficiarioActualizacion = () => {
                   {banksError && <span className="text-[11px] text-amber-600">{banksError}</span>}
                 </label>
                 <label className="grid gap-1 text-sm">
-                  <span className="text-xs uppercase tracking-wide font-bold text-slate-600">Tipo de cuenta</span>
+                  <span className="text-xs uppercase tracking-wide font-bold text-slate-600">Tipo de cuenta *</span>
                   <select
                     value={form.tipo_cuenta}
                     onChange={(event) => setForm((prev) => ({ ...prev, tipo_cuenta: event.target.value }))}
@@ -956,6 +989,20 @@ const PromedioInput = ({ value, onChange, disabled = false, promedioMinimo = 3.5
   const promedio = Number(String(value || '').replace(',', '.'));
   const hasValue = value && String(value).trim() !== '';
   const isValid = hasValue && !isNaN(promedio) && promedio >= 0 && promedio <= 5;
+
+  // Solo permite dígitos y un único punto decimal; la coma se normaliza a punto y se limita a 5.
+  const handleChange = (rawValue) => {
+    let sanitized = rawValue.replace(',', '.').replace(/[^0-9.]/g, '');
+    const firstDotIndex = sanitized.indexOf('.');
+    if (firstDotIndex !== -1) {
+      sanitized = sanitized.slice(0, firstDotIndex + 1) + sanitized.slice(firstDotIndex + 1).replace(/\./g, '');
+    }
+    const numeric = Number(sanitized);
+    if (sanitized !== '' && sanitized !== '.' && Number.isFinite(numeric) && numeric > 5) {
+      sanitized = '5';
+    }
+    onChange(sanitized);
+  };
   
   // Determinar el estado del promedio
   let estado = 'neutral'; // neutral, bajo, bueno
@@ -993,7 +1040,7 @@ const PromedioInput = ({ value, onChange, disabled = false, promedioMinimo = 3.5
     <div className="grid gap-2">
       <div className="flex items-center gap-2">
         <span className="text-xs uppercase tracking-wide font-bold text-slate-600">
-          Promedio semestre anterior
+          Promedio semestre anterior *
         </span>
         <div className="group relative">
           <Info size={14} className="text-blue-600 cursor-help" />
@@ -1006,10 +1053,12 @@ const PromedioInput = ({ value, onChange, disabled = false, promedioMinimo = 3.5
       
       <input
         type="text"
+        inputMode="decimal"
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => handleChange(event.target.value)}
         disabled={disabled}
-        placeholder={`Mínimo ${promedioMinimo}`}
+        required
+        placeholder={`Mínimo ${promedioMinimo}, máximo 5`}
         className={`
           border rounded-lg px-3 py-2.5 transition-all duration-300
           disabled:bg-slate-100 disabled:text-slate-500
@@ -1036,14 +1085,56 @@ const PromedioInput = ({ value, onChange, disabled = false, promedioMinimo = 3.5
   );
 };
 
-const Input = ({ label, value, onChange, disabled = false, placeholder = '' }) => (
+const SemestreInput = ({ value, onChange, disabled = false }) => {
+  const numeric = Number(value);
+  const hasValue = value !== '' && value !== null && value !== undefined;
+  const isInvalid = hasValue && (!Number.isInteger(numeric) || numeric < 1 || numeric > 10);
+
+  const handleChange = (rawValue) => {
+    const sanitized = rawValue.replace(/[^0-9]/g, '').slice(0, 2);
+    onChange(sanitized);
+  };
+
+  const handleBlur = () => {
+    if (!hasValue) return;
+    const clamped = Math.min(10, Math.max(1, Math.round(numeric) || 1));
+    onChange(String(clamped));
+  };
+
+  return (
+    <label className="grid gap-1 text-sm">
+      <span className="text-xs uppercase tracking-wide font-bold text-slate-600">Semestre que actualiza *</span>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={value}
+        onChange={(event) => handleChange(event.target.value)}
+        onBlur={handleBlur}
+        disabled={disabled}
+        required
+        placeholder="1 a 10"
+        className={`border rounded-lg px-3 py-2 disabled:bg-slate-100 transition-all duration-200 focus:ring-2 ${
+          isInvalid
+            ? 'border-red-400 bg-red-50 focus:ring-red-200 focus:border-red-500'
+            : 'border-border focus:ring-secondary/25 focus:border-secondary'
+        }`}
+      />
+      {isInvalid && (
+        <span className="text-[11px] text-red-600">El semestre debe estar entre 1 y 10.</span>
+      )}
+    </label>
+  );
+};
+
+const Input = ({ label, value, onChange, disabled = false, placeholder = '', required = false }) => (
   <label className="grid gap-1 text-sm">
-    <span className="text-xs uppercase tracking-wide font-bold text-slate-600">{label}</span>
+    <span className="text-xs uppercase tracking-wide font-bold text-slate-600">{label}{required ? ' *' : ''}</span>
     <input
       value={value}
       onChange={(event) => onChange(event.target.value)}
       disabled={disabled}
       placeholder={placeholder}
+      required={required}
       className="border border-border rounded-lg px-3 py-2 disabled:bg-slate-100 transition-all duration-200 focus:ring-2 focus:ring-secondary/25 focus:border-secondary"
     />
   </label>

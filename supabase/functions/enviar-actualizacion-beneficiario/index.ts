@@ -124,6 +124,54 @@ Deno.serve(async (req) => {
 
     // 1. Insertar actualización
     const promedio = Number(String(form_data.promedio_semestre_anterior || '').replace(',', '.'))
+    const semestre = Number(form_data.semestre_actual)
+
+    if (!Number.isInteger(semestre) || semestre < 1 || semestre > 10) {
+      return new Response(
+        JSON.stringify({ ok: false, error: 'El semestre que actualiza debe ser un número entre 1 y 10.' }),
+        {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+        }
+      )
+    }
+
+    if (!Number.isFinite(promedio) || promedio < 0 || promedio > 5) {
+      return new Response(
+        JSON.stringify({ ok: false, error: 'El promedio debe ser un número entre 0 y 5.' }),
+        {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+        }
+      )
+    }
+
+    if (
+      !String(form_data.email || '').trim() ||
+      !String(form_data.telefono || '').trim() ||
+      !String(form_data.direccion || '').trim() ||
+      !String(form_data.banco || '').trim() ||
+      !String(form_data.tipo_cuenta || '').trim() ||
+      !String(form_data.cuenta_bancaria || '').trim()
+    ) {
+      return new Response(
+        JSON.stringify({ ok: false, error: 'Todos los campos del formulario son obligatorios.' }),
+        {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
+        }
+      )
+    }
+
     const payload = {
       beneficiario_id,
       ventana_id,
@@ -131,7 +179,7 @@ Deno.serve(async (req) => {
       email: String(form_data.email || '').trim().toLowerCase(),
       telefono: String(form_data.telefono || '').trim(),
       direccion: String(form_data.direccion || '').trim(),
-      semestre_actual: Number(form_data.semestre_actual || 0),
+      semestre_actual: semestre,
       promedio_semestre_anterior: promedio,
       fecha_expedicion_cert_bancario: form_data.fecha_expedicion_cert_bancario || null,
       payload_formulario: form_data,

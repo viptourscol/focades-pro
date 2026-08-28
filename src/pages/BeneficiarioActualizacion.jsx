@@ -1376,7 +1376,7 @@ const FileInput = ({ label, file, onChange, disabled = false, isPending = false 
   const bulletColor = disabled ? 'bg-slate-400' : hasFile ? 'bg-emerald-500' : isPending ? 'bg-blue-400' : 'bg-red-500';
 
   return (
-    <label className={`border border-dashed rounded-xl p-3 text-sm transition-all duration-300 hover:shadow-sm ${borderColorClass} ${bgColorClass} ${hoverClass}`}>
+    <label className={`border-2 border-dashed rounded-xl p-3 text-sm transition-all duration-300 hover:shadow-sm ${borderColorClass} ${bgColorClass} ${hoverClass}`}>
       <p className={`font-semibold ${textColorClass}`}>{label}</p>
       <p className={`text-xs mt-1 truncate ${textColorClass}`}>
         {file?.name ? (

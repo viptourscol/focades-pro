@@ -114,11 +114,7 @@ const GuiaInscripcion = () => {
 
   const handleDownload = async (documento) => {
     try {
-      // Incrementar contador de descargas
-      await supabase
-        .from('portal_documentos_descargables')
-        .update({ descargas: documento.descargas + 1 })
-        .eq('id', documento.id);
+      await supabase.rpc('incrementar_descarga_documento', { p_documento_id: documento.id });
 
       // Abrir documento
       window.open(documento.archivo_url, '_blank');

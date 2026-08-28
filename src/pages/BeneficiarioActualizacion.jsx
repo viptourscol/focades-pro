@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { showErrorAlert, showWarningAlert } from '../lib/alerts';
 import { compressPDF, getFileInfo } from '../lib/fileCompression';
-import { AlertCircle, CheckCircle2, Loader2, Info } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2, Info, AlertTriangle } from 'lucide-react';
 
 const MAX_FILE_MB = 10;
 const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
@@ -283,7 +283,7 @@ const BeneficiarioActualizacion = () => {
         try {
           const { data: prevUpdate } = await supabase
             .from('portal_actualizaciones')
-            .select('id, estado, created_at, observacion_admin, campos_a_corregir, documentos_a_corregir, semestre_actual, promedio_semestre_anterior, email, telefono, direccion, payload_formulario')
+            .select('id, estado, created_at, observacion_admin, campos_a_corregir, documentos_a_corregir, marcado_subsanacion_at, semestre_actual, promedio_semestre_anterior, email, telefono, direccion, payload_formulario')
             .eq('beneficiario_id', beneficiarioId)
             .eq('ventana_id', ventanaData.id)
             .in('estado', ['en_revision', 'aprobada', 'rechazada', 'subsanacion'])
@@ -894,6 +894,30 @@ const BeneficiarioActualizacion = () => {
         })()}
 
         {/* Banner de estado de actualización previa */}
+        {previousUpdate && previousUpdate.estado === 'subsanacion' && (
+          <div className="mt-4 p-4 rounded-xl border border-blue-300 bg-blue-50 text-blue-900 flex items-start gap-3">
+            <AlertTriangle size={16} className="flex-shrink-0 mt-0.5 text-blue-600" />
+            <div className="flex-1">
+              <p className="font-semibold text-sm">Debes corregir tu actualización</p>
+              <p className="text-xs text-blue-800 mt-1">El equipo administrativo ha solicitado correcciones en tu actualización. Sigue las indicaciones abajo para completarlas.</p>
+              {previousUpdate.observacion_admin && (
+                <p className="text-xs mt-2 p-2 bg-blue-100 rounded border border-blue-200"><strong>Observaciones:</strong> {previousUpdate.observacion_admin}</p>
+              )}
+              {(camposASubsanar.length > 0 || documentosASubsanar.length > 0) && (
+                <div className="text-xs text-blue-700 mt-2 space-y-1">
+                  {camposASubsanar.length > 0 && (
+                    <p><strong>Campos a corregir:</strong> {camposASubsanar.map((c) => CAMPO_LABELS_SUBSANACION[c] || c).join(', ')}</p>
+                  )}
+                  {documentosASubsanar.length > 0 && (
+                    <p><strong>Documentos a reemplazar:</strong> {documentosASubsanar.map((d) => DOCUMENTO_LABELS_SUBSANACION[d] || d).join(', ')}</p>
+                  )}
+                </div>
+              )}
+              <p className="text-xs text-blue-700 mt-2 opacity-75">Marcada para subsanación: {new Date(previousUpdate.marcado_subsanacion_at || previousUpdate.created_at).toLocaleDateString('es-CO')}</p>
+            </div>
+          </div>
+        )}
+
         {previousUpdate && previousUpdate.estado === 'en_revision' && (
           <div className="mt-4 p-4 rounded-xl border border-blue-300 bg-blue-50 text-blue-900 flex items-start gap-3">
             <div className="flex-shrink-0 mt-0.5">

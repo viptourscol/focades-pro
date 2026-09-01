@@ -1285,7 +1285,7 @@ const PromedioInput = ({ value, onChange, disabled = false, promedioMinimo = 3.5
         onChange={(event) => handleChange(event.target.value)}
         disabled={disabled}
         required
-        placeholder={`Mínimo ${promedioMinimo}, máximo 5`}
+        placeholder="Mínimo 0.1, máximo 5"
         className={`
           border rounded-lg px-3 py-2.5 transition-all duration-300
           disabled:bg-slate-100 disabled:text-slate-500

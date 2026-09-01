@@ -27,21 +27,28 @@ async function hashPassword(password: string): Promise<string> {
   }
   
   try {
-    // Usar SubtleCrypto API de Deno para generar hash
-    const encoder = new TextEncoder()
-    const data = encoder.encode(password + crypto.getRandomValues(new Uint8Array(16)).join(''))
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+    // Generar salt aleatorio
+    const salt = crypto.getRandomValues(new Uint8Array(16))
+    const saltHex = Array.from(salt)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
     
-    // Convertir hash a string Base64
-    const bytes = new Uint8Array(hashBuffer)
-    let binary = ''
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i])
-    }
-    return btoa(binary)
+    // Concatenar password + salt y hacer hash
+    const encoder = new TextEncoder()
+    const combined = encoder.encode(password + saltHex)
+    const hashBuffer = await crypto.subtle.digest('SHA-256', combined)
+    
+    // Convertir hash a string hex
+    const hashArray = Array.from(new Uint8Array(hashBuffer))
+    const hashHex = hashArray
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
+    
+    // Retornar salt:hash para verificación posterior
+    return `${saltHex}:${hashHex}`
   } catch (error) {
-    console.error('Error en hashPassword:', error)
-    throw new Error('Error al procesar contraseña')
+    console.error('❌ Error en hashPassword:', error)
+    throw new Error('Error al procesar contraseña: ' + (error as Error).message)
   }
 }
 
@@ -536,7 +543,19 @@ Deno.serve(async (req) => {
       }
 
       // 3. Hashear nueva contraseña
-      const passwordHash = await hashPassword(new_password)
+      let passwordHash: string
+      try {
+        console.log('🔐 Hasheando contraseña...')
+        passwordHash = await hashPassword(new_password)
+        console.log('✅ Contraseña hasheada exitosamente')
+      } catch (hashError) {
+        const hashErrorMsg = hashError instanceof Error ? hashError.message : String(hashError)
+        console.error('❌ Error hasheando contraseña:', hashErrorMsg)
+        return new Response(
+          JSON.stringify({ ok: false, error: 'Error al procesar contraseña: ' + hashErrorMsg }),
+          { status: 500, headers: corsHeaders }
+        )
+      }
 
       // 4. Actualizar contraseña y limpiar token
       const { error: updateErr } = await supabase
@@ -578,9 +597,13 @@ Deno.serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('❌ Error en reset-password-beneficiario:', error)
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    console.error('❌ Error en reset-password-beneficiario:', errorMsg, error)
     return new Response(
-      JSON.stringify({ ok: false, error: error.message || 'Error interno del servidor' }),
+      JSON.stringify({ 
+        ok: false, 
+        error: 'Error interno del servidor. ' + errorMsg 
+      }),
       { status: 500, headers: corsHeaders }
     )
   }

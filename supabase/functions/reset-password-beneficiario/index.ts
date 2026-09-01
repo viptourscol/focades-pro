@@ -1,23 +1,48 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import bcrypt from 'https://esm.sh/bcryptjs@2.4.3'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 const resendApiKey = Deno.env.get('RESEND_API_KEY')
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
+}
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
+})
 
 // Genera un token aleatorio para reset de contraseña
 function generateResetToken() {
   return crypto.getRandomValues(new Uint8Array(32)).reduce((a, b) => a + b.toString(16).padStart(2, '0'), '')
 }
 
-// Valida y hashea contraseña
+// Hash simple basado en webcrypto (más compatible con Deno que bcryptjs)
 async function hashPassword(password: string): Promise<string> {
   if (password.length < 8) {
     throw new Error('La contraseña debe tener al menos 8 caracteres')
   }
-  const saltRounds = 10
-  return await bcrypt.hash(password, saltRounds)
+  
+  try {
+    // Usar SubtleCrypto API de Deno para generar hash
+    const encoder = new TextEncoder()
+    const data = encoder.encode(password + crypto.getRandomValues(new Uint8Array(16)).join(''))
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+    
+    // Convertir hash a string Base64
+    const bytes = new Uint8Array(hashBuffer)
+    let binary = ''
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i])
+    }
+    return btoa(binary)
+  } catch (error) {
+    console.error('Error en hashPassword:', error)
+    throw new Error('Error al procesar contraseña')
+  }
 }
 
 // Headers CORS

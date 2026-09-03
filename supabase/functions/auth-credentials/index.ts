@@ -1,5 +1,4 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import bcrypt from 'https://esm.sh/bcryptjs@2.4.3'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -10,18 +9,66 @@ function generateSetupToken() {
   return crypto.getRandomValues(new Uint8Array(32)).reduce((a, b) => a + b.toString(16).padStart(2, '0'), '')
 }
 
-// Valida y hashea contraseña
+// Hash basado en webcrypto (compatible con Deno) - SINCRONIZADO CON reset-password-beneficiario
 async function hashPassword(password: string): Promise<string> {
   if (password.length < 8) {
     throw new Error('Contraseña debe tener al menos 8 caracteres')
   }
-  const saltRounds = 10
-  return await bcrypt.hash(password, saltRounds)
+  
+  try {
+    // Generar salt aleatorio
+    const salt = crypto.getRandomValues(new Uint8Array(16))
+    const saltHex = Array.from(salt)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
+    
+    // Concatenar password + salt y hacer hash
+    const encoder = new TextEncoder()
+    const combined = encoder.encode(password + saltHex)
+    const hashBuffer = await crypto.subtle.digest('SHA-256', combined)
+    
+    // Convertir hash a string hex
+    const hashArray = Array.from(new Uint8Array(hashBuffer))
+    const hashHex = hashArray
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
+    
+    // Retornar salt:hash para verificación posterior
+    return `${saltHex}:${hashHex}`
+  } catch (error) {
+    console.error('❌ Error en hashPassword:', error)
+    throw new Error('Error al procesar contraseña: ' + (error as Error).message)
+  }
 }
 
-// Verifica contraseña
+// Verifica contraseña - SINCRONIZADO CON reset-password-beneficiario
 async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  return await bcrypt.compare(password, hash)
+  try {
+    // Extraer salt del formato saltHex:hashHex
+    const [saltHex, storedHashHex] = hash.split(':')
+    
+    if (!saltHex || !storedHashHex) {
+      console.error('❌ Formato de hash inválido (esperado saltHex:hashHex)')
+      return false
+    }
+    
+    // Recalcular hash con el salt almacenado
+    const encoder = new TextEncoder()
+    const combined = encoder.encode(password + saltHex)
+    const hashBuffer = await crypto.subtle.digest('SHA-256', combined)
+    
+    // Convertir a hex
+    const hashArray = Array.from(new Uint8Array(hashBuffer))
+    const calculatedHashHex = hashArray
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
+    
+    // Comparar hashes
+    return calculatedHashHex === storedHashHex
+  } catch (error) {
+    console.error('❌ Error en verifyPassword:', error)
+    return false
+  }
 }
 
 // Headers CORS para permitir requests desde el frontend

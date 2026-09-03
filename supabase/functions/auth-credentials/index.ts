@@ -10,81 +10,25 @@ function generateSetupToken() {
   return crypto.getRandomValues(new Uint8Array(32)).reduce((a, b) => a + b.toString(16).padStart(2, '0'), '')
 }
 
-// Hash basado en webcrypto (compatible con Deno) - SINCRONIZADO CON reset-password-beneficiario
+// Hash basado en bcryptjs - SINCRONIZADO CON reset-password-beneficiario
 async function hashPassword(password: string): Promise<string> {
   if (password.length < 8) {
     throw new Error('Contraseña debe tener al menos 8 caracteres')
   }
   
   try {
-    // Generar salt aleatorio
-    const salt = crypto.getRandomValues(new Uint8Array(16))
-    const saltHex = Array.from(salt)
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('')
-    
-    // Concatenar password + salt y hacer hash
-    const encoder = new TextEncoder()
-    const combined = encoder.encode(password + saltHex)
-    const hashBuffer = await crypto.subtle.digest('SHA-256', combined)
-    
-    // Convertir hash a string hex
-    const hashArray = Array.from(new Uint8Array(hashBuffer))
-    const hashHex = hashArray
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('')
-    
-    // Retornar salt:hash para verificación posterior
-    return `${saltHex}:${hashHex}`
+    const saltRounds = 10
+    return await bcrypt.hash(password, saltRounds)
   } catch (error) {
     console.error('❌ Error en hashPassword:', error)
     throw new Error('Error al procesar contraseña: ' + (error as Error).message)
   }
 }
 
-// Verifica contraseña - BACKWARDS COMPATIBLE (soporta bcryptjs antiguo y SHA-256 nuevo)
+// Verifica contraseña - SINCRONIZADO CON reset-password-beneficiario
 async function verifyPassword(password: string, hash: string): Promise<boolean> {
   try {
-    // MÉTODO 1: Intentar SHA-256 (nuevo formato: saltHex:hashHex)
-    if (hash.includes(':')) {
-      const [saltHex, storedHashHex] = hash.split(':')
-      
-      if (saltHex && storedHashHex) {
-        try {
-          // Recalcular hash con el salt almacenado
-          const encoder = new TextEncoder()
-          const combined = encoder.encode(password + saltHex)
-          const hashBuffer = await crypto.subtle.digest('SHA-256', combined)
-          
-          // Convertir a hex
-          const hashArray = Array.from(new Uint8Array(hashBuffer))
-          const calculatedHashHex = hashArray
-            .map(b => b.toString(16).padStart(2, '0'))
-            .join('')
-          
-          // Comparar hashes
-          if (calculatedHashHex === storedHashHex) {
-            console.log('✅ Contraseña verificada con SHA-256 (nuevo formato)')
-            return true
-          }
-        } catch (err) {
-          console.warn('⚠️ Error verificando SHA-256:', err.message)
-        }
-      }
-    }
-    
-    // MÉTODO 2: Intentar bcryptjs (formato antiguo, sin ':')
-    // Soportar usuarios con setup anterior (backwards compatibility)
-    try {
-      const isValid = await bcrypt.compare(password, hash)
-      if (isValid) {
-        console.log('✅ Contraseña verificada con bcryptjs (formato antiguo)')
-      }
-      return isValid
-    } catch (err) {
-      console.warn('⚠️ Error verificando bcryptjs:', err.message)
-      return false
-    }
+    return await bcrypt.compare(password, hash)
   } catch (error) {
     console.error('❌ Error en verifyPassword:', error)
     return false

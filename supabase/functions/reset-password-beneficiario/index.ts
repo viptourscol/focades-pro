@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import bcrypt from 'https://esm.sh/bcryptjs@2.4.3'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -20,32 +21,15 @@ function generateResetToken() {
   return crypto.getRandomValues(new Uint8Array(32)).reduce((a, b) => a + b.toString(16).padStart(2, '0'), '')
 }
 
-// Hash simple basado en webcrypto (más compatible con Deno que bcryptjs)
+// Hash basado en bcryptjs - SINCRONIZADO CON auth-credentials
 async function hashPassword(password: string): Promise<string> {
   if (password.length < 8) {
     throw new Error('La contraseña debe tener al menos 8 caracteres')
   }
   
   try {
-    // Generar salt aleatorio
-    const salt = crypto.getRandomValues(new Uint8Array(16))
-    const saltHex = Array.from(salt)
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('')
-    
-    // Concatenar password + salt y hacer hash
-    const encoder = new TextEncoder()
-    const combined = encoder.encode(password + saltHex)
-    const hashBuffer = await crypto.subtle.digest('SHA-256', combined)
-    
-    // Convertir hash a string hex
-    const hashArray = Array.from(new Uint8Array(hashBuffer))
-    const hashHex = hashArray
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('')
-    
-    // Retornar salt:hash para verificación posterior
-    return `${saltHex}:${hashHex}`
+    const saltRounds = 10
+    return await bcrypt.hash(password, saltRounds)
   } catch (error) {
     console.error('❌ Error en hashPassword:', error)
     throw new Error('Error al procesar contraseña: ' + (error as Error).message)

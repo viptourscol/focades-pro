@@ -847,17 +847,16 @@ const BeneficiarioOnboardingCompleto = () => {
         }
       }
 
-      // Subir a Storage
-      const timestamp = Date.now();
-      const safeName = finalFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const bucketPath = `beneficiarios_historicos/${beneficiarioId}/documentos/${tipoDoc}-${timestamp}.pdf`;
+      // Subir a Storage con nombre consistente (sin timestamp) para reemplazar archivos anteriores
+      // Si usuario sube un nuevo documento del mismo tipo, reemplazará automáticamente al anterior
+      const bucketPath = `beneficiarios_historicos/${beneficiarioId}/documentos/${tipoDoc}.pdf`;
       const dbPath = `soportes/${bucketPath}`;
 
       const { error: uploadError } = await supabase.storage
         .from('soportes')
         .upload(bucketPath, finalFile, {
           contentType: 'application/pdf',
-          upsert: false,
+          upsert: true,  // Reemplaza el archivo anterior automáticamente
         });
 
       if (uploadError) {
@@ -893,7 +892,7 @@ const BeneficiarioOnboardingCompleto = () => {
 
       await showSuccessAlert({
         title: 'Documento subido',
-        text: `${getDocumentTitle(tipoDoc)} cargado exitosamente`,
+        text: `${getDocumentTitle(tipoDoc)} cargado exitosamente${uploadedDocs[tipoDoc] ? ' (reemplazado)' : ''}`,
         timer: 1500,
       });
     } catch (error) {

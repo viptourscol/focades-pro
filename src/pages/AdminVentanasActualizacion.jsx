@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarCheck2, CalendarClock, CalendarX2, Clock3, Edit2, EyeOff, FileText, Plus, Save, Trash2, XCircle } from 'lucide-react';
+import { CalendarClock, CalendarX2, CheckCircle2, CircleDashed, EyeOff, Pencil, Plus, Save, Trash2, XCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from '../lib/alerts';
 
@@ -272,36 +272,7 @@ export default function AdminVentanasActualizacion() {
     }
   };
 
-  const notifyBeneficiarios = async (item) => {
-    const confirmed = await showConfirmAlert({
-      title: 'Notificar beneficiarios',
-      text: `¿Enviar notificación a beneficiarios sobre la ventana "${item.nombre || item.id}"?`,
-      confirmButtonText: 'Enviar notificación',
-      cancelButtonText: 'Cancelar',
-    });
-    if (!confirmed) return;
 
-    try {
-      setSaving(true);
-      const token = await getFreshAdminAccessToken();
-      await invokeWindowStatusNotification(
-        {
-          ventana_id: item.id,
-          ventana_nombre: item.nombre || `Ventana ${item.id}`,
-          notify_mode: 'status_change',
-        },
-        token
-      );
-      await showSuccessAlert({
-        title: 'Notificación enviada',
-        text: 'Los beneficiarios fueron notificados correctamente.',
-      });
-    } catch (error) {
-      await showErrorAlert({ title: 'No se pudo enviar la notificación', text: error?.message || 'Ocurrió un error inesperado.' });
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const editRow = (item) => {
     setEditingId(item.id);
@@ -467,49 +438,28 @@ export default function AdminVentanasActualizacion() {
                         </span>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="flex justify-end items-center gap-1.5 flex-wrap">
-                          {/* Acción rápida: Toggle estado */}
+                        <div className="flex items-center justify-center gap-2">
                           <button
                             type="button"
-                            title={item.is_active ? 'Desactivar ventana' : 'Activar ventana'}
-                            onClick={() => toggleWindowStatus(item)}
+                            title="Editar"
                             disabled={saving}
+                            onClick={() => editRow(item)}
+                            className="w-8 h-8 rounded-lg border border-[var(--gov-line)] text-slate-500 hover:text-[var(--gov-accent)] hover:border-[var(--gov-accent)] flex items-center justify-center transition-colors disabled:opacity-50"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            title={item.is_active ? 'Desactivar' : 'Activar'}
+                            disabled={saving}
+                            onClick={() => toggleWindowStatus(item)}
                             className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-colors disabled:opacity-50 ${
                               item.is_active
                                 ? 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'
-                                : 'border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-200'
+                                : 'border-[var(--gov-line)] text-slate-400 hover:text-emerald-600 hover:border-emerald-200'
                             }`}
                           >
-                            {item.is_active ? <CalendarCheck2 size={14} /> : <Clock3 size={14} />}
-                          </button>
-
-                          {/* Acción rápida: Notificar beneficiarios */}
-                          <button
-                            type="button"
-                            title="Notificar beneficiarios"
-                            onClick={() => notifyBeneficiarios(item)}
-                            disabled={saving}
-                            className="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 flex items-center justify-center transition-colors disabled:opacity-50"
-                          >
-                            <FileText size={14} />
-                          </button>
-
-                          {/* Editar */}
-                          <button
-                            type="button"
-                            onClick={() => editRow(item)}
-                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1 text-xs font-medium"
-                          >
-                            <Edit2 size={12} /> Editar
-                          </button>
-
-                          {/* Eliminar */}
-                          <button
-                            type="button"
-                            onClick={() => deleteRow(item)}
-                            className="px-2.5 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 inline-flex items-center gap-1 text-xs font-medium"
-                          >
-                            <Trash2 size={12} /> Eliminar
+                            {item.is_active ? <CheckCircle2 size={14} /> : <CircleDashed size={14} />}
                           </button>
                         </div>
                       </td>

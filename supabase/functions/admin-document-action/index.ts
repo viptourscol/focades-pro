@@ -75,10 +75,15 @@ async function handleDocumentAction(req: DocumentActionRequest) {
     console.log(`📄 Buscando documento en ${tableName}: ${documento_id}`);
     console.log(`   Tipo de busqueda: ${documentType}`);
     
+    // Seleccionar campos según la tabla
+    const selectFields = documentType === 'historico'
+      ? 'id, storage_path, titulo, beneficiario_id'
+      : 'id, storage_path, nombre_original, beneficiario_id';
+    
     // Primero intentar SIN .single() para ver todos los resultados
     const { data: docList, error: docListError } = await supabase
       .from(tableName)
-      .select('id, storage_path, nombre_original, titulo, beneficiario_id')
+      .select(selectFields)
       .eq('id', documento_id);
     
     console.log(`📊 Resultados de búsqueda sin .single():`, {

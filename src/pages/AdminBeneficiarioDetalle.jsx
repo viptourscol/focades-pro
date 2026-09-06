@@ -192,6 +192,14 @@ const AdminBeneficiarioDetalle = () => {
   const [historicoDocs, setHistoricoDocs] = useState([]);
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteMessage, setInviteMessage] = useState('');
+  const [documentActionModal, setDocumentActionModal] = useState({
+    isOpen: false,
+    action: null, // 'replace' | 'delete'
+    documento: null,
+    motivo: '',
+    nuevoArchivo: null,
+    loading: false,
+  });
   const [catalogos, setCatalogos] = useState({
     departamentos: [],
     municipios: [],
@@ -1175,6 +1183,140 @@ const AdminBeneficiarioDetalle = () => {
       estado: payment.estado || 'programado',
       observacion: payment.observacion || '',
     });
+  };
+
+  // Funciones de acción de documentos
+  const openDocumentActionModal = (action, documento) => {
+    setDocumentActionModal({
+      isOpen: true,
+      action,
+      documento,
+      motivo: '',
+      nuevoArchivo: null,
+      loading: false,
+    });
+  };
+
+  const closeDocumentActionModal = () => {
+    setDocumentActionModal({
+      isOpen: false,
+      action: null,
+      documento: null,
+      motivo: '',
+      nuevoArchivo: null,
+      loading: false,
+    });
+  };
+
+  const handleDocumentFileChange = (e) => {
+    const file = e.target.files?.[0] || null;
+    if (file && file.type !== 'application/pdf') {
+      showErrorAlert({ title: 'Archivo inválido', text: 'Solo se permiten archivos PDF.' });
+      return;
+    }
+    setDocumentActionModal((prev) => ({ ...prev, nuevoArchivo: file }));
+  };
+
+  const executeDocumentAction = async () => {
+    const { action, documento, motivo, nuevoArchivo } = documentActionModal;
+
+    if (!documento || !motivo.trim()) {
+      await showErrorAlert({ title: 'Datos incompletos', text: 'Debes registrar el motivo de la acción.' });
+      return;
+    }
+
+    if (action === 'replace' && !nuevoArchivo) {
+      await showErrorAlert({ title: 'Archivo requerido', text: 'Debes seleccionar un nuevo archivo para reemplazar.' });
+      return;
+    }
+
+    setDocumentActionModal((prev) => ({ ...prev, loading: true }));
+
+    try {
+      const session = await getSafeSession();
+      const adminId = session?.user?.id || null;
+
+      if (!adminId) {
+        throw new Error('No se pudo identificar la sesión de admin')
+      }
+
+      if (action === 'replace' && nuevoArchivo) {
+        // Convertir a base64
+        const fileBuffer = await nuevoArchivo.arrayBuffer()
+        const base64String = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)))
+
+        const { data: result, error: invokeError } = await supabase.functions.invoke('admin-document-action', {
+          body: {
+            method: 'replace-document',
+            beneficiario_id: beneficiario.id,
+            documento_id: documento.id,
+            tipo_documento: documento.tipo_documento,
+            motivo: String(motivo).trim(),
+            nuevo_archivo_base64: base64String,
+            nuevo_archivo_nombre: nuevoArchivo.name,
+            admin_id: adminId,
+          },
+        })
+
+        if (invokeError) {
+          throw new Error(invokeError.message || 'Error al procesar el reemplazo')
+        }
+
+        if (!result?.ok) {
+          throw new Error(result?.error || 'No se pudo reemplazar el documento')
+        }
+
+        await showSuccessAlert({ title: 'Documento reemplazado', text: `${documento.nombre_original || documento.tipo_documento} fue reemplazado correctamente.` })
+      } else if (action === 'delete') {
+        // Confirmación adicional
+        const confirmed = await showConfirmAlert({
+          title: '¿Eliminar documento?',
+          text: `Se eliminará ${documento.nombre_original || documento.tipo_documento}. Esta acción se registrará en la bitácora.`,
+          confirmText: 'Eliminar',
+          cancelText: 'Cancelar',
+        })
+
+        if (!confirmed) {
+          setDocumentActionModal((prev) => ({ ...prev, loading: false }))
+          return
+        }
+
+        const { data: result, error: invokeError } = await supabase.functions.invoke('admin-document-action', {
+          body: {
+            method: 'delete-document',
+            beneficiario_id: beneficiario.id,
+            documento_id: documento.id,
+            tipo_documento: documento.tipo_documento,
+            motivo: String(motivo).trim(),
+            admin_id: adminId,
+          },
+        })
+
+        if (invokeError) {
+          throw new Error(invokeError.message || 'Error al procesar la eliminación')
+        }
+
+        if (!result?.ok) {
+          throw new Error(result?.error || 'No se pudo eliminar el documento')
+        }
+
+        await showSuccessAlert({ title: 'Documento eliminado', text: `${documento.nombre_original || documento.tipo_documento} fue eliminado correctamente.` })
+      }
+
+      // Recargar documentos
+      if (loadedTabs.expediente) {
+        await loadExpedienteData(beneficiario)
+      }
+      if (loadedTabs.bitacora) {
+        await loadBitacoraData(beneficiario)
+      }
+
+      closeDocumentActionModal()
+    } catch (error) {
+      await showErrorAlert({ title: 'Error al procesar acción', text: error.message || 'Ocurrió un error inesperado.' })
+    } finally {
+      setDocumentActionModal((prev) => ({ ...prev, loading: false }))
+    }
   };
 
   const resetPaymentForm = () => {
@@ -2325,13 +2467,29 @@ const AdminBeneficiarioDetalle = () => {
               ) : (
                 expedienteDocs.map((doc) => (
                   <div key={doc.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border border-slate-200 rounded-2xl px-4 py-3">
-                    <div>
+                    <div className="flex-1">
                       <p className="font-semibold text-slate-800">{doc.nombre_original || doc.tipo_documento}</p>
                       <p className="text-xs text-slate-500 mt-1">{doc.tipo_documento} · {formatDateTime(doc.uploaded_at)}</p>
                     </div>
-                    <button type="button" onClick={() => setViewingDoc(doc)} className="px-3 py-2 rounded-xl border border-slate-200 text-sm font-bold text-secondary hover:bg-slate-50">
-                      Ver documento
-                    </button>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <button type="button" onClick={() => setViewingDoc(doc)} className="px-3 py-2 rounded-xl border border-slate-200 text-sm font-bold text-secondary hover:bg-slate-50">
+                        Ver
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openDocumentActionModal('replace', doc)}
+                        className="px-3 py-2 rounded-xl border border-blue-200 bg-blue-50 text-sm font-bold text-blue-600 hover:bg-blue-100"
+                      >
+                        Reemplazar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openDocumentActionModal('delete', doc)}
+                        className="px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-sm font-bold text-red-600 hover:bg-red-100"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
@@ -2606,6 +2764,98 @@ const AdminBeneficiarioDetalle = () => {
                   )}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de acción de documentos (Reemplazar/Eliminar) */}
+      {documentActionModal.isOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full mx-4 shadow-2xl animate-scale-up">
+            <div className="mb-4">
+              <h3 className="text-lg font-bold text-slate-800">
+                {documentActionModal.action === 'replace' ? 'Reemplazar documento' : 'Eliminar documento'}
+              </h3>
+              <p className="text-sm text-slate-600 mt-1">
+                {documentActionModal.documento?.nombre_original || documentActionModal.documento?.tipo_documento}
+              </p>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              {/* Campo de motivo */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Motivo de la acción *</label>
+                <textarea
+                  value={documentActionModal.motivo}
+                  onChange={(e) => setDocumentActionModal((prev) => ({ ...prev, motivo: e.target.value }))}
+                  placeholder="Describe por qué reemplazas o eliminas este documento"
+                  rows={3}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-secondary/25 focus:border-secondary"
+                />
+              </div>
+
+              {/* Campo de archivo (solo para reemplazar) */}
+              {documentActionModal.action === 'replace' && (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Nuevo archivo PDF *</label>
+                  <div className="border-2 border-dashed border-slate-200 rounded-xl px-4 py-4 text-center cursor-pointer hover:bg-slate-50 transition">
+                    <input
+                      type="file"
+                      accept=".pdf,application/pdf"
+                      onChange={handleDocumentFileChange}
+                      className="hidden"
+                      id="doc-action-file"
+                    />
+                    <label htmlFor="doc-action-file" className="cursor-pointer">
+                      {documentActionModal.nuevoArchivo ? (
+                        <div className="text-sm">
+                          <p className="font-semibold text-slate-800">✓ Archivo seleccionado</p>
+                          <p className="text-xs text-slate-600 mt-1">{documentActionModal.nuevoArchivo.name}</p>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-slate-600">
+                          <p className="font-semibold">Selecciona un archivo PDF</p>
+                          <p className="text-xs mt-1">o arrastra aquí</p>
+                        </div>
+                      )}
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Botones */}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={closeDocumentActionModal}
+                disabled={documentActionModal.loading}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-50 disabled:opacity-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={executeDocumentAction}
+                disabled={
+                  documentActionModal.loading ||
+                  !documentActionModal.motivo.trim() ||
+                  (documentActionModal.action === 'replace' && !documentActionModal.nuevoArchivo)
+                }
+                className={`flex-1 px-4 py-2.5 rounded-xl font-bold text-white transition disabled:opacity-50 flex items-center justify-center gap-2 ${
+                  documentActionModal.action === 'delete'
+                    ? 'bg-red-600 hover:bg-red-700'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                {documentActionModal.loading && <Loader2 size={16} className="animate-spin" />}
+                {documentActionModal.loading
+                  ? 'Procesando...'
+                  : documentActionModal.action === 'replace'
+                    ? 'Reemplazar'
+                    : 'Eliminar'}
+              </button>
             </div>
           </div>
         </div>

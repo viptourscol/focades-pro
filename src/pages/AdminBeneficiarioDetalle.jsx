@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, CalendarClock, ChevronLeft, ChevronRight, CircleDollarSign, Edit2, FileText, LoaderCircle, Mail, MapPin, Phone, Printer, Save, ShieldAlert, Ticket, X } from 'lucide-react';
+import { ArrowLeft, CalendarClock, ChevronLeft, ChevronRight, CircleDollarSign, Edit2, FileText, Loader2, LoaderCircle, Mail, MapPin, Phone, Printer, Save, ShieldAlert, Ticket, X } from 'lucide-react';
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from '../lib/alerts';
 import { invokeAdminTickets } from '../lib/adminTickets';
 import { getSafeSession, supabase } from '../lib/supabase';
@@ -748,7 +748,7 @@ const AdminBeneficiarioDetalle = () => {
       if (updateError) throw updateError;
 
       // Registrar en bitácora
-      const session = await getSafeSession();
+      const { session } = await getSafeSession();
       const actorUserId = session?.user?.id || null;
       const actorEmail = session?.user?.email || 'Sistema';
 
@@ -1038,7 +1038,7 @@ const AdminBeneficiarioDetalle = () => {
       if (error) throw error;
 
       // Registrar en bitácora
-      const session = await getSafeSession();
+      const { session } = await getSafeSession();
       const actorUserId = session?.user?.id || null;
       const actorEmail = session?.user?.email || 'Sistema';
 
@@ -1236,7 +1236,7 @@ const AdminBeneficiarioDetalle = () => {
     setDocumentActionModal((prev) => ({ ...prev, loading: true }));
 
     try {
-      const session = await getSafeSession();
+      const { session } = await getSafeSession();
       const adminId = session?.user?.id || null;
 
       if (!adminId) {
@@ -1433,7 +1433,7 @@ const AdminBeneficiarioDetalle = () => {
       if (error) throw error;
 
       // Registrar en bitácora
-      const session = await getSafeSession();
+      const { session } = await getSafeSession();
       await supabase.from('portal_beneficiario_bitacora').insert({
         beneficiario_id: beneficiario?.id,
         categoria: 'pagos',

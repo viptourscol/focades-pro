@@ -438,16 +438,8 @@ export default function AdminVentanasActualizacion() {
                         </span>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="flex items-center justify-center gap-2">
-                          <button
-                            type="button"
-                            title="Editar"
-                            disabled={saving}
-                            onClick={() => editRow(item)}
-                            className="w-8 h-8 rounded-lg border border-[var(--gov-line)] text-slate-500 hover:text-[var(--gov-accent)] hover:border-[var(--gov-accent)] flex items-center justify-center transition-colors disabled:opacity-50"
-                          >
-                            <Pencil size={14} />
-                          </button>
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          {/* Toggle estado */}
                           <button
                             type="button"
                             title={item.is_active ? 'Desactivar' : 'Activar'}
@@ -460,6 +452,24 @@ export default function AdminVentanasActualizacion() {
                             }`}
                           >
                             {item.is_active ? <CheckCircle2 size={14} /> : <CircleDashed size={14} />}
+                          </button>
+
+                          {/* Editar */}
+                          <button
+                            type="button"
+                            onClick={() => editRow(item)}
+                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1 text-xs font-medium"
+                          >
+                            <Pencil size={12} /> Editar
+                          </button>
+
+                          {/* Eliminar */}
+                          <button
+                            type="button"
+                            onClick={() => deleteRow(item)}
+                            className="px-2.5 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 inline-flex items-center gap-1 text-xs font-medium"
+                          >
+                            <Trash2 size={12} /> Eliminar
                           </button>
                         </div>
                       </td>

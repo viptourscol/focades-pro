@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json()
-    const { storage_path, expires_in = 300 } = body
+    let { storage_path, expires_in = 300 } = body
 
     if (!storage_path) {
       return new Response(
@@ -42,6 +42,11 @@ Deno.serve(async (req) => {
           },
         }
       )
+    }
+
+    // Remover prefijo 'soportes/' si está presente
+    if (storage_path.startsWith('soportes/')) {
+      storage_path = storage_path.replace('soportes/', '')
     }
 
     console.log('🔗 Generando signed URL para:', storage_path)

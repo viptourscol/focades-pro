@@ -255,10 +255,11 @@ async function handleDocumentAction(req: DocumentActionRequest) {
       }
 
       // 4. Registrar en bitácora
-      const { error: bitacoraError } = await supabase
+      console.log(`📝 Intentando registrar en bitácora...`);
+      const { error: bitacoraError, data: bitacoraData } = await supabase
         .from('portal_beneficiario_bitacora')
         .insert({
-          beneficiario_id,
+          beneficiario_id: Number(beneficiario_id), // ✅ Convertir a número
           actor_id: admin_id,
           actor_user_id: admin_id,
           accion: 'Reemplazó documento',
@@ -274,8 +275,12 @@ async function handleDocumentAction(req: DocumentActionRequest) {
         })
 
       if (bitacoraError) {
-        console.error(`⚠️ Error al registrar en bitácora: ${bitacoraError.message}`)
+        console.error(`❌ Error al registrar en bitácora: ${bitacoraError.message}`);
+        console.error(`   Details:`, bitacoraError);
         // Continuar aunque falle
+      } else {
+        console.log(`✅ Bitácora registrada exitosamente`);
+        console.log(`   Data:`, bitacoraData);
       }
 
       return {
@@ -326,10 +331,11 @@ async function handleDocumentAction(req: DocumentActionRequest) {
       }
 
       // 5. Registrar en bitácora
-      const { error: bitacoraError } = await supabase
+      console.log(`📝 Intentando registrar en bitácora...`);
+      const { error: bitacoraError, data: bitacoraData } = await supabase
         .from('portal_beneficiario_bitacora')
         .insert({
-          beneficiario_id,
+          beneficiario_id: Number(beneficiario_id), // ✅ Convertir a número
           actor_id: admin_id,
           actor_user_id: admin_id,
           accion: 'Eliminó documento',
@@ -344,8 +350,12 @@ async function handleDocumentAction(req: DocumentActionRequest) {
         })
 
       if (bitacoraError) {
-        console.error(`⚠️ Error al registrar en bitácora: ${bitacoraError.message}`)
+        console.error(`❌ Error al registrar en bitácora: ${bitacoraError.message}`);
+        console.error(`   Details:`, bitacoraError);
         // Continuar aunque falle
+      } else {
+        console.log(`✅ Bitácora registrada exitosamente`);
+        console.log(`   Data:`, bitacoraData);
       }
 
       return {

@@ -2352,14 +2352,30 @@ const AdminBeneficiarioDetalle = () => {
                           </div>
                           
                           {doc.storage_path && (
-                            <button 
-                              type="button" 
-                              onClick={() => handleViewDocument(doc)}
-                              className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-md hover:shadow-lg flex-shrink-0"
-                            >
-                              <FileText size={18} />
-                              Ver Documento
-                            </button>
+                            <div className="flex gap-2 flex-shrink-0">
+                              <button 
+                                type="button" 
+                                onClick={() => setViewingDoc(doc)}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-md hover:shadow-lg flex-shrink-0"
+                              >
+                                <FileText size={18} />
+                                Ver
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openDocumentActionModal('replace', doc, 'historico')}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-md hover:shadow-lg flex-shrink-0"
+                              >
+                                Reemplazar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openDocumentActionModal('delete', doc, 'historico')}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-700 transition-all shadow-md hover:shadow-lg flex-shrink-0"
+                              >
+                                Eliminar
+                              </button>
+                            </div>
                           )}
                         </div>
                       ))}
@@ -2525,12 +2541,8 @@ const AdminBeneficiarioDetalle = () => {
                     {doc.storage_path && (
                       <button 
                         type="button" 
-                        onClick={() => {
-                          // Intenta descargar el documento del storage
-                          const path = doc.storage_path.replace('soportes/', '')
-                          window.open(`/storage/download?path=${encodeURIComponent(path)}`, '_blank')
-                        }}
-                        className="px-3 py-2 rounded-xl border border-slate-200 text-sm font-bold text-secondary hover:bg-white"
+                        onClick={() => setViewingDoc(doc)}
+                        className="px-3 py-2 rounded-xl border border-slate-200 text-sm font-bold text-secondary hover:bg-slate-50"
                       >
                         Ver
                       </button>

@@ -219,7 +219,7 @@ async function handleDocumentAction(req: DocumentActionRequest) {
 
       const newFileName = `${tipo_documento}-${Date.now()}.pdf`
       // Usar ruta diferente según el tipo de documento
-      const baseFolder = documentType === 'historico' ? 'historicos' : 'inscripciones'
+      const baseFolder = documentType === 'historico' ? 'beneficiarios_historicos' : 'inscripciones'
       const newStoragePath = `${baseFolder}/${beneficiario_id}/${newFileName}`
 
       const { error: uploadError } = await supabase.storage

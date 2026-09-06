@@ -1243,6 +1243,16 @@ const AdminBeneficiarioDetalle = () => {
         throw new Error('No se pudo identificar la sesión de admin')
       }
 
+      // Log para debug
+      console.log('📄 Documento a procesar:', {
+        documento_id: documento.id,
+        beneficiario_id: beneficiario.id,
+        tipo_documento: documento.tipo_documento,
+        motivo: String(motivo).trim(),
+        document_type: documentActionModal.document_type,
+        action: action,
+      });
+
       if (action === 'replace' && nuevoArchivo) {
         // Convertir a base64
         const fileBuffer = await nuevoArchivo.arrayBuffer()
@@ -1299,10 +1309,12 @@ const AdminBeneficiarioDetalle = () => {
         })
 
         if (invokeError) {
+          console.error('Invoke error:', invokeError);
           throw new Error(invokeError.message || 'Error al procesar la eliminación')
         }
 
         if (!result?.ok) {
+          console.error('Result error:', result?.error);
           throw new Error(result?.error || 'No se pudo eliminar el documento')
         }
 
@@ -1319,6 +1331,7 @@ const AdminBeneficiarioDetalle = () => {
 
       closeDocumentActionModal()
     } catch (error) {
+      console.error('❌ Error en executeDocumentAction:', error);
       await showErrorAlert({ title: 'Error al procesar acción', text: error.message || 'Ocurrió un error inesperado.' })
     } finally {
       setDocumentActionModal((prev) => ({ ...prev, loading: false }))

@@ -233,12 +233,25 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json() as DocumentActionRequest
 
-    // Validar campos obligatorios
-    if (!body.method || !body.beneficiario_id || !body.documento_id || !body.tipo_documento || !body.motivo || !body.admin_id) {
+    // Validar campos obligatorios (incluyendo strings vacíos)
+    const requiredFields = ['method', 'beneficiario_id', 'documento_id', 'tipo_documento', 'admin_id']
+    const missingFields = requiredFields.filter(field => !body[field] || (typeof body[field] === 'string' && !String(body[field]).trim()))
+    
+    if (missingFields.length > 0) {
       return new Response(
         JSON.stringify({
-          error: 'Faltan campos obligatorios',
-          required: ['method', 'beneficiario_id', 'documento_id', 'tipo_documento', 'motivo', 'admin_id'],
+          error: `Faltan campos obligatorios: ${missingFields.join(', ')}`,
+          required: requiredFields,
+        }),
+        { status: 400, headers: corsHeaders }
+      )
+    }
+
+    // Validar motivo específicamente (puede ser vacío en validación anterior si es null)
+    if (!body.motivo || (typeof body.motivo === 'string' && !String(body.motivo).trim())) {
+      return new Response(
+        JSON.stringify({
+          error: 'El motivo de la acción es obligatorio',
         }),
         { status: 400, headers: corsHeaders }
       )
@@ -260,9 +273,15 @@ Deno.serve(async (req) => {
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Error desconocido'
-    console.error('❌ Unhandled error:', message)
+    const stack = error instanceof Error ? error.stack : ''
+    console.error('❌ Error en admin-document-action:', message)
+    console.error('Stack:', stack)
 
-    return new Response(JSON.stringify({ error: message, ok: false }), {
+    return new Response(JSON.stringify({ 
+      error: message,
+      ok: false,
+      details: process.env.DENO_ENV === 'development' ? stack : undefined
+    }), {
       status: 400,
       headers: corsHeaders,
     })

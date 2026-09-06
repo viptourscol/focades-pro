@@ -60,16 +60,16 @@ async function handleDocumentAction(req: DocumentActionRequest) {
     // 1. Validar que el usuario es admin
     console.log(`🔑 Validando admin: ${admin_id}`);
     const { data: adminUser, error: adminError } = await supabase
-      .from('admin_users')
-      .select('id, nombre')
-      .eq('id', admin_id)
+      .from('portal_admin_users')
+      .select('user_id')
+      .eq('user_id', admin_id)
       .single()
 
     if (adminError || !adminUser) {
       console.error(`❌ Admin no encontrado: ${admin_id}`, adminError);
       throw new Error('No autorizado: usuario no es admin')
     }
-    console.log(`✓ Admin válido: ${adminUser.nombre}`);
+    console.log(`✓ Admin válido: ${adminUser.user_id}`);
 
     // 2. Obtener información del documento actual
     console.log(`📄 Buscando documento en ${tableName}: ${documento_id}`);
@@ -142,7 +142,7 @@ async function handleDocumentAction(req: DocumentActionRequest) {
         .insert({
           beneficiario_id,
           actor_id: admin_id,
-          actor: adminUser.nombre,
+          actor_user_id: admin_id,
           accion: 'Reemplazó documento',
           categoria: 'documento',
           nota: `Tipo: ${tipo_documento} | Motivo: ${motivo}`,
@@ -198,7 +198,7 @@ async function handleDocumentAction(req: DocumentActionRequest) {
         .insert({
           beneficiario_id,
           actor_id: admin_id,
-          actor: adminUser.nombre,
+          actor_user_id: admin_id,
           accion: 'Eliminó documento',
           categoria: 'documento',
           nota: `Tipo: ${tipo_documento} | Motivo: ${motivo}`,

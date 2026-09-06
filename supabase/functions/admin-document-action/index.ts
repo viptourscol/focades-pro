@@ -75,12 +75,22 @@ async function handleDocumentAction(req: DocumentActionRequest) {
     console.log(`📄 Buscando documento en ${tableName}: ${documento_id}`);
     const { data: docData, error: docError } = await supabase
       .from(tableName)
-      .select('id, storage_path, nombre_original')
+      .select('id, storage_path, nombre_original, titulo')
       .eq('id', documento_id)
       .single()
 
     if (docError || !docData) {
       console.error(`❌ Documento no encontrado en ${tableName}`, docError);
+      
+      // Intentar listar documentos disponibles para debug
+      const { data: allDocs } = await supabase
+        .from(tableName)
+        .select('id, titulo, tipo_documento')
+        .eq('beneficiario_id', beneficiario_id)
+        .limit(5);
+      
+      console.error(`📋 Documentos disponibles en ${tableName} para beneficiario ${beneficiario_id}:`, allDocs);
+      
       throw new Error(`Documento no encontrado en ${tableName}`)
     }
     console.log(`✓ Documento encontrado:`, docData);
@@ -123,13 +133,20 @@ async function handleDocumentAction(req: DocumentActionRequest) {
       }
 
       // 3c. Actualizar BD
+      const updatePayload = {
+        storage_path: `soportes/${newStoragePath}`,
+        titulo: typedReq.nuevo_archivo_nombre,
+      };
+      
+      // Solo agregar uploaded_at si la tabla es inscripciones_documentos (no historicos)
+      if (documentType !== 'historico') {
+        updatePayload['uploaded_at'] = new Date().toISOString();
+        updatePayload['nombre_original'] = typedReq.nuevo_archivo_nombre;
+      }
+
       const { error: updateError } = await supabase
         .from(tableName)
-        .update({
-          storage_path: `soportes/${newStoragePath}`,
-          nombre_original: typedReq.nuevo_archivo_nombre,
-          uploaded_at: new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq('id', documento_id)
 
       if (updateError) {
@@ -149,7 +166,7 @@ async function handleDocumentAction(req: DocumentActionRequest) {
           metadata_json: {
             tipo_documento,
             motivo,
-            archivo_anterior: docData.nombre_original,
+            archivo_anterior: docData.nombre_original || docData.titulo,
             archivo_nuevo: typedReq.nuevo_archivo_nombre,
             documento_id,
           },
@@ -178,15 +195,30 @@ async function handleDocumentAction(req: DocumentActionRequest) {
         }
       }
 
-      // 4. Actualizar BD (marcar como eliminado)
-      const { error: updateError } = await supabase
-        .from(tableName)
-        .update({
-          storage_path: null,
-          nombre_original: null,
-          uploaded_at: null,
-        })
-        .eq('id', documento_id)
+      // 4. Eliminar BD según tipo de documento
+      let updateError = null;
+      
+      if (documentType === 'historico') {
+        // Para documentos históricos: DELETE físico (ya que storage_path es NOT NULL)
+        console.log(`🗑️ Eliminando documento histórico del DB`);
+        const result = await supabase
+          .from(tableName)
+          .delete()
+          .eq('id', documento_id);
+        updateError = result.error;
+      } else {
+        // Para documentos de inscripción: UPDATE para marcar como eliminado
+        console.log(`🗑️ Marcando documento de inscripción como eliminado`);
+        const result = await supabase
+          .from(tableName)
+          .update({
+            storage_path: null,
+            nombre_original: null,
+            uploaded_at: null,
+          })
+          .eq('id', documento_id);
+        updateError = result.error;
+      }
 
       if (updateError) {
         throw new Error(`Error al eliminar documento: ${updateError.message}`)
@@ -205,7 +237,7 @@ async function handleDocumentAction(req: DocumentActionRequest) {
           metadata_json: {
             tipo_documento,
             motivo,
-            archivo_eliminado: docData.nombre_original,
+            archivo_eliminado: docData.nombre_original || docData.titulo,
             documento_id,
           },
         })

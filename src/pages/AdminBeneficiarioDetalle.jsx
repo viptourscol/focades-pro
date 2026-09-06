@@ -2851,7 +2851,7 @@ const AdminBeneficiarioDetalle = () => {
 
       {/* Modal de acción de documentos (Reemplazar/Eliminar) */}
       {documentActionModal.isOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full mx-4 shadow-2xl animate-scale-up">
             <div className="mb-4">
               <h3 className="text-lg font-bold text-slate-800">

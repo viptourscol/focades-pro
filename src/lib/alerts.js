@@ -4,39 +4,52 @@ const BASE_ALERT = {
   confirmButtonColor: '#0f2b54',
 };
 
-export const showSuccessAlert = ({ title = 'Proceso completado', text = '' } = {}) =>
+export const showSuccessAlert = ({ title = 'Proceso completado', text = '', zIndex = 999999 } = {}) =>
   Swal.fire({
     ...BASE_ALERT,
     icon: 'success',
     title,
     text,
+    allowOutsideClick: false,
+    didOpen: (modal) => {
+      modal.parentElement.style.zIndex = zIndex;
+    },
   });
 
-export const showErrorAlert = ({ title = 'Ocurrió un error', text = '' } = {}) =>
+export const showErrorAlert = ({ title = 'Ocurrió un error', text = '', zIndex = 999999 } = {}) =>
   Swal.fire({
     icon: 'error',
     title,
     text,
     confirmButtonColor: '#d8342f',
-    customClass: {
-      container: 'swal-high-z-index',
+    allowOutsideClick: false,
+    didOpen: (modal) => {
+      modal.parentElement.style.zIndex = zIndex;
     },
   });
 
-export const showInfoAlert = ({ title = 'Información', text = '' } = {}) =>
+export const showInfoAlert = ({ title = 'Información', text = '', zIndex = 999999 } = {}) =>
   Swal.fire({
     ...BASE_ALERT,
     icon: 'info',
     title,
     text,
+    allowOutsideClick: false,
+    didOpen: (modal) => {
+      modal.parentElement.style.zIndex = zIndex;
+    },
   });
 
-export const showWarningAlert = ({ title = 'Atención', text = '' } = {}) =>
+export const showWarningAlert = ({ title = 'Atención', text = '', zIndex = 999999 } = {}) =>
   Swal.fire({
     icon: 'warning',
     title,
     text,
     confirmButtonColor: '#f59e0b',
+    allowOutsideClick: false,
+    didOpen: (modal) => {
+      modal.parentElement.style.zIndex = zIndex;
+    },
   });
 
 export const showConfirmAlert = async ({

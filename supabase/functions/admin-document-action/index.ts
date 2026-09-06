@@ -98,32 +98,56 @@ async function handleDocumentAction(req: DocumentActionRequest) {
     if (docError || !docData) {
       console.error(`❌ Documento no encontrado en ${tableName}`, docError);
       
-      // Intentar listar documentos disponibles para debug
-      const { data: allDocs } = await supabase
-        .from(tableName)
-        .select('id, titulo, tipo_documento, nombre_original')
+      // DETALLADO: Listar documentos en AMBAS tablas para diagnosticar
+      const { data: historicDocs } = await supabase
+        .from('portal_beneficiario_documentos_historicos')
+        .select('id, titulo, tipo_documento, created_at')
         .eq('beneficiario_id', beneficiario_id)
-        .limit(10);
+        .limit(20);
       
-      console.error(`📋 Documentos disponibles en ${tableName} para beneficiario ${beneficiario_id}:`, allDocs);
+      console.error(`📋 HISTÓRICOS (${historicDocs?.length || 0} docs) para beneficiario ${beneficiario_id}:`, 
+        historicDocs?.map(d => ({ id: d.id, titulo: d.titulo, tipo: d.tipo_documento, created: d.created_at })));
       
-      // Si es histórico y no hay docs, buscar en inscripciones
-      if (documentType === 'historico' && (!allDocs || allDocs.length === 0)) {
+      // Obtener inscripción del beneficiario
+      const { data: benef } = await supabase
+        .from('portal_beneficiarios')
+        .select('inscripcion_pk')
+        .eq('id', beneficiario_id)
+        .single();
+      
+      if (benef?.inscripcion_pk) {
         const { data: inscripcionDocs } = await supabase
           .from('inscripciones_documentos')
-          .select('id, nombre_original, tipo_documento')
-          .eq('inscripcion_id', (
-            await supabase
-              .from('portal_beneficiarios')
-              .select('inscripcion_pk')
-              .eq('id', beneficiario_id)
-              .single()
-          ).data?.inscripcion_pk)
-          .limit(10);
+          .select('id, nombre_original, tipo_documento, uploaded_at')
+          .eq('inscripcion_id', benef.inscripcion_pk)
+          .limit(20);
         
-        if (inscripcionDocs?.length > 0) {
-          console.error(`📋 Documentos disponibles en inscripciones_documentos:`, inscripcionDocs);
-        }
+        console.error(`📋 INSCRIPCIONES (${inscripcionDocs?.length || 0} docs) para inscripción ${benef.inscripcion_pk}:`,
+          inscripcionDocs?.map(d => ({ id: d.id, nombre: d.nombre_original, tipo: d.tipo_documento, uploaded: d.uploaded_at })));
+      }
+      
+      // Buscar el documento específico en AMBAS tablas
+      console.error(`🔍 Buscando documento ${documento_id} en ambas tablas...`);
+      const { data: docInHistoricos } = await supabase
+        .from('portal_beneficiario_documentos_historicos')
+        .select('*')
+        .eq('id', documento_id)
+        .single()
+        .catch(() => ({ data: null }));
+      
+      const { data: docInInscripciones } = await supabase
+        .from('inscripciones_documentos')
+        .select('*')
+        .eq('id', documento_id)
+        .single()
+        .catch(() => ({ data: null }));
+      
+      if (docInHistoricos) {
+        console.error(`✗ ¡ENCONTRADO EN HISTÓRICOS! El documento SÍ existe en portal_beneficiario_documentos_historicos:`, docInHistoricos);
+      } else if (docInInscripciones) {
+        console.error(`⚠️ ENCONTRADO EN INSCRIPCIONES! El documento está en inscripciones_documentos, no en históricos:`, docInInscripciones);
+      } else {
+        console.error(`❌ Documento NO existe en NINGUNA tabla`);
       }
       
       throw new Error(`Documento no encontrado en ${tableName}`)

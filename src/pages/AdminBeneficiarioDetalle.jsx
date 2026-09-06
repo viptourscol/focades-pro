@@ -199,6 +199,7 @@ const AdminBeneficiarioDetalle = () => {
     motivo: '',
     nuevoArchivo: null,
     loading: false,
+    document_type: 'inscripcion', // 'inscripcion' | 'historico'
   });
   const [catalogos, setCatalogos] = useState({
     departamentos: [],
@@ -1186,7 +1187,7 @@ const AdminBeneficiarioDetalle = () => {
   };
 
   // Funciones de acción de documentos
-  const openDocumentActionModal = (action, documento) => {
+  const openDocumentActionModal = (action, documento, documentType = 'inscripcion') => {
     setDocumentActionModal({
       isOpen: true,
       action,
@@ -1194,6 +1195,7 @@ const AdminBeneficiarioDetalle = () => {
       motivo: '',
       nuevoArchivo: null,
       loading: false,
+      document_type: documentType,
     });
   };
 
@@ -1205,6 +1207,7 @@ const AdminBeneficiarioDetalle = () => {
       motivo: '',
       nuevoArchivo: null,
       loading: false,
+      document_type: 'inscripcion',
     });
   };
 
@@ -1255,6 +1258,7 @@ const AdminBeneficiarioDetalle = () => {
             nuevo_archivo_base64: base64String,
             nuevo_archivo_nombre: nuevoArchivo.name,
             admin_id: adminId,
+            document_type: documentActionModal.document_type,
           },
         })
 
@@ -1289,6 +1293,7 @@ const AdminBeneficiarioDetalle = () => {
             tipo_documento: documento.tipo_documento,
             motivo: String(motivo).trim(),
             admin_id: adminId,
+            document_type: documentActionModal.document_type,
           },
         })
 
@@ -2516,19 +2521,35 @@ const AdminBeneficiarioDetalle = () => {
                     </p>
                     {doc.descripcion && <p className="text-sm text-slate-700 mt-2">{doc.descripcion}</p>}
                   </div>
-                  {doc.storage_path && (
-                    <button 
-                      type="button" 
-                      onClick={() => {
-                        // Intenta descargar el documento del storage
-                        const path = doc.storage_path.replace('soportes/', '')
-                        window.open(`/storage/download?path=${encodeURIComponent(path)}`, '_blank')
-                      }}
-                      className="px-3 py-2 rounded-xl border border-slate-200 text-sm font-bold text-secondary hover:bg-white"
+                  <div className="flex gap-2 flex-shrink-0">
+                    {doc.storage_path && (
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          // Intenta descargar el documento del storage
+                          const path = doc.storage_path.replace('soportes/', '')
+                          window.open(`/storage/download?path=${encodeURIComponent(path)}`, '_blank')
+                        }}
+                        className="px-3 py-2 rounded-xl border border-slate-200 text-sm font-bold text-secondary hover:bg-white"
+                      >
+                        Ver
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => openDocumentActionModal('replace', doc, 'historico')}
+                      className="px-3 py-2 rounded-xl border border-blue-200 bg-blue-50 text-sm font-bold text-blue-600 hover:bg-blue-100"
                     >
-                      Ver documento
+                      Reemplazar
                     </button>
-                  )}
+                    <button
+                      type="button"
+                      onClick={() => openDocumentActionModal('delete', doc, 'historico')}
+                      className="px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-sm font-bold text-red-600 hover:bg-red-100"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

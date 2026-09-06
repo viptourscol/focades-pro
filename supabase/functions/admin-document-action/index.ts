@@ -29,6 +29,7 @@ interface ReplaceDocumentRequest {
   nuevo_archivo_base64: string
   nuevo_archivo_nombre: string
   admin_id: string
+  document_type?: 'inscripcion' | 'historico' // 'inscripcion' por defecto
 }
 
 interface DeleteDocumentRequest {
@@ -38,6 +39,7 @@ interface DeleteDocumentRequest {
   tipo_documento: string
   motivo: string
   admin_id: string
+  document_type?: 'inscripcion' | 'historico' // 'inscripcion' por defecto
 }
 
 type DocumentActionRequest = ReplaceDocumentRequest | DeleteDocumentRequest
@@ -45,6 +47,8 @@ type DocumentActionRequest = ReplaceDocumentRequest | DeleteDocumentRequest
 // Procesar acción de documento
 async function handleDocumentAction(req: DocumentActionRequest) {
   const { method, beneficiario_id, documento_id, tipo_documento, motivo, admin_id } = req
+  const documentType = req.document_type || 'inscripcion' // Por defecto busca en inscripcion
+  const tableName = documentType === 'historico' ? 'portal_beneficiario_documentos_historicos' : 'inscripciones_documentos'
 
   try {
     // 1. Validar que el usuario es admin
@@ -60,13 +64,13 @@ async function handleDocumentAction(req: DocumentActionRequest) {
 
     // 2. Obtener información del documento actual
     const { data: docData, error: docError } = await supabase
-      .from('inscripciones_documentos')
+      .from(tableName)
       .select('id, storage_path, nombre_original')
       .eq('id', documento_id)
       .single()
 
     if (docError || !docData) {
-      throw new Error('Documento no encontrado')
+      throw new Error(`Documento no encontrado en ${tableName}`)
     }
 
     const oldStoragePath = docData.storage_path?.replace('soportes/', '')
@@ -108,7 +112,7 @@ async function handleDocumentAction(req: DocumentActionRequest) {
 
       // 3c. Actualizar BD
       const { error: updateError } = await supabase
-        .from('inscripciones_documentos')
+        .from(tableName)
         .update({
           storage_path: `soportes/${newStoragePath}`,
           nombre_original: typedReq.nuevo_archivo_nombre,
@@ -164,7 +168,7 @@ async function handleDocumentAction(req: DocumentActionRequest) {
 
       // 4. Actualizar BD (marcar como eliminado)
       const { error: updateError } = await supabase
-        .from('inscripciones_documentos')
+        .from(tableName)
         .update({
           storage_path: null,
           nombre_original: null,

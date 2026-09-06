@@ -50,8 +50,15 @@ async function handleDocumentAction(req: DocumentActionRequest) {
   const documentType = req.document_type || 'inscripcion' // Por defecto busca en inscripcion
   const tableName = documentType === 'historico' ? 'portal_beneficiario_documentos_historicos' : 'inscripciones_documentos'
 
+  console.log(`📋 [INICIO] Procesando ${method} en tabla: ${tableName}`);
+  console.log(`   - beneficiario_id: ${beneficiario_id}`);
+  console.log(`   - documento_id: ${documento_id}`);
+  console.log(`   - tipo_documento: ${tipo_documento}`);
+  console.log(`   - admin_id: ${admin_id}`);
+
   try {
     // 1. Validar que el usuario es admin
+    console.log(`🔑 Validando admin: ${admin_id}`);
     const { data: adminUser, error: adminError } = await supabase
       .from('admin_users')
       .select('id, nombre')
@@ -59,10 +66,13 @@ async function handleDocumentAction(req: DocumentActionRequest) {
       .single()
 
     if (adminError || !adminUser) {
+      console.error(`❌ Admin no encontrado: ${admin_id}`, adminError);
       throw new Error('No autorizado: usuario no es admin')
     }
+    console.log(`✓ Admin válido: ${adminUser.nombre}`);
 
     // 2. Obtener información del documento actual
+    console.log(`📄 Buscando documento en ${tableName}: ${documento_id}`);
     const { data: docData, error: docError } = await supabase
       .from(tableName)
       .select('id, storage_path, nombre_original')
@@ -70,8 +80,10 @@ async function handleDocumentAction(req: DocumentActionRequest) {
       .single()
 
     if (docError || !docData) {
+      console.error(`❌ Documento no encontrado en ${tableName}`, docError);
       throw new Error(`Documento no encontrado en ${tableName}`)
     }
+    console.log(`✓ Documento encontrado:`, docData);
 
     const oldStoragePath = docData.storage_path?.replace('soportes/', '')
 
@@ -233,15 +245,19 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json() as DocumentActionRequest
 
+    console.log('🔄 Body recibido:', body);
+
     // Validar campos obligatorios (incluyendo strings vacíos)
     const requiredFields = ['method', 'beneficiario_id', 'documento_id', 'tipo_documento', 'admin_id']
     const missingFields = requiredFields.filter(field => !body[field] || (typeof body[field] === 'string' && !String(body[field]).trim()))
     
     if (missingFields.length > 0) {
+      console.error('❌ Faltan campos:', missingFields);
       return new Response(
         JSON.stringify({
           error: `Faltan campos obligatorios: ${missingFields.join(', ')}`,
           required: requiredFields,
+          received: Object.keys(body),
         }),
         { status: 400, headers: corsHeaders }
       )
@@ -249,6 +265,7 @@ Deno.serve(async (req) => {
 
     // Validar motivo específicamente (puede ser vacío en validación anterior si es null)
     if (!body.motivo || (typeof body.motivo === 'string' && !String(body.motivo).trim())) {
+      console.error('❌ Motivo es requerido pero no fue proporcionado');
       return new Response(
         JSON.stringify({
           error: 'El motivo de la acción es obligatorio',
@@ -259,12 +276,14 @@ Deno.serve(async (req) => {
 
     // Validar método
     if (body.method !== 'replace-document' && body.method !== 'delete-document') {
-      return new Response(JSON.stringify({ error: 'Método inválido' }), {
+      console.error('❌ Método inválido:', body.method);
+      return new Response(JSON.stringify({ error: 'Método inválido', received: body.method }), {
         status: 400,
         headers: corsHeaders,
       })
     }
 
+    console.log('✓ Validación de campos pasó');
     const result = await handleDocumentAction(body)
 
     return new Response(JSON.stringify(result), {

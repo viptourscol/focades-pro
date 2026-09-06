@@ -1273,7 +1273,18 @@ const AdminBeneficiarioDetalle = () => {
         })
 
         if (invokeError) {
-          throw new Error(invokeError.message || 'Error al procesar el reemplazo')
+          console.error('Invoke error details:', invokeError);
+          // Intentar extraer mensaje de contexto si está disponible
+          let errorMessage = invokeError.message || 'Error al procesar el reemplazo';
+          if (invokeError.context) {
+            try {
+              const errorData = await invokeError.context.json?.();
+              errorMessage = errorData?.error || errorData?.message || errorMessage;
+            } catch (e) {
+              // Continuar con el mensaje anterior si no se puede parsear
+            }
+          }
+          throw new Error(errorMessage);
         }
 
         if (!result?.ok) {
@@ -1296,21 +1307,35 @@ const AdminBeneficiarioDetalle = () => {
           return
         }
 
+        const payload = {
+          method: 'delete-document',
+          beneficiario_id: beneficiario.id,
+          documento_id: documento.id,
+          tipo_documento: documento.tipo_documento,
+          motivo: String(motivo).trim(),
+          admin_id: adminId,
+          document_type: documentActionModal.document_type,
+        };
+
+        console.log('🗑️ Payload para delete:', payload);
+
         const { data: result, error: invokeError } = await supabase.functions.invoke('admin-document-action', {
-          body: {
-            method: 'delete-document',
-            beneficiario_id: beneficiario.id,
-            documento_id: documento.id,
-            tipo_documento: documento.tipo_documento,
-            motivo: String(motivo).trim(),
-            admin_id: adminId,
-            document_type: documentActionModal.document_type,
-          },
+          body: payload,
         })
 
         if (invokeError) {
-          console.error('Invoke error:', invokeError);
-          throw new Error(invokeError.message || 'Error al procesar la eliminación')
+          console.error('Invoke error details:', invokeError);
+          // Intentar extraer mensaje de contexto si está disponible
+          let errorMessage = invokeError.message || 'Error al procesar la eliminación';
+          if (invokeError.context) {
+            try {
+              const errorData = await invokeError.context.json?.();
+              errorMessage = errorData?.error || errorData?.message || errorMessage;
+            } catch (e) {
+              // Continuar con el mensaje anterior si no se puede parsear
+            }
+          }
+          throw new Error(errorMessage);
         }
 
         if (!result?.ok) {

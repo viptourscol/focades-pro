@@ -15,7 +15,6 @@ const mapBankNames = (rows) => {
   (Array.isArray(rows) ? rows : []).forEach((item) => {
     const rawName = String(item?.nombre || '').trim();
     if (!rawName) return;
-    if (!rawName.toUpperCase().startsWith('BANCO')) return;
     unique.add(rawName);
   });
 
@@ -48,7 +47,7 @@ const fetchBanksCatalog = async () => {
         ...(appToken ? { 'X-App-Token': appToken } : {}),
       },
       body: JSON.stringify({
-        query: "SELECT `nombre` WHERE `nombre` IS NOT NULL AND starts_with(upper(`nombre`), 'BANCO') ORDER BY `nombre`",
+        query: "SELECT `nombre` WHERE `nombre` IS NOT NULL ORDER BY `nombre`",
         page: {
           pageNumber: 1,
           pageSize: 5000,

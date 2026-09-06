@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarCheck2, CalendarClock, CalendarX2, CheckCircle2, CircleDashed, EyeOff, FileText, Pencil, Plus, Save, Trash2, XCircle } from 'lucide-react';
+import { CalendarCheck2, CalendarClock, CalendarX2, CheckCircle2, CircleDashed, Clock3, EyeOff, FileText, Pencil, Plus, Save, Trash2, XCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from '../lib/alerts';
 

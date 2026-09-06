@@ -148,19 +148,34 @@ async function handleDocumentAction(req: DocumentActionRequest) {
       
       // Buscar el documento específico en AMBAS tablas
       console.error(`🔍 Buscando documento ${documento_id} en ambas tablas...`);
-      const { data: docInHistoricos } = await supabase
-        .from('portal_beneficiario_documentos_historicos')
-        .select('*')
-        .eq('id', documento_id)
-        .single()
-        .catch(() => ({ data: null }));
       
-      const { data: docInInscripciones } = await supabase
-        .from('inscripciones_documentos')
-        .select('*')
-        .eq('id', documento_id)
-        .single()
-        .catch(() => ({ data: null }));
+      let docInHistoricos = null;
+      try {
+        const result = await supabase
+          .from('portal_beneficiario_documentos_historicos')
+          .select('*')
+          .eq('id', documento_id)
+          .single();
+        if (!result.error) {
+          docInHistoricos = result.data;
+        }
+      } catch (e) {
+        // Error silencioso
+      }
+      
+      let docInInscripciones = null;
+      try {
+        const result = await supabase
+          .from('inscripciones_documentos')
+          .select('*')
+          .eq('id', documento_id)
+          .single();
+        if (!result.error) {
+          docInInscripciones = result.data;
+        }
+      } catch (e) {
+        // Error silencioso
+      }
       
       if (docInHistoricos) {
         console.error(`✗ ¡ENCONTRADO EN HISTÓRICOS! El documento SÍ existe en portal_beneficiario_documentos_historicos:`, docInHistoricos);

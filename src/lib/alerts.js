@@ -44,6 +44,7 @@ export const showConfirmAlert = async ({
   text = '',
   confirmButtonText = 'Sí',
   cancelButtonText = 'Cancelar',
+  zIndex = 99999,
 } = {}) => {
   const result = await Swal.fire({
     title,
@@ -54,6 +55,10 @@ export const showConfirmAlert = async ({
     cancelButtonText,
     confirmButtonColor: '#0f2b54',
     cancelButtonColor: '#64748b',
+    allowOutsideClick: false,
+    didOpen: (modal) => {
+      modal.parentElement.style.zIndex = zIndex;
+    },
   });
 
   return result.isConfirmed;

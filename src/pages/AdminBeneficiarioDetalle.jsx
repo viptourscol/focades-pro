@@ -1276,8 +1276,9 @@ const AdminBeneficiarioDetalle = () => {
         const confirmed = await showConfirmAlert({
           title: '¿Eliminar documento?',
           text: `Se eliminará ${documento.nombre_original || documento.tipo_documento}. Esta acción se registrará en la bitácora.`,
-          confirmText: 'Eliminar',
-          cancelText: 'Cancelar',
+          confirmButtonText: 'Eliminar',
+          cancelButtonText: 'Cancelar',
+          zIndex: 99999,
         })
 
         if (!confirmed) {

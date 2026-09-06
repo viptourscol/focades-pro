@@ -2355,23 +2355,22 @@ const AdminBeneficiarioDetalle = () => {
                             <div className="flex gap-2 flex-shrink-0">
                               <button 
                                 type="button" 
-                                onClick={() => setViewingDoc(doc)}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-md hover:shadow-lg flex-shrink-0"
+                                onClick={() => handleViewDocument(doc)}
+                                className="px-3 py-2 rounded-xl border border-slate-200 text-sm font-bold text-secondary hover:bg-slate-50"
                               >
-                                <FileText size={18} />
                                 Ver
                               </button>
                               <button
                                 type="button"
                                 onClick={() => openDocumentActionModal('replace', doc, 'historico')}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-md hover:shadow-lg flex-shrink-0"
+                                className="px-3 py-2 rounded-xl border border-blue-200 bg-blue-50 text-sm font-bold text-blue-600 hover:bg-blue-100"
                               >
                                 Reemplazar
                               </button>
                               <button
                                 type="button"
                                 onClick={() => openDocumentActionModal('delete', doc, 'historico')}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-700 transition-all shadow-md hover:shadow-lg flex-shrink-0"
+                                className="px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-sm font-bold text-red-600 hover:bg-red-100"
                               >
                                 Eliminar
                               </button>
@@ -2541,7 +2540,7 @@ const AdminBeneficiarioDetalle = () => {
                     {doc.storage_path && (
                       <button 
                         type="button" 
-                        onClick={() => setViewingDoc(doc)}
+                        onClick={() => handleViewDocument(doc)}
                         className="px-3 py-2 rounded-xl border border-slate-200 text-sm font-bold text-secondary hover:bg-slate-50"
                       >
                         Ver

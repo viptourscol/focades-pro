@@ -1350,6 +1350,9 @@ const AdminBeneficiarioDetalle = () => {
       if (loadedTabs.expediente) {
         await loadExpedienteData(beneficiario)
       }
+      if (loadedTabs.onboarding) {
+        await loadOnboardingData(beneficiario)
+      }
       if (loadedTabs.bitacora) {
         await loadBitacoraData(beneficiario)
       }

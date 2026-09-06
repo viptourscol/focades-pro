@@ -1291,9 +1291,6 @@ const AdminBeneficiarioDetalle = () => {
           throw new Error(result?.error || 'No se pudo reemplazar el documento')
         }
 
-        // Cerrar modal ANTES de mostrar alert (evita stack overflow)
-        closeDocumentActionModal()
-
         await showSuccessAlert({ title: 'Documento reemplazado', text: `${documento.nombre_original || documento.tipo_documento} fue reemplazado correctamente.` })
       } else if (action === 'delete') {
         // Confirmación adicional
@@ -1346,9 +1343,6 @@ const AdminBeneficiarioDetalle = () => {
           throw new Error(result?.error || 'No se pudo eliminar el documento')
         }
 
-        // Cerrar modal ANTES de mostrar alert (evita stack overflow)
-        closeDocumentActionModal()
-
         await showSuccessAlert({ title: 'Documento eliminado', text: `${documento.nombre_original || documento.tipo_documento} fue eliminado correctamente.` })
       }
 
@@ -1374,8 +1368,10 @@ const AdminBeneficiarioDetalle = () => {
       }
       
       await showErrorAlert({ title: 'Error al procesar acción', text: errorMessage })
+      closeDocumentActionModal()
     } finally {
       setDocumentActionModal((prev) => ({ ...prev, loading: false }))
+      closeDocumentActionModal()
     }
   };
 

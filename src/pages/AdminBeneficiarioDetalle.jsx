@@ -1368,10 +1368,9 @@ const AdminBeneficiarioDetalle = () => {
       }
       
       await showErrorAlert({ title: 'Error al procesar acción', text: errorMessage })
-      closeDocumentActionModal()
     } finally {
-      setDocumentActionModal((prev) => ({ ...prev, loading: false }))
       closeDocumentActionModal()
+      setDocumentActionModal((prev) => ({ ...prev, loading: false }))
     }
   };
 

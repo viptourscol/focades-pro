@@ -1291,6 +1291,9 @@ const AdminBeneficiarioDetalle = () => {
           throw new Error(result?.error || 'No se pudo reemplazar el documento')
         }
 
+        // Cerrar modal ANTES de mostrar alert (evita stack overflow)
+        closeDocumentActionModal()
+
         await showSuccessAlert({ title: 'Documento reemplazado', text: `${documento.nombre_original || documento.tipo_documento} fue reemplazado correctamente.` })
       } else if (action === 'delete') {
         // Confirmación adicional
@@ -1343,6 +1346,9 @@ const AdminBeneficiarioDetalle = () => {
           throw new Error(result?.error || 'No se pudo eliminar el documento')
         }
 
+        // Cerrar modal ANTES de mostrar alert (evita stack overflow)
+        closeDocumentActionModal()
+
         await showSuccessAlert({ title: 'Documento eliminado', text: `${documento.nombre_original || documento.tipo_documento} fue eliminado correctamente.` })
       }
 
@@ -1356,8 +1362,6 @@ const AdminBeneficiarioDetalle = () => {
       if (loadedTabs.bitacora) {
         await loadBitacoraData(beneficiario)
       }
-
-      closeDocumentActionModal()
     } catch (error) {
       console.error('❌ Error en executeDocumentAction:', error);
       
@@ -2882,7 +2886,11 @@ const AdminBeneficiarioDetalle = () => {
               {documentActionModal.action === 'replace' && (
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-2">Nuevo archivo PDF *</label>
-                  <div className="border-2 border-dashed border-slate-200 rounded-xl px-4 py-4 text-center cursor-pointer hover:bg-slate-50 transition">
+                  <div className={`border-2 rounded-xl px-4 py-4 text-center cursor-pointer transition ${
+                    documentActionModal.nuevoArchivo 
+                      ? 'border-emerald-300 bg-emerald-50 hover:bg-emerald-100' 
+                      : 'border-red-300 bg-red-50 hover:bg-red-100'
+                  }`}>
                     <input
                       type="file"
                       accept=".pdf,application/pdf"
@@ -2893,11 +2901,11 @@ const AdminBeneficiarioDetalle = () => {
                     <label htmlFor="doc-action-file" className="cursor-pointer">
                       {documentActionModal.nuevoArchivo ? (
                         <div className="text-sm">
-                          <p className="font-semibold text-slate-800">✓ Archivo seleccionado</p>
-                          <p className="text-xs text-slate-600 mt-1">{documentActionModal.nuevoArchivo.name}</p>
+                          <p className="font-semibold text-emerald-800">✓ Archivo seleccionado</p>
+                          <p className="text-xs text-emerald-700 mt-1">{documentActionModal.nuevoArchivo.name}</p>
                         </div>
                       ) : (
-                        <div className="text-sm text-slate-600">
+                        <div className="text-sm text-red-700">
                           <p className="font-semibold">Selecciona un archivo PDF</p>
                           <p className="text-xs mt-1">o arrastra aquí</p>
                         </div>

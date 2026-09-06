@@ -73,11 +73,27 @@ async function handleDocumentAction(req: DocumentActionRequest) {
 
     // 2. Obtener información del documento actual
     console.log(`📄 Buscando documento en ${tableName}: ${documento_id}`);
-    const { data: docData, error: docError } = await supabase
+    let { data: docData, error: docError } = await supabase
       .from(tableName)
       .select('id, storage_path, nombre_original, titulo')
       .eq('id', documento_id)
       .single()
+
+    // FALLBACK: Si no se encuentra y estamos buscando en históricos, intentar en inscripciones
+    if ((docError || !docData) && documentType === 'historico') {
+      console.log(`⚠️ No encontrado en ${tableName}, intentando en inscripciones_documentos...`);
+      const fallbackResult = await supabase
+        .from('inscripciones_documentos')
+        .select('id, storage_path, nombre_original')
+        .eq('id', documento_id)
+        .single();
+      
+      if (!fallbackResult.error && fallbackResult.data) {
+        docData = fallbackResult.data;
+        docError = null;
+        console.log(`✓ Documento encontrado en inscripciones_documentos (fallback)`);
+      }
+    }
 
     if (docError || !docData) {
       console.error(`❌ Documento no encontrado en ${tableName}`, docError);
@@ -85,11 +101,30 @@ async function handleDocumentAction(req: DocumentActionRequest) {
       // Intentar listar documentos disponibles para debug
       const { data: allDocs } = await supabase
         .from(tableName)
-        .select('id, titulo, tipo_documento')
+        .select('id, titulo, tipo_documento, nombre_original')
         .eq('beneficiario_id', beneficiario_id)
-        .limit(5);
+        .limit(10);
       
       console.error(`📋 Documentos disponibles en ${tableName} para beneficiario ${beneficiario_id}:`, allDocs);
+      
+      // Si es histórico y no hay docs, buscar en inscripciones
+      if (documentType === 'historico' && (!allDocs || allDocs.length === 0)) {
+        const { data: inscripcionDocs } = await supabase
+          .from('inscripciones_documentos')
+          .select('id, nombre_original, tipo_documento')
+          .eq('inscripcion_id', (
+            await supabase
+              .from('portal_beneficiarios')
+              .select('inscripcion_pk')
+              .eq('id', beneficiario_id)
+              .single()
+          ).data?.inscripcion_pk)
+          .limit(10);
+        
+        if (inscripcionDocs?.length > 0) {
+          console.error(`📋 Documentos disponibles en inscripciones_documentos:`, inscripcionDocs);
+        }
+      }
       
       throw new Error(`Documento no encontrado en ${tableName}`)
     }

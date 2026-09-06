@@ -1357,7 +1357,16 @@ const AdminBeneficiarioDetalle = () => {
       closeDocumentActionModal()
     } catch (error) {
       console.error('❌ Error en executeDocumentAction:', error);
-      await showErrorAlert({ title: 'Error al procesar acción', text: error.message || 'Ocurrió un error inesperado.' })
+      
+      // Extraer error específico
+      let errorMessage = error.message || 'Ocurrió un error inesperado.';
+      
+      // Si el documento no se encontró, ofrecer recargar
+      if (errorMessage.includes('Documento no encontrado')) {
+        errorMessage = `El documento no fue encontrado en la base de datos. Probablemente fue eliminado por otro usuario. Por favor, recarga la página.`;
+      }
+      
+      await showErrorAlert({ title: 'Error al procesar acción', text: errorMessage })
     } finally {
       setDocumentActionModal((prev) => ({ ...prev, loading: false }))
     }

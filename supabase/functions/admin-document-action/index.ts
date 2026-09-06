@@ -260,12 +260,12 @@ async function handleDocumentAction(req: DocumentActionRequest) {
         .from('portal_beneficiario_bitacora')
         .insert({
           beneficiario_id: Number(beneficiario_id), // ✅ Convertir a número
-          actor_id: admin_id,
           actor_user_id: admin_id,
+          tipo_evento: 'reemplazo_documento',
           accion: 'Reemplazó documento',
           categoria: 'documento',
           nota: `Tipo: ${tipo_documento} | Motivo: ${motivo}`,
-          metadata_json: {
+          metadata: {
             tipo_documento,
             motivo,
             archivo_anterior: docData.nombre_original || docData.titulo,
@@ -336,12 +336,12 @@ async function handleDocumentAction(req: DocumentActionRequest) {
         .from('portal_beneficiario_bitacora')
         .insert({
           beneficiario_id: Number(beneficiario_id), // ✅ Convertir a número
-          actor_id: admin_id,
           actor_user_id: admin_id,
+          tipo_evento: 'eliminacion_documento',
           accion: 'Eliminó documento',
           categoria: 'documento',
           nota: `Tipo: ${tipo_documento} | Motivo: ${motivo}`,
-          metadata_json: {
+          metadata: {
             tipo_documento,
             motivo,
             archivo_eliminado: docData.nombre_original || docData.titulo,

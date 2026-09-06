@@ -1254,9 +1254,17 @@ const AdminBeneficiarioDetalle = () => {
       });
 
       if (action === 'replace' && nuevoArchivo) {
-        // Convertir a base64
-        const fileBuffer = await nuevoArchivo.arrayBuffer()
-        const base64String = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)))
+        // Convertir a base64 usando FileReader (seguro para archivos grandes)
+        const base64String = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(nuevoArchivo);
+          reader.onload = () => {
+            // reader.result es "data:application/pdf;base64,xxxxx"
+            const base64 = reader.result.split(',')[1]; // Extraer solo la parte base64
+            resolve(base64);
+          };
+          reader.onerror = reject;
+        });
 
         const { data: result, error: invokeError } = await supabase.functions.invoke('admin-document-action', {
           body: {

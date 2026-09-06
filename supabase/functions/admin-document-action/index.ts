@@ -73,30 +73,50 @@ async function handleDocumentAction(req: DocumentActionRequest) {
 
     // 2. Obtener información del documento actual
     console.log(`📄 Buscando documento en ${tableName}: ${documento_id}`);
-    let { data: docData, error: docError } = await supabase
+    console.log(`   Tipo de busqueda: ${documentType}`);
+    
+    // Primero intentar SIN .single() para ver todos los resultados
+    const { data: docList, error: docListError } = await supabase
       .from(tableName)
-      .select('id, storage_path, nombre_original, titulo')
-      .eq('id', documento_id)
-      .single()
+      .select('id, storage_path, nombre_original, titulo, beneficiario_id')
+      .eq('id', documento_id);
+    
+    console.log(`📊 Resultados de búsqueda sin .single():`, {
+      count: docList?.length || 0,
+      error: docListError?.message,
+      data: docList
+    });
+
+    let docData = null;
+    let docError = null;
+
+    if (docList && docList.length > 0) {
+      docData = docList[0];
+      console.log(`✓ Documento encontrado en ${tableName}:`, docData);
+    } else if (docListError) {
+      docError = docListError;
+      console.error(`❌ Error en búsqueda en ${tableName}:`, docError);
+    }
 
     // FALLBACK: Si no se encuentra y estamos buscando en históricos, intentar en inscripciones
-    if ((docError || !docData) && documentType === 'historico') {
+    if (!docData && documentType === 'historico') {
       console.log(`⚠️ No encontrado en ${tableName}, intentando en inscripciones_documentos...`);
-      const fallbackResult = await supabase
+      const { data: inscList, error: inscError } = await supabase
         .from('inscripciones_documentos')
-        .select('id, storage_path, nombre_original')
-        .eq('id', documento_id)
-        .single();
+        .select('id, storage_path, nombre_original');
       
-      if (!fallbackResult.error && fallbackResult.data) {
-        docData = fallbackResult.data;
+      const fallbackDoc = inscList?.find(d => d.id === documento_id);
+      if (fallbackDoc) {
+        docData = fallbackDoc;
         docError = null;
-        console.log(`✓ Documento encontrado en inscripciones_documentos (fallback)`);
+        console.log(`✓ Documento encontrado en inscripciones_documentos (fallback)`, docData);
+      } else if (inscError) {
+        console.log(`⚠️ Error en búsqueda fallback:`, inscError);
       }
     }
 
-    if (docError || !docData) {
-      console.error(`❌ Documento no encontrado en ${tableName}`, docError);
+    if (!docData) {
+      console.error(`❌ Documento no encontrado en ${tableName} ni en fallbacks`);
       
       // DETALLADO: Listar documentos en AMBAS tablas para diagnosticar
       const { data: historicDocs } = await supabase

@@ -767,9 +767,9 @@ const AdminBeneficiarioDetalle = () => {
       const profile = await loadProfileData();
       if (profile) {
         await loadOnboardingData(profile);
-        if (loadedTabs.bitacora) {
-          await loadBitacoraData(profile);
-        }
+        // Siempre refrescar bitácora
+        setLoadedTabs((prev) => ({ ...prev, bitacora: false }));
+        await loadBitacoraData(profile);
       }
       
       setIsEditingOnboarding(false);
@@ -1059,9 +1059,9 @@ const AdminBeneficiarioDetalle = () => {
       if (loadedTabs.expediente) {
         await loadExpedienteData(profile);
       }
-      if (loadedTabs.bitacora) {
-        await loadBitacoraData(profile);
-      }
+      // Siempre refrescar bitácora
+      setLoadedTabs((prev) => ({ ...prev, bitacora: false }));
+      await loadBitacoraData(profile);
       await loadPaymentRights(beneficiario.id);
     } catch (error) {
       await showErrorAlert({ title: 'No se pudo guardar el perfil', text: error.message || 'Ocurrió un error.' });
@@ -1115,9 +1115,9 @@ const AdminBeneficiarioDetalle = () => {
       setStatusReason('');
       await showSuccessAlert({ title: 'Estado actualizado', text: 'El cambio quedó registrado en el historial.' });
       await loadProfileData();
-      if (loadedTabs.bitacora) {
-        await loadBitacoraData();
-      }
+      // Siempre refrescar bitácora
+      setLoadedTabs((prev) => ({ ...prev, bitacora: false }));
+      await loadBitacoraData();
       await loadPaymentRights(beneficiario.id);
     } catch (error) {
       await showErrorAlert({ title: 'No se pudo cambiar el estado', text: error.message || 'Ocurrió un error.' });
@@ -1162,9 +1162,9 @@ const AdminBeneficiarioDetalle = () => {
 
       await showSuccessAlert({ title: 'Actualización revisada', text: 'La revisión administrativa fue guardada.' });
       await loadUpdatesData();
-      if (loadedTabs.bitacora) {
-        await loadBitacoraData();
-      }
+      // Siempre refrescar bitácora
+      setLoadedTabs((prev) => ({ ...prev, bitacora: false }));
+      await loadBitacoraData();
     } catch (error) {
       await showErrorAlert({ title: 'No se pudo guardar la revisión', text: error.message || 'Ocurrió un error.' });
     } finally {
@@ -1365,9 +1365,11 @@ const AdminBeneficiarioDetalle = () => {
       if (loadedTabs.onboarding) {
         await loadOnboardingData(beneficiario)
       }
-      if (loadedTabs.bitacora) {
-        await loadBitacoraData(beneficiario)
-      }
+      
+      // SIEMPRE refrescar bitácora después de acciones (aunque no esté abierta)
+      // para que cuando se abra la tab, muestre los datos actualizados
+      setLoadedTabs((prev) => ({ ...prev, bitacora: false }))
+      await loadBitacoraData(beneficiario)
     } catch (error) {
       console.error('❌ Error en executeDocumentAction:', error);
       
@@ -1442,9 +1444,9 @@ const AdminBeneficiarioDetalle = () => {
       resetPaymentForm();
       await showSuccessAlert({ title: 'Pago guardado', text: 'El registro financiero fue actualizado.' });
       await loadPagosData();
-      if (loadedTabs.bitacora) {
-        await loadBitacoraData();
-      }
+      // Siempre refrescar bitácora
+      setLoadedTabs((prev) => ({ ...prev, bitacora: false }));
+      await loadBitacoraData();
       await loadPaymentRights(beneficiario.id);
     } catch (error) {
       await showErrorAlert({ title: 'No se pudo guardar el pago', text: error.message || 'Ocurrió un error.' });
@@ -1506,9 +1508,9 @@ const AdminBeneficiarioDetalle = () => {
 
       await showSuccessAlert({ title: 'Pago eliminado', text: 'El registro fue eliminado correctamente.' });
       await loadPagosData();
-      if (loadedTabs.bitacora) {
-        await loadBitacoraData();
-      }
+      // Siempre refrescar bitácora
+      setLoadedTabs((prev) => ({ ...prev, bitacora: false }));
+      await loadBitacoraData();
       await loadPaymentRights(beneficiario.id);
     } catch (error) {
       await showErrorAlert({ title: 'No se pudo eliminar el pago', text: error.message || 'Ocurrió un error.' });

@@ -13,6 +13,8 @@ import {
   FileText,
   AlertCircle,
   Search,
+  Trash2,
+  RefreshCw,
 } from 'lucide-react'
 import DocViewerModal from '../components/DocViewerModal'
 
@@ -103,6 +105,13 @@ export default function AdminDocumentosHistoricos() {
   // Visor de documentos (sub-modal)
   const [viewingDoc, setViewingDoc] = useState(null)
   const [pendSuccess, setPendSuccess] = useState(false)
+
+  // Delete y Replace
+  const [deletingDocId, setDeletingDocId] = useState(null)
+  const [deletingDocLoading, setDeletingDocLoading] = useState(false)
+  const [replacingDocId, setReplacingDocId] = useState(null)
+  const [replaceFile, setReplaceFile] = useState(null)
+  const replaceFileRef = useRef(null)
 
   // Tab activo del modal
   const [modalTab, setModalTab] = useState('checklist') // 'checklist' | 'subir' | 'pendiente'
@@ -305,6 +314,110 @@ export default function AdminDocumentosHistoricos() {
     })
   }
 
+  const deleteDocument = async (doc) => {
+    if (!window.confirm(`¿Eliminar "${doc.titulo}"? Esta acción no se puede deshacer.`)) {
+      return
+    }
+
+    setDeletingDocId(doc.id)
+    setDeletingDocLoading(true)
+
+    try {
+      const { session } = await getSafeSession()
+      if (!session?.access_token) {
+        alert('Sesión expirada.')
+        return
+      }
+
+      // 1. Eliminar de Storage si existe
+      if (doc.storage_path && !doc.storage_path.includes('pendiente-')) {
+        const storagePath = doc.storage_path.replace(/^soportes\//, '')
+        const { error: storageError } = await supabase.storage
+          .from('soportes')
+          .remove([storagePath])
+        
+        if (storageError && !storageError.message.includes('not found')) {
+          throw new Error(`Error al eliminar archivo: ${storageError.message}`)
+        }
+      }
+
+      // 2. Eliminar de la base de datos
+      const { error: deleteError } = await supabase
+        .from('portal_beneficiario_documentos_historicos')
+        .delete()
+        .eq('id', doc.id)
+
+      if (deleteError) throw new Error(deleteError.message)
+
+      // Recargar documentos
+      await loadDocs(modal.beneficiario.id)
+      alert('Documento eliminado correctamente.')
+    } catch (err) {
+      alert(`Error: ${err.message}`)
+    } finally {
+      setDeletingDocId(null)
+      setDeletingDocLoading(false)
+    }
+  }
+
+  const replaceDocument = async (doc) => {
+    if (!replaceFile) {
+      alert('Selecciona un archivo para reemplazar.')
+      return
+    }
+
+    setReplacingDocId(doc.id)
+
+    try {
+      const { session } = await getSafeSession()
+      if (!session?.access_token) {
+        alert('Sesión expirada.')
+        return
+      }
+
+      // 1. Eliminar el archivo anterior de Storage
+      if (doc.storage_path && !doc.storage_path.includes('pendiente-')) {
+        const oldStoragePath = doc.storage_path.replace(/^soportes\//, '')
+        await supabase.storage
+          .from('soportes')
+          .remove([oldStoragePath])
+      }
+
+      // 2. Subir el nuevo archivo
+      const ext = replaceFile.name.split('.').pop()
+      const newStoragePath = `beneficiarios_historicos/${modal.beneficiario.id}/${doc.tipo_documento}-${Date.now()}.${ext}`
+      const newDbPath = `soportes/${newStoragePath}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('soportes')
+        .upload(newStoragePath, replaceFile, { contentType: replaceFile.type, upsert: false })
+
+      if (uploadError) throw new Error(`Error al subir: ${uploadError.message}`)
+
+      // 3. Actualizar el registro en la BD
+      const { error: updateError } = await supabase
+        .from('portal_beneficiario_documentos_historicos')
+        .update({
+          storage_path: newDbPath,
+          archivo_mime_type: replaceFile.type,
+          archivo_size_bytes: replaceFile.size,
+        })
+        .eq('id', doc.id)
+
+      if (updateError) throw new Error(updateError.message)
+
+      // Limpiar y recargar
+      setReplaceFile(null)
+      if (replaceFileRef.current) replaceFileRef.current.value = ''
+      await loadDocs(modal.beneficiario.id)
+      alert('Documento reemplazado correctamente.')
+    } catch (err) {
+      alert(`Error: ${err.message}`)
+    } finally {
+      setReplacingDocId(null)
+    }
+  }
+
   // Construir mapa tipo → último doc para el checklist
   const buildChecklistMap = () => {
     const map = {}
@@ -450,21 +563,21 @@ export default function AdminDocumentosHistoricos() {
                   {docsLoading ? (
                     <p className="text-sm text-slate-400 py-4">Cargando…</p>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-3">
                       {TIPO_DOC_ASPIRANTE.map((tipo) => {
                         const checklistMap = buildChecklistMap()
                         const doc = checklistMap[tipo.value]
                         return (
-                          <div
-                            key={tipo.value}
-                            className={`flex items-center justify-between p-3 rounded-xl border ${
-                              doc?.estado === 'cargado'
-                                ? 'border-emerald-200 bg-emerald-50'
-                                : doc?.estado === 'pendiente'
-                                ? 'border-amber-200 bg-amber-50'
-                                : 'border-slate-200 bg-white'
-                            }`}
-                          >
+                          <div key={tipo.value}>
+                            <div
+                              className={`flex items-center justify-between p-3 rounded-xl border ${
+                                doc?.estado === 'cargado'
+                                  ? 'border-emerald-200 bg-emerald-50'
+                                  : doc?.estado === 'pendiente'
+                                  ? 'border-amber-200 bg-amber-50'
+                                  : 'border-slate-200 bg-white'
+                              }`}
+                            >
                             <div className="flex items-center gap-2 min-w-0">
                               <FileText size={14} className={doc?.estado === 'cargado' ? 'text-emerald-600' : doc?.estado === 'pendiente' ? 'text-amber-500' : 'text-slate-400'} />
                               <div className="min-w-0">
@@ -482,19 +595,74 @@ export default function AdminDocumentosHistoricos() {
                                 <>
                                   <DocStatusBadge estado={doc.estado} />
                                   {doc.storage_path && !doc.storage_path.includes('pendiente-') && (
-                                    <button
-                                      onClick={() => openDocViewer(doc)}
-                                      className="text-blue-600 hover:text-blue-800"
-                                      title="Ver archivo"
-                                    >
-                                      <Eye size={14} />
-                                    </button>
+                                    <>
+                                      <button
+                                        onClick={() => openDocViewer(doc)}
+                                        className="text-blue-600 hover:text-blue-800"
+                                        title="Ver archivo"
+                                      >
+                                        <Eye size={14} />
+                                      </button>
+                                      <button
+                                        onClick={() => setReplacingDocId(replacingDocId === doc.id ? null : doc.id)}
+                                        className={replacingDocId === doc.id ? "text-amber-600 hover:text-amber-800" : "text-slate-400 hover:text-slate-600"}
+                                        title="Reemplazar documento"
+                                      >
+                                        <RefreshCw size={14} />
+                                      </button>
+                                      <button
+                                        onClick={() => deleteDocument(doc)}
+                                        disabled={deletingDocId === doc.id && deletingDocLoading}
+                                        className="text-red-600 hover:text-red-800 disabled:opacity-50"
+                                        title="Eliminar documento"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </>
                                   )}
                                 </>
                               ) : (
                                 <span className="text-[10px] text-slate-400 italic">Sin registrar</span>
                               )}
                             </div>
+                            
+                            {/* Interfaz de reemplazo inline */}
+                            {replacingDocId === doc?.id && doc?.storage_path && !doc?.storage_path.includes('pendiente-') && (
+                              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex-1">
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Nuevo archivo para "{doc.titulo}"</label>
+                                    <input
+                                      type="file"
+                                      ref={replaceFileRef}
+                                      onChange={(e) => setReplaceFile(e.target.files?.[0] || null)}
+                                      accept={doc.archivo_mime_type || '*'}
+                                      className="w-full text-sm text-slate-600 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-amber-100 file:text-amber-700"
+                                    />
+                                    {replaceFile && <p className="text-xs text-amber-700 mt-1">📁 {replaceFile.name} ({formatBytes(replaceFile.size)})</p>}
+                                  </div>
+                                  <div className="flex gap-2 shrink-0">
+                                    <button
+                                      onClick={() => replaceDocument(doc)}
+                                      disabled={!replaceFile || replacingDocId !== doc.id}
+                                      className="px-3 py-2 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 disabled:opacity-50"
+                                    >
+                                      Reemplazar
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setReplacingDocId(null)
+                                        setReplaceFile(null)
+                                        if (replaceFileRef.current) replaceFileRef.current.value = ''
+                                      }}
+                                      className="px-3 py-2 bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-300"
+                                    >
+                                      Cancelar
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )
                       })}
@@ -519,9 +687,18 @@ export default function AdminDocumentosHistoricos() {
                                 </p>
                               </div>
                               {doc.storage_path && !doc.storage_path.includes('pendiente-') && (
-                                <button onClick={() => openDocViewer(doc)} className="text-xs text-blue-600 hover:underline ml-4">
-                                  <Eye size={14} />
-                                </button>
+                                <div className="flex items-center gap-2 ml-4">
+                                  <button onClick={() => openDocViewer(doc)} className="text-blue-600 hover:text-blue-800">
+                                    <Eye size={14} />
+                                  </button>
+                                  <button
+                                    onClick={() => deleteDocument(doc)}
+                                    disabled={deletingDocId === doc.id && deletingDocLoading}
+                                    className="text-red-600 hover:text-red-800 disabled:opacity-50"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
                               )}
                             </li>
                           ))}

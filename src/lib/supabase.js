@@ -24,6 +24,26 @@ const getSupabaseSingleton = () => {
 
 export const supabase = getSupabaseSingleton()
 
+// Client for pure anonymous operations (no session persistence)
+// Used for onboarding uploads where we must be explicitly anonymous
+export const getAnonStorageClient = () => {
+	const globalKey = '__focades_anon_storage_client__'
+	const globalScope = globalThis
+
+	if (!globalScope[globalKey]) {
+		globalScope[globalKey] = createClient(supabaseUrl, supabaseAnonKey, {
+			auth: {
+				persistSession: false, // Explicitly disable session persistence
+				autoRefreshToken: false, // Disable auto-refresh
+				detectSessionInUrl: false, // Don't detect session in URL
+				flowType: 'implicit',
+			},
+		})
+	}
+
+	return globalScope[globalKey]
+}
+
 let sessionRequestInFlight = null
 let cachedSessionResult = { session: null, error: null, fetchedAt: 0 }
 const SESSION_CACHE_TTL_MS = 1500

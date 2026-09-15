@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase, getAnonStorageClient } from '../lib/supabase';
 import { showErrorAlert, showSuccessAlert } from '../lib/alerts';
 import { compressPDF, compressImage } from '../lib/fileCompression';
 import { TERMS_AND_CONDITIONS_TEXT, DATA_POLICY_TEXT } from '../lib/legalTexts';
@@ -718,7 +718,9 @@ const BeneficiarioOnboardingCompleto = () => {
         const bucketPath = `beneficiarios_historicos/${beneficiarioId}/firma-digital-${timestamp}.png`;
         const dbPath = `soportes/${bucketPath}`;
 
-        const { error: uploadError } = await supabase.storage
+        // Use pure anonymous client for uploads (no session persistence)
+        const anonClient = getAnonStorageClient();
+        const { error: uploadError } = await anonClient.storage
           .from('soportes')
           .upload(bucketPath, finalBlob, {
             contentType: 'image/png',
@@ -852,7 +854,9 @@ const BeneficiarioOnboardingCompleto = () => {
       const bucketPath = `beneficiarios_historicos/${beneficiarioId}/documentos/${tipoDoc}.pdf`;
       const dbPath = `soportes/${bucketPath}`;
 
-      const { error: uploadError } = await supabase.storage
+      // Use pure anonymous client for uploads (no session persistence)
+      const anonClient = getAnonStorageClient();
+      const { error: uploadError } = await anonClient.storage
         .from('soportes')
         .upload(bucketPath, finalFile, {
           contentType: 'application/pdf',

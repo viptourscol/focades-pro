@@ -9,13 +9,29 @@
 
 **Problema:** Beneficiarios recibían error `400 Bad Request` al subir documentos
 **Causa:** Políticas RLS conflictivas que requerían autenticación
-**Solución:** Migración `202609150001_fix_storage_rls_conflicts.sql` aplicada ✅
 
-**Archivos relacionados:**
-- `FIX_ERROR_400_UPLOAD_DOCUMENTOS.md` - Documentación completa
-- `scripts/test-document-upload-fix.mjs` - Script para verificar el fix
+**Soluciones aplicadas (3 iteraciones):**
+1. `202609150001_fix_storage_rls_conflicts.sql` - Eliminó algunas políticas pero dejó conflictos ❌
+2. `202609150002_emergency_fix_storage_policies.sql` - Intentó limpiar pero quedaron residuales ❌
+3. `202609150003_nuclear_fix_storage_policies.sql` - Eliminó TODAS y recreó limpias ✅
 
-**Estado:** ✅ Aplicada y verificada - Beneficiarios ya pueden subir documentos
+**Políticas Finales:**
+- `anon_upload_beneficiarios_historicos` - Permite uploads anónimos a beneficiarios_historicos
+- `authenticated_manage_all_soportes` - Permite auth users TODAS ops en bucket soportes
+
+**Funcionalidad Admin agregada:**
+- ✅ Botón eliminar documentos (función deleteDocument)
+- ✅ Botón reemplazar documentos (función replaceDocument)
+- ✅ Interfaz inline para seleccionar archivo de reemplazo
+- ✅ Cambio de layout grid → space-y-3 para mejor UX
+
+**Archivos:**
+- Migraciones SQL: `supabase/migrations/202609150001-003_*.sql`
+- Documentación: `FIX_ERROR_400_UPLOAD_DOCUMENTOS.md`
+- Test script: `scripts/test-document-upload-fix.mjs`
+- Admin panel: `src/pages/AdminDocumentosHistoricos.jsx` (delete + replace)
+
+**Estado:** ✅ RESUELTO Y DEPLOYADO - Beneficiarios pueden subir, admins pueden gestionar documentos
 
 ---
 

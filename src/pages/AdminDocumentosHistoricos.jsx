@@ -578,52 +578,53 @@ export default function AdminDocumentosHistoricos() {
                                   : 'border-slate-200 bg-white'
                               }`}
                             >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <FileText size={14} className={doc?.estado === 'cargado' ? 'text-emerald-600' : doc?.estado === 'pendiente' ? 'text-amber-500' : 'text-slate-400'} />
-                              <div className="min-w-0">
-                                <p className="text-xs font-semibold text-slate-700 truncate">{tipo.label}</p>
-                                {tipo.requerido && !doc && (
-                                  <p className="text-[10px] text-slate-400">Recomendado</p>
-                                )}
-                                {doc?.observacion_admin && (
-                                  <p className="text-[10px] text-slate-500 truncate">{doc.observacion_admin}</p>
+                              <div className="flex items-center gap-2 min-w-0">
+                                <FileText size={14} className={doc?.estado === 'cargado' ? 'text-emerald-600' : doc?.estado === 'pendiente' ? 'text-amber-500' : 'text-slate-400'} />
+                                <div className="min-w-0">
+                                  <p className="text-xs font-semibold text-slate-700 truncate">{tipo.label}</p>
+                                  {tipo.requerido && !doc && (
+                                    <p className="text-[10px] text-slate-400">Recomendado</p>
+                                  )}
+                                  {doc?.observacion_admin && (
+                                    <p className="text-[10px] text-slate-500 truncate">{doc.observacion_admin}</p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 ml-2 shrink-0">
+                                {doc ? (
+                                  <>
+                                    <DocStatusBadge estado={doc.estado} />
+                                    {doc.storage_path && !doc.storage_path.includes('pendiente-') && (
+                                      <>
+                                        <button
+                                          onClick={() => openDocViewer(doc)}
+                                          className="text-blue-600 hover:text-blue-800"
+                                          title="Ver archivo"
+                                        >
+                                          <Eye size={14} />
+                                        </button>
+                                        <button
+                                          onClick={() => setReplacingDocId(replacingDocId === doc.id ? null : doc.id)}
+                                          className={replacingDocId === doc.id ? "text-amber-600 hover:text-amber-800" : "text-slate-400 hover:text-slate-600"}
+                                          title="Reemplazar documento"
+                                        >
+                                          <RefreshCw size={14} />
+                                        </button>
+                                        <button
+                                          onClick={() => deleteDocument(doc)}
+                                          disabled={deletingDocId === doc.id && deletingDocLoading}
+                                          className="text-red-600 hover:text-red-800 disabled:opacity-50"
+                                          title="Eliminar documento"
+                                        >
+                                          <Trash2 size={14} />
+                                        </button>
+                                      </>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 italic">Sin registrar</span>
                                 )}
                               </div>
-                            </div>
-                            <div className="flex items-center gap-2 ml-2 shrink-0">
-                              {doc ? (
-                                <>
-                                  <DocStatusBadge estado={doc.estado} />
-                                  {doc.storage_path && !doc.storage_path.includes('pendiente-') && (
-                                    <>
-                                      <button
-                                        onClick={() => openDocViewer(doc)}
-                                        className="text-blue-600 hover:text-blue-800"
-                                        title="Ver archivo"
-                                      >
-                                        <Eye size={14} />
-                                      </button>
-                                      <button
-                                        onClick={() => setReplacingDocId(replacingDocId === doc.id ? null : doc.id)}
-                                        className={replacingDocId === doc.id ? "text-amber-600 hover:text-amber-800" : "text-slate-400 hover:text-slate-600"}
-                                        title="Reemplazar documento"
-                                      >
-                                        <RefreshCw size={14} />
-                                      </button>
-                                      <button
-                                        onClick={() => deleteDocument(doc)}
-                                        disabled={deletingDocId === doc.id && deletingDocLoading}
-                                        className="text-red-600 hover:text-red-800 disabled:opacity-50"
-                                        title="Eliminar documento"
-                                      >
-                                        <Trash2 size={14} />
-                                      </button>
-                                    </>
-                                  )}
-                                </>
-                              ) : (
-                                <span className="text-[10px] text-slate-400 italic">Sin registrar</span>
-                              )}
                             </div>
                             
                             {/* Interfaz de reemplazo inline */}

@@ -5,6 +5,20 @@
 
 ---
 
+## 🔧 FIX APLICADO (2026-09-15): Error 400 en subida de documentos
+
+**Problema:** Beneficiarios recibían error `400 Bad Request` al subir documentos
+**Causa:** Políticas RLS conflictivas que requerían autenticación
+**Solución:** Migración `202609150001_fix_storage_rls_conflicts.sql` aplicada ✅
+
+**Archivos relacionados:**
+- `FIX_ERROR_400_UPLOAD_DOCUMENTOS.md` - Documentación completa
+- `scripts/test-document-upload-fix.mjs` - Script para verificar el fix
+
+**Estado:** ✅ Aplicada y verificada - Beneficiarios ya pueden subir documentos
+
+---
+
 ## ✅ Fase 1: Migración de BD (COMPLETADA)
 
 **Archivo:** `supabase/migrations/202608140001_extend_beneficiarios_onboarding_completo.sql`

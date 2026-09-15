@@ -25,3 +25,6 @@ dist-ssr
 
 .vercel
 .env*.local
+
+# Ignorar documentos generados (Plan de Trabajo y anexos)
+docs/plan_trabajo_pago_30/

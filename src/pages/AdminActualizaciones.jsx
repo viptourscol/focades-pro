@@ -455,10 +455,16 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 transition-all ${
+        showFicha360Modal ? 'lg:justify-start lg:pl-[calc(45%+2rem)]' : ''
+      }`}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+      <div className={`bg-white rounded-3xl shadow-2xl w-full flex flex-col transition-all ${
+        showFicha360Modal 
+          ? 'lg:max-w-xl max-h-[90vh]' 
+          : 'max-w-2xl max-h-[90vh]'
+      }`}>
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 rounded-t-3xl flex items-start justify-between z-10">
           <div>

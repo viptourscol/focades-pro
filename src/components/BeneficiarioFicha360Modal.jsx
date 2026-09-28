@@ -41,6 +41,7 @@ export default function BeneficiarioFicha360Modal({ beneficiarioId }) {
   const [tickets, setTickets] = useState([]);
   const [bitacoraRows, setBitacoraRows] = useState([]);
   const [activeTab, setActiveTab] = useState('perfil');
+  const [onboardingSubTab, setOnboardingSubTab] = useState('personal');
   const [loadedTabs, setLoadedTabs] = useState({
     perfil: false,
     onboarding: false,
@@ -350,8 +351,119 @@ export default function BeneficiarioFicha360Modal({ beneficiarioId }) {
         )}
 
         {activeTab === 'onboarding' && (
-          <section className="border border-slate-200 rounded-2xl p-4">
-            <p className="text-sm text-slate-500">Información de onboarding no disponible en esta vista. Accede a la ficha 360 completa para más detalles.</p>
+          <section className="border border-slate-200 rounded-2xl p-4 space-y-4">
+            <div className="border-b border-slate-200 pb-2 mb-3">
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { id: 'personal', label: 'Personal' },
+                  { id: 'socioeconomico', label: 'Socio-económico' },
+                  { id: 'familiar', label: 'Familiar' },
+                  { id: 'secundaria', label: 'Secundaria' },
+                  { id: 'academico', label: 'Académico' },
+                  { id: 'bancario', label: 'Bancario' },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setOnboardingSubTab(tab.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      onboardingSubTab === tab.id
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Personal */}
+            {onboardingSubTab === 'personal' && (
+              <div className="grid gap-2">
+                <OnboardingField label="Nombre completo" value={beneficiario?.nombre_completo} />
+                <OnboardingField label="Tipo documento" value={beneficiario?.tipo_documento} />
+                <OnboardingField label="Número documento" value={beneficiario?.n_documento} />
+                <OnboardingField label="Género" value={beneficiario?.genero} />
+                <OnboardingField label="Fecha nacimiento" value={beneficiario?.fecha_nacimiento} />
+                <OnboardingField label="País nacimiento" value={beneficiario?.pais_nacimiento} />
+                <OnboardingField label="Departamento nacimiento" value={beneficiario?.dpto_nacimiento} />
+                <OnboardingField label="Municipio nacimiento" value={beneficiario?.municipio_nacimiento} />
+                <OnboardingField label="Email" value={beneficiario?.email} />
+                <OnboardingField label="Teléfono" value={beneficiario?.telefono} />
+              </div>
+            )}
+
+            {/* Socio-económico */}
+            {onboardingSubTab === 'socioeconomico' && (
+              <div className="grid gap-2">
+                <OnboardingField label="Zona residencia" value={beneficiario?.zona_residencia} />
+                <OnboardingField label="Dirección residencia" value={beneficiario?.direccion_residencia} />
+                <OnboardingField label="Barrio/Corregimiento" value={beneficiario?.barrio_corregimiento} />
+                <OnboardingField label="Departamento residencia" value={beneficiario?.dpto_residencia} />
+                <OnboardingField label="Municipio residencia" value={beneficiario?.municipio_residencia} />
+                <OnboardingField label="Grupo SISBEN" value={beneficiario?.sisben_grupo} />
+                <OnboardingField label="Recibe subsidio" value={beneficiario?.recibe_subsidio} />
+                <OnboardingField label="Cuál subsidio" value={beneficiario?.cual_subsidio} />
+                <OnboardingField label="Enfoque diferencial" value={beneficiario?.enfoque_diferencial} />
+                <OnboardingField label="Labora actualmente" value={beneficiario?.labora_actualmente} />
+              </div>
+            )}
+
+            {/* Familiar */}
+            {onboardingSubTab === 'familiar' && (
+              <div className="grid gap-2">
+                <div className="border-b pb-2 mb-2">
+                  <p className="text-xs font-bold text-slate-700 mb-2">Datos del Padre</p>
+                  <OnboardingField label="Nombre padre" value={beneficiario?.nombre_padre} />
+                  <OnboardingField label="Documento padre" value={beneficiario?.documento_padre} />
+                  <OnboardingField label="Ocupación padre" value={beneficiario?.ocupacion_padre} />
+                  <OnboardingField label="Ingresos padre" value={beneficiario?.ingresos_padre} />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-700 mb-2">Datos de la Madre</p>
+                  <OnboardingField label="Nombre madre" value={beneficiario?.nombre_madre} />
+                  <OnboardingField label="Documento madre" value={beneficiario?.documento_madre} />
+                  <OnboardingField label="Ocupación madre" value={beneficiario?.ocupacion_madre} />
+                  <OnboardingField label="Ingresos madre" value={beneficiario?.ingresos_madre} />
+                </div>
+              </div>
+            )}
+
+            {/* Secundaria */}
+            {onboardingSubTab === 'secundaria' && (
+              <div className="grid gap-2">
+                <OnboardingField label="Título obtenido" value={beneficiario?.titulo_obtenido} />
+                <OnboardingField label="Año graduación" value={beneficiario?.ano_graduacion} />
+                <OnboardingField label="Establecimiento educativo" value={beneficiario?.establecimiento_educativo} />
+                <OnboardingField label="Puntaje ICFES" value={beneficiario?.puntaje_icfes} />
+              </div>
+            )}
+
+            {/* Académico */}
+            {onboardingSubTab === 'academico' && (
+              <div className="grid gap-2">
+                <OnboardingField label="Programa académico" value={beneficiario?.programa_academico} />
+                <OnboardingField label="Universidad" value={beneficiario?.nombre_universidad} />
+                <OnboardingField label="Institución superior" value={beneficiario?.institucion_superior} />
+                <OnboardingField label="Departamento institución" value={beneficiario?.dpto_institucion} />
+                <OnboardingField label="Municipio institución" value={beneficiario?.municipio_institucion} />
+                <OnboardingField label="Ciudad institución" value={beneficiario?.ciudad_institucion} />
+                <OnboardingField label="Tipo educación" value={beneficiario?.tipo_educacion} />
+                <OnboardingField label="Modalidad" value={beneficiario?.modalidad} />
+                <OnboardingField label="Semestre ingreso" value={beneficiario?.semestre_ingreso} />
+                <OnboardingField label="Semestre actual" value={beneficiario?.semestre_actual} />
+                <OnboardingField label="Promedio anterior" value={beneficiario?.promedio_anterior} />
+              </div>
+            )}
+
+            {/* Bancario */}
+            {onboardingSubTab === 'bancario' && (
+              <div className="grid gap-2">
+                <OnboardingField label="Nombre banco" value={beneficiario?.nombre_banco} />
+                <OnboardingField label="Tipo cuenta bancaria" value={beneficiario?.tipo_cuenta_bancaria} />
+                <OnboardingField label="Número cuenta" value={beneficiario?.numero_cuenta} />
+              </div>
+            )}
           </section>
         )}
 
@@ -369,5 +481,12 @@ const InfoCard = ({ label, value }) => (
   <div className="border border-slate-100 rounded-lg px-3 py-2 bg-slate-50">
     <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">{label}</p>
     <p className="text-sm text-slate-700 mt-1">{value}</p>
+  </div>
+);
+
+const OnboardingField = ({ label, value }) => (
+  <div className="border-b border-slate-100 pb-2 last:border-0">
+    <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">{label}</p>
+    <p className="text-sm text-slate-700 mt-0.5">{value || '—'}</p>
   </div>
 );

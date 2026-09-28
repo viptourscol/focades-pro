@@ -455,11 +455,18 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
 
   return (
     <>
-      {/* DESKTOP: Layout flex con modal (izquierda 50%) - Drawer derecha manejado por ResponsiveDrawer */}
-      <div className="hidden lg:flex fixed left-0 top-0 h-screen w-1/2 z-40 bg-transparent">
-        {/* Left side: Modal de actualización (100% del contenedor) */}
-        <div className="w-full overflow-y-auto bg-white border-r border-slate-200">
-          <div className="bg-white flex flex-col h-full">
+      {/* DESKTOP: Modal centrado (sin ficha 360) O split-view (con ficha 360) */}
+      <div className={`hidden lg:flex fixed top-0 h-screen z-40 bg-transparent ${
+        showFicha360Modal
+          ? 'left-0 w-1/2'  // Split-view: modal izquierda 50%
+          : 'inset-0 items-center justify-center bg-black/50'  // Centrado: modal al medio
+      }`}>
+        {/* Modal de actualización */}
+        <div className={`overflow-y-auto bg-white flex flex-col ${
+          showFicha360Modal 
+            ? 'w-full h-full border-r border-slate-200'
+            : 'rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh]'
+        }`}>
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 flex items-start justify-between z-10">
           <div>
@@ -795,7 +802,6 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
             Ctrl+S guardar · Ctrl+A aprobar · Ctrl+R rechazar · Esc cerrar
           </span>
         </div>
-          </div>
         </div>
       </div>
 

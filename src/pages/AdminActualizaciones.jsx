@@ -24,6 +24,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import ReviewChecklist from '../components/ReviewChecklist';
+import ResponsiveDrawer from '../components/ResponsiveDrawer';
+import BeneficiarioFicha360Modal from '../components/BeneficiarioFicha360Modal';
 import { showErrorAlert, showSuccessAlert } from '../lib/alerts';
 import { clearLocalAuthSession, getSafeSession, supabase } from '../lib/supabase';
 import DocViewerModal from '../components/DocViewerModal';
@@ -150,6 +152,7 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
     catch { return ''; }
   });
   const [notasSaved, setNotasSaved] = useState(false);
+  const [showFicha360Modal, setShowFicha360Modal] = useState(false);
 
   // Cargar checklist desde BD
   useEffect(() => {
@@ -495,13 +498,13 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
             {ventana?.nombre && (
               <p className="text-sm text-slate-500">Ventana: <span className="font-medium">{ventana.nombre}</span></p>
             )}
-            <Link
-              to={`/admin/beneficiarios/${beneficiario?.id}`}
-              onClick={onClose}
-              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium mt-1"
+            <button
+              type="button"
+              onClick={() => setShowFicha360Modal(true)}
+              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium mt-1 hover:underline"
             >
               Ver ficha 360 <ChevronRight size={12} />
-            </Link>
+            </button>
           </section>
 
           {/* Historial de subsanación */}
@@ -802,6 +805,15 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
           onNavigate={(newIndex) => setViewingDoc(docs[newIndex])}
         />
       )}
+
+      {/* Ficha 360 en drawer lateral responsive */}
+      <ResponsiveDrawer
+        isOpen={showFicha360Modal}
+        onClose={() => setShowFicha360Modal(false)}
+        title="Ficha 360 del beneficiario"
+      >
+        <BeneficiarioFicha360Modal beneficiarioId={beneficiario?.id} />
+      </ResponsiveDrawer>
     </div>
   );
 };

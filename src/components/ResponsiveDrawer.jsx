@@ -38,7 +38,7 @@ export default function ResponsiveDrawer({
   return (
     <>
       {/* DESKTOP (≥1024px): Panel lateral fijo derecha (50% ancho) - Split View */}
-      <div className="hidden lg:flex fixed right-0 top-0 h-screen w-1/2 bg-white border-l border-slate-200 flex-col shadow-2xl z-30">
+      <div className="hidden lg:flex fixed right-0 top-0 h-screen w-1/2 bg-white border-l border-slate-200 flex-col shadow-2xl z-50">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 flex-shrink-0 bg-white sticky top-0 z-10">
           <h2 className="text-lg font-bold text-slate-800">{title}</h2>

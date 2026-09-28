@@ -456,7 +456,9 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
   return (
     <>
       {/* DESKTOP: Modal centrado (sin ficha 360) O split-view (con ficha 360) */}
-      <div className={`hidden lg:flex fixed top-0 h-screen z-40 bg-transparent ${
+      <div className={`hidden lg:flex fixed top-0 h-screen ${
+        showFicha360Modal ? 'z-50' : 'z-40'
+      } bg-transparent ${
         showFicha360Modal
           ? 'left-0 w-1/2'  // Split-view: modal izquierda 50%
           : 'inset-0 items-center justify-center bg-black/50'  // Centrado: modal al medio

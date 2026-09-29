@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-09-29T21:37:07.393Z",
+  "buckets": {
+    "soportes": {
+      "files": [],
+      "fileCount": 0,
+      "totalSize": 0,
+      "error": "signature verification failed"
+    },
+    "beneficiario-documentos": {
+      "files": [],
+      "fileCount": 0,
+      "totalSize": 0,
+      "error": "signature verification failed"
+    },
+    "public-assets": {
+      "files": [],
+      "fileCount": 0,
+      "totalSize": 0,
+      "error": "signature verification failed"
+    }
+  },
+  "totalFiles": 0,
+  "totalSize": 0
+}

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { getSafeSession } from '../lib/supabase'
+import { uploadToR2, deleteFromR2 } from '../lib/r2'
 import ImportStepper from '../components/ImportStepper'
 import LoteInfoBanner from '../components/LoteInfoBanner'
 import {

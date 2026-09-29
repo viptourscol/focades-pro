@@ -466,17 +466,12 @@ const AdminCondonaciones = () => {
         const safeName = String(selectedFile.name || 'firma.png').replace(/[^a-zA-Z0-9._-]/g, '_');
         storagePath = `firmas-certificados/${cargo}/${Date.now()}-${safeName}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from('soportes')
-          .upload(storagePath, selectedFile, {
-            upsert: true,
-            contentType: selectedFile.type || 'image/png',
-          });
-
-        if (uploadError) {
+        try {
+          await uploadToR2(selectedFile, storagePath);
+        } catch (uploadError) {
           const uploadMessage = String(uploadError.message || '').toLowerCase();
           if (uploadMessage.includes('row-level security') || uploadMessage.includes('policy') || uploadMessage.includes('permission')) {
-            throw new Error('No tienes permisos de Storage para firmas. Falta aplicar la migracion de politicas 202603170003_storage_firmas_certificados_policies.sql.');
+            throw new Error('No tienes permisos de Storage para firmas.');
           }
           throw new Error(uploadError.message || 'No se pudo subir la firma.');
         }

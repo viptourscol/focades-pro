@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getSafeSession, supabase } from '../lib/supabase';
+import { getPublicUrlR2 } from '../lib/r2';
 import ReviewChecklist from './ReviewChecklist';
 import { 
   X, Copy, Cpu, User, Home, 
@@ -375,8 +376,7 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
       return signedData.signedUrl;
     }
 
-    const publicData = supabase.storage.from('soportes').getPublicUrl(cleanPath);
-    const publicUrl = String(publicData?.data?.publicUrl || '').trim();
+    const publicUrl = getPublicUrlR2(cleanPath);
     if (publicUrl) return publicUrl;
 
     throw new Error(signedError?.message || 'No se pudo obtener una URL para visualizar el documento.');

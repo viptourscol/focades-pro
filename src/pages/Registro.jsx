@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import SignaturePad from 'signature_pad';
 import { supabase } from '../lib/supabase';
+import { uploadToR2 } from '../lib/r2';
 import {
   showConfirmAlert,
   showErrorAlert,
@@ -2440,12 +2441,9 @@ const Registro = () => {
       }
 
       const firmaPath = `expedientes/${sanitizePathSegment(documentoPersona) || 'sin-documento'}/${sanitizePathSegment(radicado)}/firma/${Date.now()}-firma.png`;
-      const { error: firmaError } = await supabase.storage.from('soportes').upload(firmaPath, firmaBlob, {
-        upsert: false,
-        contentType: 'image/png',
-      });
-
-      if (firmaError) {
+      try {
+        await uploadToR2(firmaBlob, firmaPath);
+      } catch (firmaError) {
         throw new Error(`Error subiendo firma: ${firmaError.message}`);
       }
 

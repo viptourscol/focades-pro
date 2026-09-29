@@ -4,6 +4,7 @@ import {
   Loader2, Save, ListChecks, Lightbulb, UploadCloud, ExternalLink, Download, MonitorPlay,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { getPublicUrlR2 } from '../lib/r2';
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from '../lib/alerts';
 import { PreviewRequisitos, PreviewGuia, PreviewDocumento, ICONOS_GUIA } from '../components/DocumentacionPreview';
 
@@ -413,7 +414,7 @@ export default function AdminDocumentacion() {
       return;
     }
 
-    const { data } = supabase.storage.from('public-assets').getPublicUrl(ruta);
+      const data = { publicUrl: getPublicUrlR2(`public-assets/${ruta}`) };
     setForm((f) => ({
       ...f,
       archivo_url: data.publicUrl,

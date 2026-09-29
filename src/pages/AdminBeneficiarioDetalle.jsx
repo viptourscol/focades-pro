@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarClock, ChevronLeft, ChevronRight, CircleDollarSign, 
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from '../lib/alerts';
 import { invokeAdminTickets } from '../lib/adminTickets';
 import { getSafeSession, supabase } from '../lib/supabase';
+import { getPublicUrlR2 } from '../lib/r2';
 import DocViewerModal from '../components/DocViewerModal';
 import BitacoraTimeline from '../components/BitacoraTimeline';
 
@@ -801,8 +802,7 @@ const AdminBeneficiarioDetalle = () => {
       return signedData.signedUrl;
     }
 
-    const publicData = supabase.storage.from('soportes').getPublicUrl(cleanPath);
-    const publicUrl = String(publicData?.data?.publicUrl || '').trim();
+    const publicUrl = getPublicUrlR2(cleanPath);
     if (publicUrl) return publicUrl;
 
     throw new Error(signedError?.message || 'No se pudo obtener una URL para visualizar el documento.');

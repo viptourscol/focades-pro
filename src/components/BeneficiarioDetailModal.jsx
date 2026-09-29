@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Save, User, GraduationCap, CreditCard, Shield, AlertCircle, FileText, Edit2, Check, Eye, ChevronLeft, ChevronRight, Printer, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { getPublicUrlR2 } from '../lib/r2';
 import { showSuccessAlert, showErrorAlert } from '../lib/alerts';
 
 const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
@@ -155,8 +156,7 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
       return signedData.signedUrl;
     }
 
-    const publicData = supabase.storage.from('soportes').getPublicUrl(cleanPath);
-    const publicUrl = String(publicData?.data?.publicUrl || '').trim();
+    const publicUrl = getPublicUrlR2(cleanPath);
     if (publicUrl) return publicUrl;
 
     throw new Error(signedError?.message || 'No se pudo obtener una URL para visualizar el documento.');

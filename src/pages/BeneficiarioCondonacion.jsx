@@ -13,6 +13,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { uploadToR2 } from '../lib/r2';
 import { loadActiveCertificateSignatures, openPazYSalvoPrintView } from '../lib/certificadoPazYSalvo';
 import { showWarningAlert } from '../lib/alerts';
 
@@ -260,13 +261,9 @@ const BeneficiarioCondonacion = () => {
     const safeBaseName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const storagePath = `beneficiarios/${payload.beneficiario_id}/condonacion-final/${docType}/${Date.now()}-${safeBaseName}`;
 
-    const { error: uploadError } = await supabase.storage.from('soportes').upload(storagePath, file, {
-      cacheControl: '3600',
-      upsert: false,
-      contentType: 'application/pdf',
-    });
-
-    if (uploadError) {
+    try {
+      await uploadToR2(file, storagePath);
+    } catch (uploadError) {
       setUploadingDocType('');
       setError(uploadError.message || 'No se pudo cargar el documento al almacenamiento.');
       return;

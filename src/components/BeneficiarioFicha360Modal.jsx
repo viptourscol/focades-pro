@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarClock, CheckCircle, CircleDollarSign, FileText, Loader2, Mail, MapPin, Phone, Ticket } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { CalendarClock, CheckCircle, CircleDollarSign, FileText, Loader2, Mail, MapPin, Phone, Ticket, X } from 'lucide-react';
+import { supabase, getSafeSession } from '../lib/supabase';
 import { formatDateTime, formatMoney } from '../lib/formatters';
+import { showConfirmAlert, showErrorAlert, showSuccessAlert } from '../lib/alerts';
 import BitacoraTimeline from './BitacoraTimeline';
 import DocViewerModal from './DocViewerModal';
 
@@ -48,6 +49,15 @@ export default function BeneficiarioFicha360Modal({ beneficiarioId }) {
   const [viewingDoc, setViewingDoc] = useState(null);
   const [activeTab, setActiveTab] = useState('perfil');
   const [onboardingSubTab, setOnboardingSubTab] = useState('personal');
+  const [documentActionModal, setDocumentActionModal] = useState({
+    isOpen: false,
+    action: null, // 'replace' | 'delete'
+    documento: null,
+    motivo: '',
+    nuevoArchivo: null,
+    loading: false,
+    document_type: 'historico', // 'inscripcion' | 'historico'
+  });
   const [loadedTabs, setLoadedTabs] = useState({
     perfil: false,
     onboarding: false,
@@ -204,6 +214,168 @@ export default function BeneficiarioFicha360Modal({ beneficiarioId }) {
       setOnboardingDocs([]);
     } finally {
       setTabLoading('onboarding', false);
+    }
+  };
+
+  // Funciones para manejo de acciones de documentos
+  const openDocumentActionModal = (action, documento, documentType = 'historico') => {
+    setDocumentActionModal({
+      isOpen: true,
+      action,
+      documento,
+      motivo: '',
+      nuevoArchivo: null,
+      loading: false,
+      document_type: documentType,
+    });
+  };
+
+  const closeDocumentActionModal = () => {
+    setDocumentActionModal({
+      isOpen: false,
+      action: null,
+      documento: null,
+      motivo: '',
+      nuevoArchivo: null,
+      loading: false,
+      document_type: 'historico',
+    });
+  };
+
+  const handleDocumentFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setDocumentActionModal((prev) => ({ ...prev, nuevoArchivo: file }));
+    }
+  };
+
+  const executeDocumentAction = async () => {
+    const { action, documento, motivo, nuevoArchivo } = documentActionModal;
+
+    if (!documento || !motivo.trim()) {
+      await showErrorAlert({ title: 'Datos incompletos', text: 'Debes registrar el motivo de la acción.' });
+      return;
+    }
+
+    if (action === 'replace' && !nuevoArchivo) {
+      await showErrorAlert({ title: 'Archivo requerido', text: 'Debes seleccionar un nuevo archivo para reemplazar.' });
+      return;
+    }
+
+    setDocumentActionModal((prev) => ({ ...prev, loading: true }));
+
+    try {
+      const { session } = await getSafeSession();
+      const adminId = session?.user?.id || null;
+
+      if (!adminId) {
+        throw new Error('No se pudo identificar la sesión de admin');
+      }
+
+      if (action === 'replace' && nuevoArchivo) {
+        const base64String = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(nuevoArchivo);
+          reader.onload = () => {
+            const base64 = reader.result.split(',')[1];
+            resolve(base64);
+          };
+          reader.onerror = reject;
+        });
+
+        const { data: result, error: invokeError } = await supabase.functions.invoke('admin-document-action', {
+          body: {
+            method: 'replace-document',
+            beneficiario_id: beneficiario.id,
+            documento_id: documento.id,
+            tipo_documento: documento.tipo_documento,
+            motivo: String(motivo).trim(),
+            nuevo_archivo_base64: base64String,
+            nuevo_archivo_nombre: nuevoArchivo.name,
+            admin_id: adminId,
+            document_type: documentActionModal.document_type,
+          },
+        });
+
+        if (invokeError) {
+          console.error('Invoke error details:', invokeError);
+          let errorMessage = invokeError.message || 'Error al procesar el reemplazo';
+          if (invokeError.context) {
+            try {
+              const errorData = await invokeError.context.json?.();
+              errorMessage = errorData?.error || errorData?.message || errorMessage;
+            } catch (e) {}
+          }
+          throw new Error(errorMessage);
+        }
+
+        if (!result?.ok) {
+          throw new Error(result?.error || 'No se pudo reemplazar el documento');
+        }
+
+        closeDocumentActionModal();
+        await showSuccessAlert({ title: 'Documento reemplazado', text: `${documento.nombre_original || documento.tipo_documento} fue reemplazado correctamente.` });
+      } else if (action === 'delete') {
+        const confirmed = await showConfirmAlert({
+          title: '¿Eliminar documento?',
+          text: `Se eliminará ${documento.nombre_original || documento.tipo_documento}. Esta acción se registrará en la bitácora.`,
+          confirmButtonText: 'Eliminar',
+          cancelButtonText: 'Cancelar',
+          zIndex: 99999,
+        });
+
+        if (!confirmed) {
+          setDocumentActionModal((prev) => ({ ...prev, loading: false }));
+          return;
+        }
+
+        const { data: result, error: invokeError } = await supabase.functions.invoke('admin-document-action', {
+          body: {
+            method: 'delete-document',
+            beneficiario_id: beneficiario.id,
+            documento_id: documento.id,
+            tipo_documento: documento.tipo_documento,
+            motivo: String(motivo).trim(),
+            admin_id: adminId,
+            document_type: documentActionModal.document_type,
+          },
+        });
+
+        if (invokeError) {
+          console.error('Invoke error details:', invokeError);
+          let errorMessage = invokeError.message || 'Error al procesar la eliminación';
+          if (invokeError.context) {
+            try {
+              const errorData = await invokeError.context.json?.();
+              errorMessage = errorData?.error || errorData?.message || errorMessage;
+            } catch (e) {}
+          }
+          throw new Error(errorMessage);
+        }
+
+        if (!result?.ok) {
+          console.error('Result error:', result?.error);
+          throw new Error(result?.error || 'No se pudo eliminar el documento');
+        }
+
+        closeDocumentActionModal();
+        await showSuccessAlert({ title: 'Documento eliminado', text: `${documento.nombre_original || documento.tipo_documento} fue eliminado correctamente.` });
+      }
+
+      // Recargar documentos
+      if (loadedTabs.onboarding) {
+        await loadOnboardingData(beneficiario);
+      }
+    } catch (error) {
+      console.error('❌ Error en executeDocumentAction:', error);
+      let errorMessage = error.message || 'Ocurrió un error inesperado.';
+      if (errorMessage.includes('Documento no encontrado')) {
+        setLoadedTabs((prev) => ({ ...prev, onboarding: false }));
+        await loadOnboardingData(beneficiario);
+      }
+      await showErrorAlert({ title: 'Error', text: errorMessage });
+    } finally {
+      setDocumentActionModal((prev) => ({ ...prev, loading: false }));
     }
   };
 
@@ -606,26 +778,47 @@ export default function BeneficiarioFicha360Modal({ beneficiarioId }) {
                     <p className="text-xs font-bold text-slate-600">Total de documentos: <span className="text-secondary">{onboardingDocs.length}</span></p>
                     <div className="space-y-2">
                       {onboardingDocs.map((doc) => (
-                        <div key={doc.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 border border-slate-200 rounded-lg px-3 py-2">
+                        <div key={doc.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-2 border-slate-200 rounded-2xl px-4 py-3 hover:border-blue-300 hover:bg-blue-50/30 transition-all">
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <FileText size={16} className="text-slate-600 flex-shrink-0" />
-                              <p className="font-semibold text-slate-800 text-sm truncate">
-                                {doc.titulo || doc.tipo_documento || 'Documento'}
+                            <div className="flex items-center gap-2 mb-2">
+                              <FileText size={20} className="text-slate-700 flex-shrink-0" />
+                              <p className="font-bold text-slate-900 text-base truncate">
+                                {doc.titulo || doc.nombre_original || doc.tipo_documento || 'Documento sin nombre'}
                               </p>
                             </div>
-                            <p className="text-xs text-slate-500">
-                              {doc.tipo_documento} · {formatDateTime(doc.created_at)}
-                            </p>
+                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                              {doc.tipo_documento && (
+                                <span className="bg-slate-700 text-white px-2.5 py-1 rounded-lg font-bold">
+                                  {doc.tipo_documento.toUpperCase()}
+                                </span>
+                              )}
+                              <span className="text-slate-600 font-medium">
+                                {formatDateTime(doc.created_at)}
+                              </span>
+                            </div>
                           </div>
                           {doc.storage_path && (
-                            <div className="flex gap-1 flex-shrink-0">
+                            <div className="flex gap-2 flex-shrink-0">
                               <button 
                                 type="button" 
                                 onClick={() => setViewingDoc(doc)}
-                                className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-secondary hover:bg-slate-50 whitespace-nowrap"
+                                className="px-3 py-2 rounded-xl border border-slate-200 text-sm font-bold text-secondary hover:bg-slate-50"
                               >
                                 Ver
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openDocumentActionModal('replace', doc, 'historico')}
+                                className="px-3 py-2 rounded-xl border border-blue-200 bg-blue-50 text-sm font-bold text-blue-600 hover:bg-blue-100"
+                              >
+                                Reemplazar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openDocumentActionModal('delete', doc, 'historico')}
+                                className="px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-sm font-bold text-red-600 hover:bg-red-100"
+                              >
+                                Eliminar
                               </button>
                             </div>
                           )}
@@ -708,6 +901,98 @@ export default function BeneficiarioFicha360Modal({ beneficiarioId }) {
           doc={viewingDoc} 
           onClose={() => setViewingDoc(null)}
         />
+      )}
+
+      {/* Modal de acción de documentos (Reemplazar/Eliminar) */}
+      {documentActionModal.isOpen && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full mx-4 shadow-2xl animate-scale-up">
+            <div className="mb-4">
+              <h3 className="text-lg font-bold text-slate-800">
+                {documentActionModal.action === 'replace' ? 'Reemplazar documento' : 'Eliminar documento'}
+              </h3>
+              <p className="text-sm text-slate-600 mt-1">
+                {documentActionModal.documento?.nombre_original || documentActionModal.documento?.tipo_documento}
+              </p>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              {/* Campo de motivo */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Motivo de la acción *</label>
+                <textarea
+                  value={documentActionModal.motivo}
+                  onChange={(e) => setDocumentActionModal((prev) => ({ ...prev, motivo: e.target.value }))}
+                  placeholder="Describe por qué reemplazas o eliminas este documento"
+                  rows={3}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-secondary/25 focus:border-secondary"
+                />
+              </div>
+
+              {/* Campo de archivo (solo para reemplazar) */}
+              {documentActionModal.action === 'replace' && (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Nuevo archivo PDF *</label>
+                  <div className={`border-2 rounded-xl px-4 py-4 text-center cursor-pointer transition ${
+                    documentActionModal.nuevoArchivo 
+                      ? 'border-emerald-300 bg-emerald-50 hover:bg-emerald-100' 
+                      : 'border-red-300 bg-red-50 hover:bg-red-100'
+                  }`}>
+                    <input
+                      type="file"
+                      accept=".pdf,application/pdf"
+                      onChange={handleDocumentFileChange}
+                      className="hidden"
+                      id="doc-action-file"
+                    />
+                    <label htmlFor="doc-action-file" className="cursor-pointer">
+                      {documentActionModal.nuevoArchivo ? (
+                        <div className="text-sm">
+                          <p className="font-semibold text-emerald-800">✓ Archivo seleccionado</p>
+                          <p className="text-xs text-emerald-700 mt-1">{documentActionModal.nuevoArchivo.name}</p>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-red-700">
+                          <p className="font-semibold">Selecciona un archivo PDF</p>
+                          <p className="text-xs mt-1">o arrastra aquí</p>
+                        </div>
+                      )}
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Botones */}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={closeDocumentActionModal}
+                disabled={documentActionModal.loading}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-50 disabled:opacity-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={executeDocumentAction}
+                disabled={
+                  documentActionModal.loading ||
+                  !documentActionModal.motivo.trim() ||
+                  (documentActionModal.action === 'replace' && !documentActionModal.nuevoArchivo)
+                }
+                className={`flex-1 px-4 py-2.5 rounded-xl font-bold text-white transition disabled:opacity-50 flex items-center justify-center gap-2 ${
+                  documentActionModal.action === 'delete'
+                    ? 'bg-red-600 hover:bg-red-700'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                {documentActionModal.loading && <Loader2 size={18} className="animate-spin" />}
+                {documentActionModal.action === 'replace' ? 'Reemplazar' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

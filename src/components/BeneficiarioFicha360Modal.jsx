@@ -44,6 +44,7 @@ export default function BeneficiarioFicha360Modal({ beneficiarioId }) {
   const [expedienteDocs, setExpedienteDocs] = useState([]);
   const [expedienteData, setExpedienteData] = useState(null);
   const [historicoDocs, setHistoricoDocs] = useState([]);
+  const [onboardingDocs, setOnboardingDocs] = useState([]);
   const [viewingDoc, setViewingDoc] = useState(null);
   const [activeTab, setActiveTab] = useState('perfil');
   const [onboardingSubTab, setOnboardingSubTab] = useState('personal');
@@ -178,6 +179,34 @@ export default function BeneficiarioFicha360Modal({ beneficiarioId }) {
     }
   };
 
+  // Cargar documentos de onboarding
+  const loadOnboardingData = async (profileOverride = null) => {
+    if (loadedTabs.onboarding) return;
+    setTabLoading('onboarding', true);
+    try {
+      const profile = profileOverride || beneficiario;
+      if (!profile?.id) {
+        setOnboardingDocs([]);
+        markTabLoaded('onboarding');
+        return;
+      }
+
+      const { data } = await supabase
+        .from('portal_beneficiario_documentos_historicos')
+        .select('*')
+        .eq('beneficiario_id', profile.id)
+        .order('created_at', { ascending: false });
+
+      setOnboardingDocs(Array.isArray(data) ? data : []);
+      markTabLoaded('onboarding');
+    } catch (error) {
+      console.error('Error cargando documentos de onboarding:', error);
+      setOnboardingDocs([]);
+    } finally {
+      setTabLoading('onboarding', false);
+    }
+  };
+
   // Cargar expediente y documentos
   const loadExpedienteData = async (profileOverride = null) => {
     if (loadedTabs.expediente) return;
@@ -281,6 +310,7 @@ export default function BeneficiarioFicha360Modal({ beneficiarioId }) {
     if (activeTab === 'pagos') loadPagos();
     if (activeTab === 'tickets') loadTickets();
     if (activeTab === 'bitacora') loadBitacora();
+    if (activeTab === 'onboarding') loadOnboardingData();
     if (activeTab === 'expediente') loadExpedienteData();
   }, [activeTab]);
 
@@ -458,6 +488,7 @@ export default function BeneficiarioFicha360Modal({ beneficiarioId }) {
                   { id: 'secundaria', label: 'Secundaria' },
                   { id: 'academico', label: 'Académico' },
                   { id: 'bancario', label: 'Bancario' },
+                  { id: 'documentos', label: 'Documentos' },
                 ].map(tab => (
                   <button
                     key={tab.id}
@@ -559,6 +590,50 @@ export default function BeneficiarioFicha360Modal({ beneficiarioId }) {
                 <OnboardingField label="Nombre banco" value={beneficiario?.nombre_banco} />
                 <OnboardingField label="Tipo cuenta bancaria" value={beneficiario?.tipo_cuenta_bancaria} />
                 <OnboardingField label="Número cuenta" value={beneficiario?.numero_cuenta} />
+              </div>
+            )}
+
+            {/* Documentos */}
+            {onboardingSubTab === 'documentos' && (
+              <div className="space-y-3">
+                {onboardingDocs.length === 0 ? (
+                  <div className="text-center py-8">
+                    <FileText size={40} className="mx-auto text-slate-300 mb-2" />
+                    <p className="text-sm text-slate-500">Sin documentos de onboarding registrados</p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-xs font-bold text-slate-600">Total de documentos: <span className="text-secondary">{onboardingDocs.length}</span></p>
+                    <div className="space-y-2">
+                      {onboardingDocs.map((doc) => (
+                        <div key={doc.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 border border-slate-200 rounded-lg px-3 py-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <FileText size={16} className="text-slate-600 flex-shrink-0" />
+                              <p className="font-semibold text-slate-800 text-sm truncate">
+                                {doc.titulo || doc.tipo_documento || 'Documento'}
+                              </p>
+                            </div>
+                            <p className="text-xs text-slate-500">
+                              {doc.tipo_documento} · {formatDateTime(doc.created_at)}
+                            </p>
+                          </div>
+                          {doc.storage_path && (
+                            <div className="flex gap-1 flex-shrink-0">
+                              <button 
+                                type="button" 
+                                onClick={() => setViewingDoc(doc)}
+                                className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-secondary hover:bg-slate-50 whitespace-nowrap"
+                              >
+                                Ver
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </section>

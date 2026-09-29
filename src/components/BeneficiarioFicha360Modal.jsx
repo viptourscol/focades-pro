@@ -3,6 +3,7 @@ import { CalendarClock, CheckCircle, CircleDollarSign, FileText, Loader2, Mail, 
 import { supabase } from '../lib/supabase';
 import { formatDateTime, formatMoney } from '../lib/formatters';
 import BitacoraTimeline from './BitacoraTimeline';
+import DocViewerModal from './DocViewerModal';
 
 const DETAIL_TABS = ['perfil', 'onboarding', 'actualizaciones', 'expediente', 'pagos', 'tickets', 'bitacora'];
 
@@ -40,6 +41,10 @@ export default function BeneficiarioFicha360Modal({ beneficiarioId }) {
   const [payments, setPayments] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [bitacoraRows, setBitacoraRows] = useState([]);
+  const [expedienteDocs, setExpedienteDocs] = useState([]);
+  const [expedienteData, setExpedienteData] = useState(null);
+  const [historicoDocs, setHistoricoDocs] = useState([]);
+  const [viewingDoc, setViewingDoc] = useState(null);
   const [activeTab, setActiveTab] = useState('perfil');
   const [onboardingSubTab, setOnboardingSubTab] = useState('personal');
   const [loadedTabs, setLoadedTabs] = useState({
@@ -173,6 +178,97 @@ export default function BeneficiarioFicha360Modal({ beneficiarioId }) {
     }
   };
 
+  // Cargar expediente y documentos
+  const loadExpedienteData = async (profileOverride = null) => {
+    if (loadedTabs.expediente) return;
+    setTabLoading('expediente', true);
+    try {
+      const profile = profileOverride || beneficiario;
+      let inscripcionPk = profile?.inscripcion_pk;
+
+      if (!inscripcionPk) {
+        const normalizedRadicado = String(profile?.radicado_inscripcion || '').trim();
+        const normalizedDocumento = String(profile?.n_documento || '').trim();
+        let linkedInscripcion = null;
+
+        if (normalizedRadicado) {
+          const byRadicado = await supabase
+            .from('inscripciones')
+            .select('id,radicado,updated_at')
+            .eq('radicado', normalizedRadicado)
+            .order('updated_at', { ascending: false })
+            .limit(1);
+
+          const radicadoRows = Array.isArray(byRadicado.data) ? byRadicado.data : [];
+          linkedInscripcion = radicadoRows[0] || null;
+        }
+
+        if (!linkedInscripcion && normalizedDocumento) {
+          const byDocumento = await supabase
+            .from('inscripciones')
+            .select('id,n_documento,updated_at')
+            .eq('n_documento', normalizedDocumento)
+            .order('updated_at', { ascending: false })
+            .limit(1);
+
+          const documentoRows = Array.isArray(byDocumento.data) ? byDocumento.data : [];
+          linkedInscripcion = documentoRows[0] || null;
+        }
+
+        if (linkedInscripcion?.id) {
+          inscripcionPk = linkedInscripcion.id;
+        }
+      }
+
+      if (!inscripcionPk) {
+        setExpedienteData(null);
+        setExpedienteDocs([]);
+        if (profile?.id) {
+          const { data: historicoData } = await supabase
+            .from('portal_beneficiario_documentos_historicos')
+            .select('*')
+            .eq('beneficiario_id', profile.id)
+            .order('created_at', { ascending: false });
+          setHistoricoDocs(Array.isArray(historicoData) ? historicoData : []);
+        } else {
+          setHistoricoDocs([]);
+        }
+        markTabLoaded('expediente');
+        return;
+      }
+
+      const [{ data: inscripcion }, { data: docs }, { data: historicoData }] = await Promise.all([
+        supabase
+          .from('inscripciones')
+          .select('id,radicado,estado,etapa,observacion_publica,convocatoria_id,puntaje_total,datos_formulario,created_at,updated_at')
+          .eq('id', inscripcionPk)
+          .maybeSingle(),
+        supabase
+          .from('inscripciones_documentos')
+          .select('*')
+          .eq('inscripcion_id', inscripcionPk)
+          .order('uploaded_at', { ascending: false }),
+        supabase
+          .from('portal_beneficiario_documentos_historicos')
+          .select('*')
+          .eq('beneficiario_id', profile.id)
+          .order('created_at', { ascending: false }),
+      ]);
+
+      setExpedienteData(inscripcion || null);
+      setExpedienteDocs(Array.isArray(docs) ? docs : []);
+      setHistoricoDocs(Array.isArray(historicoData) ? historicoData : []);
+      markTabLoaded('expediente');
+    } catch (error) {
+      console.error('Error cargando expediente:', error);
+      setExpedienteData(null);
+      setExpedienteDocs([]);
+      setHistoricoDocs([]);
+    } finally {
+      setTabLoading('expediente', false);
+    }
+  };
+
   // Cargar perfil al montar
   useEffect(() => {
     loadProfileData();
@@ -185,6 +281,7 @@ export default function BeneficiarioFicha360Modal({ beneficiarioId }) {
     if (activeTab === 'pagos') loadPagos();
     if (activeTab === 'tickets') loadTickets();
     if (activeTab === 'bitacora') loadBitacora();
+    if (activeTab === 'expediente') loadExpedienteData();
   }, [activeTab]);
 
   if (loading || !beneficiario) {
@@ -468,11 +565,75 @@ export default function BeneficiarioFicha360Modal({ beneficiarioId }) {
         )}
 
         {activeTab === 'expediente' && (
-          <section className="border border-slate-200 rounded-2xl p-4">
-            <p className="text-sm text-slate-500">Expediente no disponible en esta vista. Accede a la ficha 360 completa para más detalles.</p>
+          <section className="border border-slate-200 rounded-2xl p-4 space-y-4">
+            <h3 className="font-bold text-slate-800">Expediente de admisión</h3>
+            {loadingByTab.expediente && <p className="text-sm text-slate-500">Cargando expediente...</p>}
+            {!loadingByTab.expediente && !beneficiario.inscripcion_pk && (
+              <p className="text-sm text-slate-500">Este beneficiario no tiene inscripción vinculada en el nuevo esquema.</p>
+            )}
+            {!loadingByTab.expediente && beneficiario.inscripcion_pk && (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <InfoCard label="Inscripción PK" value={beneficiario.inscripcion_pk} />
+                  <InfoCard label="Radicado" value={expedienteData?.radicado || beneficiario.radicado_inscripcion || 'No definido'} />
+                  <InfoCard label="Etapa" value={expedienteData?.etapa || 'No definida'} />
+                  <InfoCard label="Estado" value={expedienteData?.estado || 'No definido'} />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs font-black uppercase tracking-widest text-slate-400">Documentos de admisión</p>
+                  {expedienteDocs.length === 0 ? (
+                    <p className="text-sm text-slate-500">No hay documentos guardados en el expediente de admisión.</p>
+                  ) : (
+                    expedienteDocs.map((doc) => (
+                      <div key={doc.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 border border-slate-200 rounded-xl px-4 py-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-slate-800 truncate">{doc.nombre_original || doc.tipo_documento}</p>
+                          <p className="text-xs text-slate-500 mt-1">{doc.tipo_documento} · {formatDateTime(doc.uploaded_at)}</p>
+                        </div>
+                        <div className="flex gap-2 flex-shrink-0">
+                          <button type="button" onClick={() => setViewingDoc(doc)} className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-bold text-secondary hover:bg-slate-50 whitespace-nowrap">
+                            Ver
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+
+            {!loadingByTab.expediente && historicoDocs.length > 0 && (
+              <div className="border-t border-slate-200 pt-4 space-y-2">
+                <p className="text-xs font-black uppercase tracking-widest text-slate-400">Expediente histórico</p>
+                <p className="text-sm text-slate-600 mb-3">Documentos migrados del sistema anterior como respaldo histórico.</p>
+                <div className="space-y-2">
+                  {historicoDocs.map((doc) => (
+                    <div key={doc.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 border border-slate-200 rounded-xl px-4 py-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-slate-800 truncate">{doc.nombre_original || 'Documento'}</p>
+                        <p className="text-xs text-slate-500 mt-1">{formatDateTime(doc.created_at)}</p>
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <button type="button" onClick={() => setViewingDoc(doc)} className="px-3 py-2 rounded-lg border border-slate-200 text-xs font-bold text-secondary hover:bg-slate-50 whitespace-nowrap">
+                          Ver
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </section>
         )}
       </div>
+
+      {/* Modal de visualización de documentos */}
+      {viewingDoc && (
+        <DocViewerModal 
+          doc={viewingDoc} 
+          onClose={() => setViewingDoc(null)}
+        />
+      )}
     </div>
   );
 }

@@ -1,0 +1,28 @@
+name = "focades-pro-r2-proxy"
+main = "src/worker/r2-proxy.js"
+compatibility_date = "2024-12-01"
+
+# Bindings para acceder a R2
+[[r2.buckets]]
+binding = "R2_BUCKET"
+bucket_name = "focades-pro"
+account_id = "82fdb4a6fd4628d720932bee674b6f7d"
+
+# Routes: Servir archivos de R2 bajo /r2/*
+[[routes]]
+pattern = "focades-pro.com/r2/*"
+zone_name = "focades-pro.com"
+
+# Alternativa: localhost para testing
+# [[routes]]
+# pattern = "http://localhost:8787/r2/*"
+
+# Configuración de desarrollo
+[env.development]
+routes = [
+  { pattern = "http://localhost:8787/r2/*", zone_name = "localhost" }
+]
+
+# Variables de entorno
+[env.production]
+vars = { ENVIRONMENT = "production" }

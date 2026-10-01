@@ -236,10 +236,7 @@ export default function AdminDocumentosHistoricos() {
       // dbPath: incluye el nombre del bucket para cumplir el CHECK constraint
       const dbPath = `soportes/${bucketPath}`
 
-      const { error: storageError } = await supabase.storage
-        .from('soportes')
-        .upload(bucketPath, uploadFile, { contentType: uploadFile.type, upsert: false })
-      if (storageError) throw new Error(`Error en almacenamiento: ${storageError.message}`)
+      await uploadToR2(uploadFile, dbPath)
 
       const { error: insertError } = await supabase
         .from('portal_beneficiario_documentos_historicos')
@@ -332,13 +329,12 @@ export default function AdminDocumentosHistoricos() {
 
       // 1. Eliminar de Storage si existe
       if (doc.storage_path && !doc.storage_path.includes('pendiente-')) {
-        const storagePath = doc.storage_path.replace(/^soportes\//, '')
-        const { error: storageError } = await supabase.storage
-          .from('soportes')
-          .remove([storagePath])
-        
-        if (storageError && !storageError.message.includes('not found')) {
-          throw new Error(`Error al eliminar archivo: ${storageError.message}`)
+        try {
+          await deleteFromR2(doc.storage_path)
+        } catch (error) {
+          if (!error.message.includes('not found') && !error.message.includes('NoSuchKey')) {
+            throw error
+          }
         }
       }
 
@@ -378,10 +374,13 @@ export default function AdminDocumentosHistoricos() {
 
       // 1. Eliminar el archivo anterior de Storage
       if (doc.storage_path && !doc.storage_path.includes('pendiente-')) {
-        const oldStoragePath = doc.storage_path.replace(/^soportes\//, '')
-        await supabase.storage
-          .from('soportes')
-          .remove([oldStoragePath])
+        try {
+          await deleteFromR2(doc.storage_path)
+        } catch (error) {
+          if (!error.message.includes('not found') && !error.message.includes('NoSuchKey')) {
+            throw error
+          }
+        }
       }
 
       // 2. Subir el nuevo archivo
@@ -389,11 +388,7 @@ export default function AdminDocumentosHistoricos() {
       const newStoragePath = `beneficiarios_historicos/${modal.beneficiario.id}/${doc.tipo_documento}-${Date.now()}.${ext}`
       const newDbPath = `soportes/${newStoragePath}`
 
-      const { error: uploadError } = await supabase.storage
-        .from('soportes')
-        .upload(newStoragePath, replaceFile, { contentType: replaceFile.type, upsert: false })
-
-      if (uploadError) throw new Error(`Error al subir: ${uploadError.message}`)
+      await uploadToR2(replaceFile, newDbPath)
 
       // 3. Actualizar el registro en la BD
       const { error: updateError } = await supabase

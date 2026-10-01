@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 import { supabase, getAnonStorageClient } from '../lib/supabase';
+import { uploadToR2 } from '../lib/r2';
 import { showErrorAlert, showSuccessAlert } from '../lib/alerts';
 import { compressPDF, compressImage } from '../lib/fileCompression';
 import { TERMS_AND_CONDITIONS_TEXT, DATA_POLICY_TEXT } from '../lib/legalTexts';
@@ -718,17 +719,11 @@ const BeneficiarioOnboardingCompleto = () => {
         const bucketPath = `beneficiarios_historicos/${beneficiarioId}/firma-digital-${timestamp}.png`;
         const dbPath = `soportes/${bucketPath}`;
 
-        // Use pure anonymous client for uploads (no session persistence)
-        const anonClient = getAnonStorageClient();
-        const { error: uploadError } = await anonClient.storage
-          .from('soportes')
-          .upload(bucketPath, finalBlob, {
-            contentType: 'image/png',
-            upsert: false,
-          });
+        // Upload to R2
+        const uploadedUrl = await uploadToR2(finalBlob, dbPath);
 
-        if (uploadError) {
-          throw new Error(`Error al subir firma: ${uploadError.message}`);
+        if (!uploadedUrl) {
+          throw new Error('Error al subir firma');
         }
 
         // 2. Registrar firma en tabla de documentos usando Edge Function (bypass RLS)
@@ -854,17 +849,11 @@ const BeneficiarioOnboardingCompleto = () => {
       const bucketPath = `beneficiarios_historicos/${beneficiarioId}/documentos/${tipoDoc}.pdf`;
       const dbPath = `soportes/${bucketPath}`;
 
-      // Use pure anonymous client for uploads (no session persistence)
-      const anonClient = getAnonStorageClient();
-      const { error: uploadError } = await anonClient.storage
-        .from('soportes')
-        .upload(bucketPath, finalFile, {
-          contentType: 'application/pdf',
-          upsert: true,  // Reemplaza el archivo anterior automáticamente
-        });
+      // Upload to R2
+      const uploadedUrl = await uploadToR2(finalFile, dbPath);
 
-      if (uploadError) {
-        throw new Error(`Error al subir archivo: ${uploadError.message}`);
+      if (!uploadedUrl) {
+        throw new Error('Error al subir archivo');
       }
 
       // Registrar en tabla de documentos a través del Edge Function

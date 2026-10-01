@@ -231,11 +231,7 @@ export default function BeneficiarioOnboarding() {
       // dbPath: incluye el nombre del bucket para cumplir el CHECK constraint
       const dbPath = `soportes/${bucketPath}`
 
-      const { error: storageError } = await supabase.storage
-        .from('soportes')
-        .upload(bucketPath, firmaBlob, { contentType: firmaBlob.type || 'image/png', upsert: false })
-
-      if (storageError) throw new Error(`Error al guardar firma: ${storageError.message}`)
+      await uploadToR2(firmaBlob, dbPath)
 
       // 3. Generar PDFs desde GAS y registrar documentos en backend
       const { data: generatedData, error: generatedError } = await supabase.functions.invoke(

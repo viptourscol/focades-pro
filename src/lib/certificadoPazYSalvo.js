@@ -13,6 +13,8 @@ export const CERTIFICATE_SIGNATURE_ROLES = [
   },
 ];
 
+import { getPublicUrlR2 } from './r2.js';
+
 const esc = (text) =>
   String(text ?? '')
     .replaceAll('&', '&amp;')
@@ -311,17 +313,8 @@ export const loadActiveCertificateSignatures = async (supabase) => {
 
     let firmaUrl = null;
     if (row.firma_storage_path) {
-      // Limpiar el path: remover prefijo del bucket si existe
-      let cleanPath = row.firma_storage_path;
-      const bucketPrefix = 'soportes/';
-      if (cleanPath.startsWith(bucketPrefix)) {
-        cleanPath = cleanPath.substring(bucketPrefix.length);
-      }
-      
-      const { data: signedData } = await supabase.storage
-        .from('soportes')
-        .createSignedUrl(cleanPath, 60 * 60 * 24 * 7);
-      firmaUrl = signedData?.signedUrl || null;
+      // Usar R2 para obtener URL pública
+      firmaUrl = getPublicUrlR2(row.firma_storage_path);
     }
 
     result[row.cargo] = {

@@ -2026,12 +2026,10 @@ const Registro = () => {
             fileName: file.name,
           });
 
-    const { error: uploadError } = await supabase.storage
-      .from('soportes')
-      .upload(path, file, { upsert: true, contentType: 'application/pdf' });
+    const { error: uploadError } = await uploadToR2(file, path) ? { error: null } : { error: { message: 'No se pudo subir el archivo' } };
 
-    if (uploadError) {
-      throw new Error(`No se pudo subir el documento: ${uploadError.message}`);
+    if (uploadError?.error) {
+      throw new Error(`No se pudo subir el documento: ${uploadError.error.message}`);
     }
 
     if (existingDocRow?.id) {
@@ -2366,12 +2364,9 @@ const Registro = () => {
         fileName: file.name,
       });
 
-      const { error } = await supabase.storage
-        .from('soportes')
-        .upload(path, file, { upsert: false, contentType: 'application/pdf' });
-
-      if (error) {
-        throw new Error(`Error subiendo ${key}: ${error.message}`);
+      const uploadedUrl = await uploadToR2(file, path);
+      if (!uploadedUrl) {
+        throw new Error(`Error subiendo ${key}: No se pudo subir el archivo`);
       }
 
       uploaded[key] = path;

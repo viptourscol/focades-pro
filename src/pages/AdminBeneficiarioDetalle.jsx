@@ -787,25 +787,11 @@ const AdminBeneficiarioDetalle = () => {
       return path;
     }
 
-    // Limpiar el path: remover prefijo del bucket si existe
-    let cleanPath = path;
-    const bucketPrefix = 'soportes/';
-    if (cleanPath.startsWith(bucketPrefix)) {
-      cleanPath = cleanPath.substring(bucketPrefix.length);
-    }
-
-    const { data: signedData, error: signedError } = await supabase.storage
-      .from('soportes')
-      .createSignedUrl(cleanPath, 60 * 30);
-
-    if (!signedError && signedData?.signedUrl) {
-      return signedData.signedUrl;
-    }
-
-    const publicUrl = getPublicUrlR2(cleanPath);
+    // Usar R2 como almacenamiento principal
+    const publicUrl = getPublicUrlR2(path);
     if (publicUrl) return publicUrl;
 
-    throw new Error(signedError?.message || 'No se pudo obtener una URL para visualizar el documento.');
+    throw new Error('No se pudo obtener una URL para visualizar el documento.');
   };
 
   const handleViewDocument = async (doc) => {

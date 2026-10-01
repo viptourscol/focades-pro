@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ChevronLeft, ChevronRight, Eye, FileCheck2, FileText, FileX2, RefreshCcw, ScrollText, ShieldAlert, X } from 'lucide-react';
 import { showConfirmAlert, showErrorAlert, showSuccessAlert, showTextareaConfirmAlert } from '../lib/alerts';
 import { supabase } from '../lib/supabase';
+import { uploadToR2, getPublicUrlR2 } from '../lib/r2';
 import {
   CERTIFICATE_SIGNATURE_ROLES,
   loadActiveCertificateSignatures,
@@ -383,20 +384,12 @@ const AdminCondonaciones = () => {
         return { ...doc, signed_url: null };
       }
 
-      // Limpiar el path: remover prefijo del bucket si existe
-      let cleanPath = doc.storage_path;
-      const bucketPrefix = 'soportes/';
-      if (cleanPath.startsWith(bucketPrefix)) {
-        cleanPath = cleanPath.substring(bucketPrefix.length);
-      }
-
-      const { data } = await supabase.storage
-        .from('soportes')
-        .createSignedUrl(cleanPath, 60 * 60);
+      // Generar URL pública desde R2
+      const publicUrl = getPublicUrlR2(doc.storage_path);
 
       return {
         ...doc,
-        signed_url: data?.signedUrl || null,
+        signed_url: publicUrl || null,
       };
     }));
 

@@ -282,25 +282,11 @@ const PortalConfig = () => {
           : 'jpg';
 
     const safeName = sanitizePathSegment(newsForm.title) || 'noticia';
-    const storagePath = `portal/noticias/${Date.now()}-${safeName}.${extension}`;
+    const storagePath = `soportes/portal/noticias/${Date.now()}-${safeName}.${extension}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from('soportes')
-      .upload(storagePath, file, { upsert: true, contentType: file.type });
+    await uploadToR2(file, storagePath);
 
-    if (uploadError) {
-      throw new Error(uploadError.message || 'No se pudo subir la imagen de la noticia.');
-    }
-
-    const { data: signedData, error: signedError } = await supabase.storage
-      .from('soportes')
-      .createSignedUrl(storagePath, 31536000);
-
-    if (signedError || !signedData?.signedUrl) {
-      throw new Error('La imagen se subió, pero no fue posible generar una URL de acceso.');
-    }
-
-    return signedData.signedUrl;
+    return getPublicUrlR2(storagePath);
   };
 
   const saveNews = async () => {

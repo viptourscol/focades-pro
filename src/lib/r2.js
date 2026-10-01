@@ -95,6 +95,27 @@ export const getPublicUrlR2 = (filePath) => {
 };
 
 /**
+ * Verifica si un archivo existe en R2 haciendo un HEAD request
+ * @param {string} normalizedPath - Ruta normalizada (con prefijo "soportes/")
+ * @returns {Promise<boolean>}
+ */
+const fileExistsInR2 = async (normalizedPath) => {
+  try {
+    const command = new GetObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: normalizedPath,
+    });
+    // Intentar generar presigned URL brevemente para verificar acceso
+    const testUrl = await getSignedUrl(r2Client, command, { expiresIn: 60 });
+    // Si llega aquí, el archivo existe o es accesible
+    return true;
+  } catch (error) {
+    console.log(`⚠️  Archivo no encontrado en R2: ${normalizedPath}`);
+    return false;
+  }
+};
+
+/**
  * Obtiene una URL presigned para descargar un archivo
  * Intenta primero desde R2, si no está disponible, usa Supabase Storage (fallback)
  * 
@@ -118,20 +139,29 @@ export const getPresignedUrlR2 = async (filePath, expiresIn = 3600) => {
   }
   
   try {
-    // 1️⃣ Intenta primero desde R2 (nuevos documentos)
-    const command = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: normalizedPath,
-    });
+    // 1️⃣ Verificar si existe en R2 primero
+    const existsInR2 = await fileExistsInR2(normalizedPath);
+    
+    if (existsInR2) {
+      // Generar presigned URL desde R2
+      const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: normalizedPath,
+      });
 
-    const presignedUrl = await getSignedUrl(r2Client, command, { 
-      expiresIn
-    });
+      const presignedUrl = await getSignedUrl(r2Client, command, { 
+        expiresIn
+      });
 
-    console.log(`✅ [R2] Presigned URL para: ${normalizedPath}`);
-    return presignedUrl;
+      console.log(`✅ [R2] Presigned URL para: ${normalizedPath}`);
+      return presignedUrl;
+    }
+    
+    // Si no existe en R2, intentar Supabase
+    throw new Error('Archivo no encontrado en R2, intentando Supabase...');
+    
   } catch (r2Error) {
-    console.log(`⚠️  [R2] No disponible (${r2Error.message}), intentando Supabase...`);
+    console.log(`⚠️  [R2 Fallback] ${r2Error.message}`);
     
     try {
       // 2️⃣ Fallback a Supabase Storage (documentos antiguos no migrados)

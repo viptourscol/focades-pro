@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ChevronLeft, ChevronRight, Eye, FileCheck2, FileText, FileX2, RefreshCcw, ScrollText, ShieldAlert, X } from 'lucide-react';
 import { showConfirmAlert, showErrorAlert, showSuccessAlert, showTextareaConfirmAlert } from '../lib/alerts';
 import { supabase } from '../lib/supabase';
-import { uploadToR2, getPublicUrlR2 } from '../lib/r2';
+import { uploadToR2, getPresignedUrlR2 } from '../lib/r2';
 import {
   CERTIFICATE_SIGNATURE_ROLES,
   loadActiveCertificateSignatures,
@@ -385,7 +385,8 @@ const AdminCondonaciones = () => {
       }
 
       // Generar URL pública desde R2
-      const publicUrl = getPublicUrlR2(doc.storage_path);
+      const presignedUrl = await getPresignedUrlR2(doc.storage_path, 86400);
+      const publicUrl = presignedUrl;
 
       return {
         ...doc,

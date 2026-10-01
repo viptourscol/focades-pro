@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Download, ExternalLink, FileText, Loader2, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { getPublicUrlR2 } from '../lib/r2';
+import { getPresignedUrlR2 } from '../lib/r2';
 
 const DOC_LABELS = {
   certificado_bancario: 'Certificado bancario',
@@ -49,19 +49,19 @@ const DocViewerModal = ({ doc, onClose, allDocs = [], currentIndex = -1, onNavig
       setUrlError(null);
       setSignedUrl(null);
       try {
-        console.log('[DocViewerModal] Obteniendo URL pública de R2 para:', doc.storage_path);
+        console.log('[DocViewerModal] Generando presigned URL para:', doc.storage_path);
         
-        // Usar R2 para obtener URL pública directamente
-        const publicUrl = getPublicUrlR2(doc.storage_path);
+        // Generar presigned URL (válida por 1 hora, imposible falsificar)
+        const presignedUrl = await getPresignedUrlR2(doc.storage_path, 3600);
         
         if (!mounted) return;
 
-        if (!publicUrl) {
+        if (!presignedUrl) {
           throw new Error('No se pudo generar la URL del documento');
         }
 
-        console.log('[DocViewerModal] URL pública de R2 generada exitosamente');
-        setSignedUrl(publicUrl);
+        console.log('[DocViewerModal] Presigned URL generada exitosamente');
+        setSignedUrl(presignedUrl);
       } catch (e) {
         if (!mounted) return;
         console.error('[DocViewerModal] Error:', e);

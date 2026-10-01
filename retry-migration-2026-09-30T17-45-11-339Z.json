@@ -1,0 +1,43 @@
+{
+  "timestamp": "2026-09-30T17:45:11.339Z",
+  "results": [
+    {
+      "status": "success",
+      "path": "beneficiarios_historicos/2911/documentos/diploma-1788039220417.pdf",
+      "size": 424077,
+      "hash": "abc081f84e653bf9fdb9402f3d318ba5f94640150168d6da785ba752213fc794"
+    },
+    {
+      "status": "success",
+      "path": "beneficiarios_historicos/2928/documentos/pruebas_saber-1787687067819.pdf",
+      "size": 2326274,
+      "hash": "1f863a6bca5b3d70c301286c6a163920ea4172cb4f222b2d822db5b83e9e4cc8"
+    },
+    {
+      "status": "success",
+      "path": "beneficiarios_historicos/2937/documentos/documento_identidad-1788040676799.pdf",
+      "size": 667069,
+      "hash": "3ca16340806e768f342c9a0c77faa0bbe17defbda238350b1cd4929531ba9d1f"
+    },
+    {
+      "status": "success",
+      "path": "beneficiarios_historicos/2937/documentos/ficha_sisben-1788040728476.pdf",
+      "size": 245610,
+      "hash": "5c21766c0d5cb53729280ebfb5916c9809b7ba0c0ba437d2592633eb99a54e7b"
+    },
+    {
+      "status": "success",
+      "path": "beneficiarios_historicos/2940/documentos/documento_identidad-1788137824785.pdf",
+      "size": 191500,
+      "hash": "ad15eda2e82630f36d0caf707649fd23894f4a69944d6437b4c22f7a9cae3b16"
+    },
+    {
+      "status": "success",
+      "path": "beneficiarios_historicos/2975/documentos/cert_enfoque-1788135620581.pdf",
+      "size": 488299,
+      "hash": "6f24e118e29b2977818dd4288348146de270b2ed72e657debe1a5f632314e6c6"
+    }
+  ],
+  "successful": 6,
+  "failed": 0
+}

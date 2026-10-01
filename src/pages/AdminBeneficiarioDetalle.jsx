@@ -4,7 +4,7 @@ import { ArrowLeft, CalendarClock, ChevronLeft, ChevronRight, CircleDollarSign, 
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from '../lib/alerts';
 import { invokeAdminTickets } from '../lib/adminTickets';
 import { getSafeSession, supabase } from '../lib/supabase';
-import { getPublicUrlR2 } from '../lib/r2';
+import { getPresignedUrlR2 } from '../lib/r2';
 import DocViewerModal from '../components/DocViewerModal';
 import BitacoraTimeline from '../components/BitacoraTimeline';
 
@@ -787,9 +787,9 @@ const AdminBeneficiarioDetalle = () => {
       return path;
     }
 
-    // Usar R2 como almacenamiento principal
-    const publicUrl = getPublicUrlR2(path);
-    if (publicUrl) return publicUrl;
+    // Generar presigned URL (válida 24 horas, imposible falsificar)
+    const presignedUrl = await getPresignedUrlR2(path, 86400);
+    if (presignedUrl) return presignedUrl;
 
     throw new Error('No se pudo obtener una URL para visualizar el documento.');
   };

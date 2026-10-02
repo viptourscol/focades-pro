@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { showErrorAlert, showWarningAlert } from '../lib/alerts';
 import { compressPDF, getFileInfo } from '../lib/fileCompression';
-import { uploadToR2, deleteFromR2 } from '../lib/r2';
 import { AlertCircle, CheckCircle2, Loader2, Info, AlertTriangle } from 'lucide-react';
 
 const MAX_FILE_MB = 10;
@@ -699,16 +698,56 @@ const BeneficiarioActualizacion = () => {
 
       setSubsanacionSaving(true);
 
-      // Subir documentos a R2 primero
+      // Subir documentos a través de función serverless (evita CORS, comprime en cliente)
       const filesR2Paths = {};
       for (const tipo of documentosASubsanar) {
         const file = subsanacionFiles[tipo];
         // eslint-disable-next-line no-await-in-loop
         try {
-          const r2Path = `beneficiarios/${profile.id}/${previousUpdate.id}/${tipo}-${Date.now()}.pdf`;
+          // Comprimir PDF
+          let fileToUpload = file;
+          if (file.type === 'application/pdf') {
+            console.log(`🔄 Comprimiendo ${tipo}...`);
+            fileToUpload = await compressPDF(file, { targetSizeKB: 2048 });
+          }
+
+          // Convertir a base64
+          const fileToBase64 = (f) =>
+            new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result.split(',')[1] || reader.result);
+              reader.onerror = reject;
+              reader.readAsDataURL(f);
+            });
+
           // eslint-disable-next-line no-await-in-loop
-          await uploadToR2(file, r2Path);
-          filesR2Paths[tipo] = r2Path;
+          const file_base64 = await fileToBase64(fileToUpload);
+
+          const r2Path = `beneficiarios/${profile.id}/${previousUpdate.id}/${tipo}-${Date.now()}.pdf`;
+
+          // Usar función serverless para upload (evita problemas CORS)
+          // eslint-disable-next-line no-await-in-loop
+          const uploadResponse = await supabase.functions.invoke('upload-document-r2', {
+            body: {
+              file_base64,
+              file_name: fileToUpload.name,
+              file_type: fileToUpload.type,
+              r2_path: r2Path,
+            },
+          });
+
+          if (uploadResponse.error) {
+            throw new Error(`Error del servidor: ${uploadResponse.error.message}`);
+          }
+
+          if (!uploadResponse.data?.ok) {
+            throw new Error(uploadResponse.data?.error || 'No se pudo subir el documento');
+          }
+
+          filesR2Paths[tipo] = uploadResponse.data.storage_path;
+          console.log(
+            `✅ ${tipo} subido a R2 (${(fileToUpload.size / 1024 / 1024).toFixed(2)} MB): ${uploadResponse.data.storage_path}`,
+          );
         } catch (uploadError) {
           throw new Error(`No se pudo subir el documento ${tipo}: ${uploadError.message}`);
         }

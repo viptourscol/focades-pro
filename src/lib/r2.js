@@ -1,6 +1,5 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { createClient } from '@supabase/supabase-js';
 
 const r2Client = new S3Client({
   region: 'auto',
@@ -11,14 +10,7 @@ const r2Client = new S3Client({
   endpoint: import.meta.env.VITE_R2_ENDPOINT,
 });
 
-// Fallback a Supabase Storage para documentos no migrados
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
-
 const BUCKET_NAME = 'focades-pro';
-const SUPABASE_STORAGE_BUCKET = 'documentos';
 
 /**
  * Sube un archivo a Cloudflare R2
@@ -95,33 +87,12 @@ export const getPublicUrlR2 = (filePath) => {
 };
 
 /**
- * Verifica si un archivo existe en R2 haciendo un HEAD request
- * @param {string} normalizedPath - Ruta normalizada (con prefijo "soportes/")
- * @returns {Promise<boolean>}
- */
-const fileExistsInR2 = async (normalizedPath) => {
-  try {
-    const command = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: normalizedPath,
-    });
-    // Intentar generar presigned URL brevemente para verificar acceso
-    const testUrl = await getSignedUrl(r2Client, command, { expiresIn: 60 });
-    // Si llega aquí, el archivo existe o es accesible
-    return true;
-  } catch (error) {
-    console.log(`⚠️  Archivo no encontrado en R2: ${normalizedPath}`);
-    return false;
-  }
-};
-
-/**
- * Obtiene una URL presigned para descargar un archivo
- * Intenta primero desde R2, si no está disponible, usa Supabase Storage (fallback)
+ * Obtiene una URL presigned para descargar un archivo de R2
+ * La URL expira automáticamente después del tiempo especificado
  * 
  * ✅ SEGURO: URL solo válida por tiempo limitado, imposible falsificar
  * 
- * @param {string} filePath - Ruta del archivo (puede o no incluir prefijo "soportes/")
+ * @param {string} filePath - Ruta del archivo en R2 (puede o no incluir prefijo "soportes/")
  * @param {number} expiresIn - Tiempo de expiración en segundos (default: 3600 = 1 hora)
  *                             Opciones: 
  *                             - 3600 (1 hora) para visualización temporal
@@ -132,53 +103,27 @@ const fileExistsInR2 = async (normalizedPath) => {
 export const getPresignedUrlR2 = async (filePath, expiresIn = 3600) => {
   if (!filePath) return null;
   
-  // Normalizar la ruta: asegurar que tenga el prefijo "soportes/"
-  let normalizedPath = filePath;
-  if (!normalizedPath.startsWith('soportes/')) {
-    normalizedPath = `soportes/${normalizedPath}`;
-  }
-  
   try {
-    // 1️⃣ Verificar si existe en R2 primero
-    const existsInR2 = await fileExistsInR2(normalizedPath);
-    
-    if (existsInR2) {
-      // Generar presigned URL desde R2
-      const command = new GetObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: normalizedPath,
-      });
-
-      const presignedUrl = await getSignedUrl(r2Client, command, { 
-        expiresIn
-      });
-
-      console.log(`✅ [R2] Presigned URL para: ${normalizedPath}`);
-      return presignedUrl;
+    // Normalizar la ruta: asegurar que tenga el prefijo "soportes/"
+    let normalizedPath = filePath;
+    if (!normalizedPath.startsWith('soportes/')) {
+      normalizedPath = `soportes/${normalizedPath}`;
     }
-    
-    // Si no existe en R2, intentar Supabase
-    throw new Error('Archivo no encontrado en R2, intentando Supabase...');
-    
-  } catch (r2Error) {
-    console.log(`⚠️  [R2 Fallback] ${r2Error.message}`);
-    
-    try {
-      // 2️⃣ Fallback a Supabase Storage (documentos antiguos no migrados)
-      const { data, error } = await supabase.storage
-        .from(SUPABASE_STORAGE_BUCKET)
-        .createSignedUrl(filePath, expiresIn);
-      
-      if (error) throw error;
-      
-      console.log(`✅ [Supabase] Presigned URL para: ${filePath}`);
-      return data.signedUrl;
-    } catch (supabaseError) {
-      console.error(`❌ Error en ambos servicios:`, {
-        r2: r2Error.message,
-        supabase: supabaseError.message
-      });
-      throw new Error(`No se pudo obtener URL para ${filePath}: ${supabaseError.message}`);
-    }
+
+    const command = new GetObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: normalizedPath,
+    });
+
+    // Generar URL firmada con expiración
+    const presignedUrl = await getSignedUrl(r2Client, command, { 
+      expiresIn // en segundos
+    });
+
+    console.log(`✅ Presigned URL generada para: ${normalizedPath} (expira en ${expiresIn}s)`);
+    return presignedUrl;
+  } catch (error) {
+    console.error('❌ Error generando presigned URL:', error);
+    throw error;
   }
 };

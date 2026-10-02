@@ -8,7 +8,7 @@
  * Replaces: src/lib/r2.js
  */
 
-import { supabase } from './supabaseClient'
+import { supabase } from './supabase'
 
 const BUCKET_NAME = 'focades-pro'
 const R2_PUBLIC_URL = import.meta.env.VITE_R2_PUBLIC_URL || 'https://focades-pro.82fdb4a6fd4628d720932bee674b6f7d.r2.dev'

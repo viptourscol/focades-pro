@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Save, User, GraduationCap, CreditCard, Shield, AlertCircle, FileText, Edit2, Check, Eye, ChevronLeft, ChevronRight, Printer, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { getPresignedDownloadUrl as getPresignedUrlR2 } from '../lib/r2-secure';
+import { getPublicUrlR2 } from '../lib/r2-secure';
 import { showSuccessAlert, showErrorAlert } from '../lib/alerts';
 
 const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
@@ -140,8 +140,8 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
     }
 
     // Generar presigned URL (válida 24 horas, imposible falsificar)
-    const presignedUrl = await getPresignedUrlR2(path, 86400);
-    if (presignedUrl) return presignedUrl;
+    const url = await getPublicUrlR2(path);
+    if (url) return url;
 
     throw new Error('No se pudo obtener una URL para visualizar el documento.');
   };

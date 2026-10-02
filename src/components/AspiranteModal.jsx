@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getSafeSession, supabase } from '../lib/supabase';
-import { getPresignedDownloadUrl as getPresignedUrlR2 } from '../lib/r2-secure';
+import { getPublicUrlR2 } from '../lib/r2-secure';
 import ReviewChecklist from './ReviewChecklist';
 import { 
   X, Copy, Cpu, User, Home, 
@@ -363,8 +363,8 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
     // storage_path puede venir como "soportes/ruta/archivo.pdf" pero .from('soportes')
     // ya especifica el bucket, así que necesitamos solo "ruta/archivo.pdf"
     // Generar presigned URL (válida 24 horas, imposible falsificar)
-    const presignedUrl = await getPresignedUrlR2(path, 86400);
-    if (presignedUrl) return presignedUrl;
+    const url = await getPublicUrlR2(path);
+    if (url) return url;
 
     throw new Error('No se pudo obtener una URL para visualizar el documento.');
   };

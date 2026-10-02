@@ -4,7 +4,7 @@ import { ArrowLeft, CalendarClock, ChevronLeft, ChevronRight, CircleDollarSign, 
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from '../lib/alerts';
 import { invokeAdminTickets } from '../lib/adminTickets';
 import { getSafeSession, supabase } from '../lib/supabase';
-import { getPresignedDownloadUrl as getPresignedUrlR2 } from '../lib/r2-secure';
+import { getPublicUrlR2 } from '../lib/r2-secure';
 import DocViewerModal from '../components/DocViewerModal';
 import BitacoraTimeline from '../components/BitacoraTimeline';
 
@@ -788,8 +788,8 @@ const AdminBeneficiarioDetalle = () => {
     }
 
     // Generar presigned URL (válida 24 horas, imposible falsificar)
-    const presignedUrl = await getPresignedUrlR2(path, 86400);
-    if (presignedUrl) return presignedUrl;
+    const url = await getPublicUrlR2(path);
+    if (url) return url;
 
     throw new Error('No se pudo obtener una URL para visualizar el documento.');
   };

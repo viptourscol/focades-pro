@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 import { encodeBytesToBase64, generatePdfDocumentsWithGas, resolveTemplateId } from '../_shared/gas-docs.ts';
-import { uploadToR2 } from '../_shared/r2-helper.ts';
+import { AwsClient } from 'https://esm.sh/aws4fetch@1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -53,6 +53,41 @@ const normalizeFirmaPath = (value: string) => {
 const buildDbStoragePath = (bucket: string, path: string) => `${bucket}/${path}`;
 
 const gasTimeoutMs = parseTimeout(Deno.env.get('DOCS_GAS_TIMEOUT_MS'), 20000);
+
+// ===== R2 Helper Functions (inline) =====
+function getR2Config() {
+  const accessKeyId = Deno.env.get('R2_ACCESS_KEY_ID')
+  const secretAccessKey = Deno.env.get('R2_SECRET_ACCESS_KEY')
+  const endpoint = Deno.env.get('R2_ENDPOINT')
+  const bucket = Deno.env.get('R2_BUCKET')
+  if (!accessKeyId || !secretAccessKey || !endpoint || !bucket) {
+    throw new Error('Missing R2 environment variables')
+  }
+  return { accessKeyId, secretAccessKey, endpoint, bucket }
+}
+
+async function uploadToR2(fileBuffer: Uint8Array, filePath: string, contentType: string = 'application/pdf'): Promise<string> {
+  const config = getR2Config()
+  const aws = new AwsClient({
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey,
+    region: 'auto',
+    service: 's3',
+  })
+  const r2Url = `${config.endpoint}/${config.bucket}/${filePath}`
+  const uploadRequest = new Request(r2Url, {
+    method: 'PUT',
+    headers: { 'Content-Type': contentType },
+    body: fileBuffer,
+  })
+  const signedRequest = await aws.sign(uploadRequest)
+  const uploadResponse = await fetch(signedRequest)
+  if (!uploadResponse.ok) {
+    throw new Error(`Failed to upload to R2: ${uploadResponse.status} ${uploadResponse.statusText}`)
+  }
+  return filePath
+}
+// ===== Fin de R2 Helper Functions =====
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {

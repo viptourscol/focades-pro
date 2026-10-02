@@ -46,18 +46,15 @@ async function getPresignedDownloadUrl(
     service: 's3',
   })
 
-  // Build URL and add expiration as query parameter
-  const r2Url = new URL(`${config.endpoint}/${config.bucket}/${filePath}`)
+  // Build R2 URL
+  const r2Url = `${config.endpoint}/${config.bucket}/${filePath}`
   
-  const downloadRequest = new Request(r2Url.toString(), {
+  const downloadRequest = new Request(r2Url, {
     method: 'GET',
   })
 
-  // Sign with expiration parameter
-  const signedRequest = await aws.sign(downloadRequest, { 
-    aws4request: true,
-    expiresIn: expiresIn,
-  })
+  // Sign with expiration - DO NOT use aws4request with expiresIn
+  const signedRequest = await aws.sign(downloadRequest, { expiresIn })
   
   const presignedUrl = signedRequest.url
 

@@ -856,7 +856,7 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
                     <div>
                       <p className="text-[11px] font-semibold text-blue-700 uppercase tracking-wide mb-1.5">Campos</p>
                       <div className="space-y-1.5">
-                        {CAMPOS_SUBSANACION.map((doc) => (
+                        {CAMPOS_CORREGIBLES.map((doc) => (
                           <label key={doc.value} className="flex items-center gap-2 text-sm">
                             <input
                               type="checkbox"

@@ -698,8 +698,16 @@ const BeneficiarioActualizacion = () => {
 
       setSubsanacionSaving(true);
 
-      // Subir documentos a través de función serverless (evita CORS, comprime en cliente)
-      const filesR2Paths = {};
+      // Convertir archivos a base64
+      const fileToBase64 = (file) =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+      const filesBase64 = {};
       for (const tipo of documentosASubsanar) {
         const file = subsanacionFiles[tipo];
         // eslint-disable-next-line no-await-in-loop
@@ -711,45 +719,11 @@ const BeneficiarioActualizacion = () => {
             fileToUpload = await compressPDF(file, { targetSizeKB: 2048 });
           }
 
-          // Convertir a base64
-          const fileToBase64 = (f) =>
-            new Promise((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => resolve(reader.result.split(',')[1] || reader.result);
-              reader.onerror = reject;
-              reader.readAsDataURL(f);
-            });
-
           // eslint-disable-next-line no-await-in-loop
-          const file_base64 = await fileToBase64(fileToUpload);
-
-          const r2Path = `beneficiarios/${profile.id}/${previousUpdate.id}/${tipo}-${Date.now()}.pdf`;
-
-          // Usar función serverless para upload (evita problemas CORS)
-          // eslint-disable-next-line no-await-in-loop
-          const uploadResponse = await supabase.functions.invoke('upload-document-r2', {
-            body: {
-              file_base64,
-              file_name: fileToUpload.name,
-              file_type: fileToUpload.type,
-              r2_path: r2Path,
-            },
-          });
-
-          if (uploadResponse.error) {
-            throw new Error(`Error del servidor: ${uploadResponse.error.message}`);
-          }
-
-          if (!uploadResponse.data?.ok) {
-            throw new Error(uploadResponse.data?.error || 'No se pudo subir el documento');
-          }
-
-          filesR2Paths[tipo] = uploadResponse.data.storage_path;
-          console.log(
-            `✅ ${tipo} subido a R2 (${(fileToUpload.size / 1024 / 1024).toFixed(2)} MB): ${uploadResponse.data.storage_path}`,
-          );
-        } catch (uploadError) {
-          throw new Error(`No se pudo subir el documento ${tipo}: ${uploadError.message}`);
+          filesBase64[tipo] = { data: await fileToBase64(fileToUpload), name: fileToUpload.name };
+          console.log(`✅ ${tipo} comprimido y convertido a base64`);
+        } catch (compressionError) {
+          throw new Error(`No se pudo procesar el documento ${tipo}: ${compressionError.message}`);
         }
       }
 
@@ -768,7 +742,7 @@ const BeneficiarioActualizacion = () => {
             cuenta_bancaria: cuentaNormalizada || normalizeAccountNumber(subsanacionForm.cuenta_bancaria),
             fecha_expedicion_cert_bancario: subsanacionForm.fecha_expedicion_cert_bancario,
           },
-          files_r2_paths: filesR2Paths,
+          files_base64: filesBase64,
         },
       });
 

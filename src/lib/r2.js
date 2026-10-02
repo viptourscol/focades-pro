@@ -26,10 +26,14 @@ export const uploadToR2 = async (file, filePath) => {
       normalizedPath = `soportes/${normalizedPath}`;
     }
 
+    // Convertir File a Uint8Array (AWS SDK v3 requiere esto en el navegador)
+    const arrayBuffer = await file.arrayBuffer();
+    const body = new Uint8Array(arrayBuffer);
+
     const params = {
       Bucket: BUCKET_NAME,
       Key: normalizedPath,
-      Body: file,
+      Body: body,
       ContentType: file.type || 'application/octet-stream',
     };
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getSafeSession, supabase } from '../lib/supabase';
-import { getPresignedUrlR2 } from '../lib/r2';
+import { getPresignedDownloadUrl as getPresignedUrlR2 } from '../lib/r2-secure';
 import ReviewChecklist from './ReviewChecklist';
 import { 
   X, Copy, Cpu, User, Home, 

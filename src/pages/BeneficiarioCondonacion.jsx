@@ -13,7 +13,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { uploadToR2 } from '../lib/r2';
+import { uploadToR2 } from '../lib/r2-secure';
 import { loadActiveCertificateSignatures, openPazYSalvoPrintView } from '../lib/certificadoPazYSalvo';
 import { showWarningAlert } from '../lib/alerts';
 

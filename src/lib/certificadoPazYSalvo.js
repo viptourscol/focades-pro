@@ -13,7 +13,7 @@ export const CERTIFICATE_SIGNATURE_ROLES = [
   },
 ];
 
-import { getPublicUrlR2 } from './r2.js';
+import { getPublicUrlR2 } from './r2-secure.js';
 
 const esc = (text) =>
   String(text ?? '')
@@ -313,8 +313,13 @@ export const loadActiveCertificateSignatures = async (supabase) => {
 
     let firmaUrl = null;
     if (row.firma_storage_path) {
-      // Usar R2 para obtener URL pública
-      firmaUrl = getPublicUrlR2(row.firma_storage_path);
+      // Usar R2 para obtener URL pública (presigned)
+      try {
+        firmaUrl = await getPublicUrlR2(row.firma_storage_path);
+      } catch (error) {
+        console.warn(`Error getting presigned URL for ${row.firma_storage_path}:`, error);
+        firmaUrl = null;
+      }
     }
 
     result[row.cargo] = {

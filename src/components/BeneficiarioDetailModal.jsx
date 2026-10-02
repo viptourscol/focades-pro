@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Save, User, GraduationCap, CreditCard, Shield, AlertCircle, FileText, Edit2, Check, Eye, ChevronLeft, ChevronRight, Printer, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { getPresignedUrlR2 } from '../lib/r2';
+import { getPresignedDownloadUrl as getPresignedUrlR2 } from '../lib/r2-secure';
 import { showSuccessAlert, showErrorAlert } from '../lib/alerts';
 
 const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {

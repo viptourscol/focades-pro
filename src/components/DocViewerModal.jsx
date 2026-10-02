@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Download, ExternalLink, FileText, Loader2, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { getPresignedUrlR2 } from '../lib/r2';
+import { getPresignedDownloadUrl as getPresignedUrlR2 } from '../lib/r2-secure';
 
 const DOC_LABELS = {
   certificado_bancario: 'Certificado bancario',

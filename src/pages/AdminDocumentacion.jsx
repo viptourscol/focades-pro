@@ -4,7 +4,7 @@ import {
   Loader2, Save, ListChecks, Lightbulb, UploadCloud, ExternalLink, Download, MonitorPlay,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { getPublicUrlR2, uploadToR2 } from '../lib/r2';
+import { getPublicUrlR2, uploadToR2 } from '../lib/r2-secure';
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from '../lib/alerts';
 import { PreviewRequisitos, PreviewGuia, PreviewDocumento, ICONOS_GUIA } from '../components/DocumentacionPreview';
 

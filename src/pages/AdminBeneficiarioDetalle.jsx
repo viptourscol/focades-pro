@@ -4,7 +4,7 @@ import { ArrowLeft, CalendarClock, ChevronLeft, ChevronRight, CircleDollarSign, 
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from '../lib/alerts';
 import { invokeAdminTickets } from '../lib/adminTickets';
 import { getSafeSession, supabase } from '../lib/supabase';
-import { getPresignedUrlR2 } from '../lib/r2';
+import { getPresignedDownloadUrl as getPresignedUrlR2 } from '../lib/r2-secure';
 import DocViewerModal from '../components/DocViewerModal';
 import BitacoraTimeline from '../components/BitacoraTimeline';
 

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import SignaturePad from 'signature_pad';
 import { supabase } from '../lib/supabase';
-import { uploadToR2 } from '../lib/r2';
+import { uploadToR2 } from '../lib/r2-secure';
 import {
   showConfirmAlert,
   showErrorAlert,

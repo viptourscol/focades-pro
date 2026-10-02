@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ChevronLeft, ChevronRight, Eye, FileCheck2, FileText, FileX2, RefreshCcw, ScrollText, ShieldAlert, X } from 'lucide-react';
 import { showConfirmAlert, showErrorAlert, showSuccessAlert, showTextareaConfirmAlert } from '../lib/alerts';
 import { supabase } from '../lib/supabase';
-import { uploadToR2, getPresignedUrlR2 } from '../lib/r2';
+import { uploadToR2, getPresignedDownloadUrl as getPresignedUrlR2 } from '../lib/r2-secure';
 import {
   CERTIFICATE_SIGNATURE_ROLES,
   loadActiveCertificateSignatures,

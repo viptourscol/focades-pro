@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 import { supabase, getAnonStorageClient } from '../lib/supabase';
-import { uploadToR2 } from '../lib/r2';
+import { uploadToR2 } from '../lib/r2-secure';
 import { showErrorAlert, showSuccessAlert } from '../lib/alerts';
 import { compressPDF, compressImage } from '../lib/fileCompression';
 import { TERMS_AND_CONDITIONS_TEXT, DATA_POLICY_TEXT } from '../lib/legalTexts';

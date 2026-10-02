@@ -4,7 +4,7 @@ import {
   ShieldCheck, ShieldX, Trash2, UserPlus, X, Megaphone,
 } from 'lucide-react';
 import { getSafeSession, supabase } from '../lib/supabase';
-import { uploadToR2, getPublicUrlR2 } from '../lib/r2';
+import { uploadToR2, getPublicUrlR2 } from '../lib/r2-secure';
 import { showConfirmAlert, showErrorAlert, showSuccessAlert, showTextareaConfirmAlert } from '../lib/alerts';
 
 const emptyNews = {

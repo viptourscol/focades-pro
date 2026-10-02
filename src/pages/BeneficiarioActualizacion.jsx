@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { showErrorAlert, showWarningAlert } from '../lib/alerts';
 import { compressPDF, getFileInfo } from '../lib/fileCompression';
+import { uploadToR2, deleteFromR2 } from '../lib/r2';
 import { AlertCircle, CheckCircle2, Loader2, Info, AlertTriangle } from 'lucide-react';
 
 const MAX_FILE_MB = 10;
@@ -698,19 +699,19 @@ const BeneficiarioActualizacion = () => {
 
       setSubsanacionSaving(true);
 
-      const fileToBase64 = (file) =>
-        new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-
-      const filesBase64 = {};
+      // Subir documentos a R2 primero
+      const filesR2Paths = {};
       for (const tipo of documentosASubsanar) {
         const file = subsanacionFiles[tipo];
         // eslint-disable-next-line no-await-in-loop
-        filesBase64[tipo] = { data: await fileToBase64(file), name: file.name };
+        try {
+          const r2Path = `beneficiarios/${profile.id}/${previousUpdate.id}/${tipo}-${Date.now()}.pdf`;
+          // eslint-disable-next-line no-await-in-loop
+          await uploadToR2(file, r2Path);
+          filesR2Paths[tipo] = r2Path;
+        } catch (uploadError) {
+          throw new Error(`No se pudo subir el documento ${tipo}: ${uploadError.message}`);
+        }
       }
 
       const { data: result, error: invokeError } = await supabase.functions.invoke('subsanar-actualizacion-beneficiario', {
@@ -728,7 +729,7 @@ const BeneficiarioActualizacion = () => {
             cuenta_bancaria: cuentaNormalizada || normalizeAccountNumber(subsanacionForm.cuenta_bancaria),
             fecha_expedicion_cert_bancario: subsanacionForm.fecha_expedicion_cert_bancario,
           },
-          files_base64: filesBase64,
+          files_r2_paths: filesR2Paths,
         },
       });
 

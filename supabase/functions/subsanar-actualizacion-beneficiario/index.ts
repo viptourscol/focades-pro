@@ -1,10 +1,19 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { AwsClient } from 'https://esm.sh/aws4fetch@1'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+const r2AccessKeyId = Deno.env.get('R2_ACCESS_KEY_ID')
+const r2SecretAccessKey = Deno.env.get('R2_SECRET_ACCESS_KEY')
+const r2Endpoint = Deno.env.get('R2_ENDPOINT')
+const r2Bucket = Deno.env.get('R2_BUCKET')
 
 if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error('Missing Supabase environment variables')
+}
+
+if (!r2AccessKeyId || !r2SecretAccessKey || !r2Endpoint || !r2Bucket) {
+  throw new Error('Missing R2 environment variables')
 }
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
@@ -12,6 +21,13 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     autoRefreshToken: false,
     persistSession: false,
   },
+})
+
+const aws = new AwsClient({
+  accessKeyId: r2AccessKeyId,
+  secretAccessKey: r2SecretAccessKey,
+  region: 'auto',
+  service: 's3',
 })
 
 const CORS_HEADERS = {
@@ -185,43 +201,71 @@ Deno.serve(async (req) => {
         .eq('tipo_documento', tipo)
         .maybeSingle()
 
-      const nuevoPath = `beneficiarios/${beneficiario_id}/${actualizacion_id}/${tipo}-${Date.now()}.pdf`
+      const nuevoPath = `soportes/beneficiarios/${beneficiario_id}/${actualizacion_id}/${tipo}-${Date.now()}.pdf`
 
-      // Subir a Supabase Storage (funciona garantizado)
-      const { error: uploadError } = await supabase.storage
-        .from('soportes')
-        .upload(nuevoPath, buffer, { contentType: 'application/pdf', upsert: false })
+      // Subir a R2
+      try {
+        const r2Url = `${r2Endpoint}/${r2Bucket}/${nuevoPath}`
+        const uploadRequest = new Request(r2Url, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/pdf',
+          },
+          body: buffer,
+        })
+        
+        const signedRequest = await aws.sign(uploadRequest)
+        const uploadResponse = await fetch(signedRequest)
+        
+        if (!uploadResponse.ok) {
+          return jsonResponse({ 
+            ok: false, 
+            error: `No se pudo subir ${tipo} a R2: ${uploadResponse.status} ${uploadResponse.statusText}` 
+          }, 500)
+        }
 
-      if (uploadError) {
-        return jsonResponse({ ok: false, error: `No se pudo subir ${tipo}: ${uploadError.message}` }, 500)
-      }
+        // Eliminar archivo anterior de R2 si existe
+        if (docAnterior?.storage_path && docAnterior.storage_path.startsWith('soportes/')) {
+          try {
+            const deleteUrl = `${r2Endpoint}/${r2Bucket}/${docAnterior.storage_path}`
+            const deleteRequest = new Request(deleteUrl, { method: 'DELETE' })
+            const signedDeleteRequest = await aws.sign(deleteRequest)
+            await fetch(signedDeleteRequest)
+          } catch (deleteError) {
+            console.warn(`⚠️ No se pudo eliminar archivo anterior: ${deleteError.message}`)
+            // No retornamos error si falla la eliminación, solo log
+          }
+        }
 
-      if (docAnterior?.storage_path) {
-        await supabase.storage.from('soportes').remove([docAnterior.storage_path])
-      }
-
-      if (docAnterior?.id) {
-        await supabase
-          .from('portal_actualizacion_documentos')
-          .update({
-            storage_path: nuevoPath,
-            nombre_original: fileData.name || `${tipo}.pdf`,
-            mime_type: 'application/pdf',
-            size_bytes: buffer.length,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', docAnterior.id)
-      } else {
-        await supabase
-          .from('portal_actualizacion_documentos')
-          .insert({
-            actualizacion_id,
-            tipo_documento: tipo,
-            storage_path: nuevoPath,
-            nombre_original: fileData.name || `${tipo}.pdf`,
-            mime_type: 'application/pdf',
-            size_bytes: buffer.length,
-          })
+        // Actualizar BD con nuevo storage_path
+        if (docAnterior?.id) {
+          await supabase
+            .from('portal_actualizacion_documentos')
+            .update({
+              storage_path: nuevoPath,
+              nombre_original: fileData.name || `${tipo}.pdf`,
+              mime_type: 'application/pdf',
+              size_bytes: buffer.length,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', docAnterior.id)
+        } else {
+          await supabase
+            .from('portal_actualizacion_documentos')
+            .insert({
+              actualizacion_id,
+              tipo_documento: tipo,
+              storage_path: nuevoPath,
+              nombre_original: fileData.name || `${tipo}.pdf`,
+              mime_type: 'application/pdf',
+              size_bytes: buffer.length,
+            })
+        }
+      } catch (uploadError) {
+        return jsonResponse({ 
+          ok: false, 
+          error: `Error al procesar ${tipo}: ${uploadError.message}` 
+        }, 500)
       }
     }
 

@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { uploadToR2, deleteFromR2, base64ToUint8Array } from '../_shared/r2-helper.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -199,43 +200,35 @@ async function handleDocumentAction(req: DocumentActionRequest) {
     if (method === 'replace-document') {
       const typedReq = req as ReplaceDocumentRequest
       
-      // 3a. Eliminar archivo anterior
+      // 3a. Eliminar archivo anterior de R2
       if (oldStoragePath) {
-        const { error: deleteError } = await supabase.storage
-          .from('soportes')
-          .remove([oldStoragePath])
-
-        if (deleteError) {
+        try {
+          await deleteFromR2(oldStoragePath)
+          console.log(`✓ Archivo anterior eliminado de R2: ${oldStoragePath}`)
+        } catch (deleteError) {
           console.warn(`⚠️ No se pudo eliminar archivo anterior: ${deleteError.message}`)
           // Continuar aunque falle (no bloquea)
         }
       }
 
-      // 3b. Subir nuevo archivo
-      const fileBuffer = Uint8Array.from(
-        atob(typedReq.nuevo_archivo_base64),
-        (c) => c.charCodeAt(0)
-      )
+      // 3b. Subir nuevo archivo a R2
+      const fileBuffer = base64ToUint8Array(typedReq.nuevo_archivo_base64)
 
       const newFileName = `${tipo_documento}-${Date.now()}.pdf`
       // Usar ruta diferente según el tipo de documento
       const baseFolder = documentType === 'historico' ? 'beneficiarios_historicos' : 'inscripciones'
-      const newStoragePath = `${baseFolder}/${beneficiario_id}/${newFileName}`
+      const newStoragePath = `soportes/${baseFolder}/${beneficiario_id}/${newFileName}`
 
-      const { error: uploadError } = await supabase.storage
-        .from('soportes')
-        .upload(newStoragePath, fileBuffer, {
-          contentType: 'application/pdf',
-          upsert: false,
-        })
-
-      if (uploadError) {
-        throw new Error(`Error al subir nuevo archivo: ${uploadError.message}`)
+      try {
+        await uploadToR2(fileBuffer, newStoragePath, 'application/pdf')
+        console.log(`✓ Nuevo archivo subido a R2: ${newStoragePath}`)
+      } catch (uploadError) {
+        throw new Error(`Error al subir nuevo archivo a R2: ${uploadError.message}`)
       }
 
       // 3c. Actualizar BD
       const updatePayload = {
-        storage_path: `soportes/${newStoragePath}`,
+        storage_path: newStoragePath,
         titulo: typedReq.nuevo_archivo_nombre,
       };
       
@@ -289,13 +282,12 @@ async function handleDocumentAction(req: DocumentActionRequest) {
         accion: 'reemplazado',
       }
     } else if (method === 'delete-document') {
-      // 3. Eliminar archivo del storage
+      // 3. Eliminar archivo de R2
       if (oldStoragePath) {
-        const { error: deleteError } = await supabase.storage
-          .from('soportes')
-          .remove([oldStoragePath])
-
-        if (deleteError) {
+        try {
+          await deleteFromR2(oldStoragePath)
+          console.log(`✓ Archivo eliminado de R2: ${oldStoragePath}`)
+        } catch (deleteError) {
           console.warn(`⚠️ No se pudo eliminar archivo: ${deleteError.message}`)
           // Continuar aunque falle
         }

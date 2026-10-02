@@ -1,4 +1,5 @@
 ﻿import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { uploadToR2 } from '../_shared/r2-helper.ts'
 
 const privateKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
@@ -427,20 +428,20 @@ export async function handleImportHistoricosLote(req: Request) {
 
       for (const doc of beneficiario.documentos) {
         try {
-          // Si viene documento en base64, guardarlo en storage
+          // Si viene documento en base64, guardarlo en R2
           if (doc.contenido_base64) {
             const fileName = `${doc.tipo}-${Date.now()}`
-            const storageDir = `beneficiarios_historicos/${beneficiarioInsertado.id}`
+            const storagePath = `soportes/beneficiarios_historicos/${beneficiarioInsertado.id}/${fileName}`
 
-            const { error: storageError } = await supabase.storage
-              .from('soportes')
-              .upload(`${storageDir}/${fileName}`, decodeBase64ToUint8Array(doc.contenido_base64))
-
-            if (storageError) {
+            try {
+              const pdfBuffer = decodeBase64ToUint8Array(doc.contenido_base64)
+              await uploadToR2(pdfBuffer, storagePath, 'application/pdf')
+              console.log(`✓ Documento ${doc.tipo} subido a R2: ${storagePath}`)
+            } catch (uploadError) {
               documentosConError.push({
                 beneficiario_cedula: beneficiario.cedula,
                 documento_titulo: doc.titulo,
-                error: storageError.message
+                error: uploadError.message
               })
               continue
             }

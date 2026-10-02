@@ -6,6 +6,7 @@ import { TEMPLATES } from './templates.ts';
 import { renderWithHtml } from './renderers/html-renderer.ts';
 import { renderWithPdfLib } from './renderers/pdf-lib-renderer.ts';
 import { encodeBytesToBase64, generatePdfDocumentsWithGas, resolveTemplateId } from '../_shared/gas-docs.ts';
+import { uploadToR2 } from '../_shared/r2-helper.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -541,17 +542,16 @@ Deno.serve(async (req) => {
       }
 
       const fileName = generatedDoc.fileName || `${template.tipo}.pdf`;
-      const path = `expedientes/${cleanDocumento}/${cleanRadicado}/generados/${fileName}`;
+      const path = `soportes/expedientes/${cleanDocumento}/${cleanRadicado}/generados/${fileName}`;
 
-      const { error: uploadError } = await admin.storage
-        .from('soportes')
-        .upload(path, new Blob([generatedDoc.pdfBytes], { type: generatedDoc.mimeType || 'application/pdf' }), {
-          upsert: true,
-          contentType: generatedDoc.mimeType || 'application/pdf',
-        });
+      // Convertir PDF bytes a Uint8Array para R2
+      const pdfBuffer = new Uint8Array(generatedDoc.pdfBytes);
 
-      if (uploadError) {
-        throw new Error(`Error subiendo ${template.tipo}: ${uploadError.message}`);
+      try {
+        await uploadToR2(pdfBuffer, path, generatedDoc.mimeType || 'application/pdf');
+        console.log(`✓ Documento ${template.tipo} subido a R2: ${path}`);
+      } catch (uploadError) {
+        throw new Error(`Error subiendo ${template.tipo} a R2: ${uploadError.message}`);
       }
 
       createdDocs.push({

@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { uploadToR2, base64ToUint8Array } from '../_shared/r2-helper.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -210,20 +211,15 @@ Deno.serve(async (req) => {
 
     // 2. Subir archivos y registrar documentos
     const uploadDocument = async (key: string, fileData: any) => {
-      const base64Data = fileData.data.split(',')[1] || fileData.data
-      const buffer = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0))
-      const storagePath = `beneficiarios/${beneficiario_id}/${updateId}/${key}-${Date.now()}.pdf`
+      const buffer = base64ToUint8Array(fileData.data)
+      const storagePath = `soportes/beneficiarios/${beneficiario_id}/${updateId}/${key}-${Date.now()}.pdf`
 
-      const { error: uploadError } = await supabase.storage
-        .from('soportes')
-        .upload(storagePath, buffer, {
-          contentType: 'application/pdf',
-          upsert: false,
-        })
-
-      if (uploadError) {
+      try {
+        await uploadToR2(buffer, storagePath, 'application/pdf')
+        console.log(`✓ Documento ${key} subido a R2: ${storagePath}`)
+      } catch (uploadError) {
         console.error(`❌ Error subiendo ${key}:`, uploadError)
-        throw new Error(`No se pudo subir ${key}: ${uploadError.message}`)
+        throw new Error(`No se pudo subir ${key} a R2: ${uploadError.message}`)
       }
 
       const { error: docError } = await supabase
@@ -242,7 +238,7 @@ Deno.serve(async (req) => {
         throw new Error(`No se pudo registrar ${key}: ${docError.message}`)
       }
 
-      console.log(`✅ Documento ${key} subido y registrado`)
+      console.log(`✅ Documento ${key} registrado en BD`)
     }
 
     await uploadDocument('certificado_bancario', files_base64.certificado_bancario)

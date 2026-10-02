@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 import { encodeBytesToBase64, generatePdfDocumentsWithGas, resolveTemplateId } from '../_shared/gas-docs.ts';
+import { uploadToR2 } from '../_shared/r2-helper.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -234,17 +235,16 @@ Deno.serve(async (req) => {
 
         const outputFileName = sanitizeText(generatedDoc.fileName || expected.fileName || `${expected.tipo}.pdf`, 180);
         const mimeType = sanitizeText(generatedDoc.mimeType || 'application/pdf', 120) || 'application/pdf';
-        const storageBucketPath = `beneficiarios_historicos/${beneficiario.id}/generados/${outputFileName}`;
+        const storageBucketPath = `soportes/beneficiarios_historicos/${beneficiario.id}/generados/${outputFileName}`;
 
-        const { error: uploadError } = await admin.storage
-          .from('soportes')
-          .upload(storageBucketPath, new Blob([generatedDoc.pdfBytes], { type: mimeType }), {
-            upsert: true,
-            contentType: mimeType,
-          });
+        // Convertir PDF bytes a Uint8Array para R2
+        const pdfBuffer = new Uint8Array(generatedDoc.pdfBytes);
 
-        if (uploadError) {
-          throw new HttpError(`Error subiendo ${expected.tipo}: ${uploadError.message}`, 400);
+        try {
+          await uploadToR2(pdfBuffer, storageBucketPath, mimeType);
+          console.log(`✓ Documento ${expected.tipo} subido a R2: ${storageBucketPath}`);
+        } catch (uploadError) {
+          throw new HttpError(`Error subiendo ${expected.tipo} a R2: ${uploadError.message}`, 400);
         }
 
         const { data: insertedDoc, error: insertDocError } = await admin
@@ -255,7 +255,7 @@ Deno.serve(async (req) => {
             tipo_documento: expected.tipo,
             estado: 'cargado',
             storage_bucket: 'soportes',
-            storage_path: buildDbStoragePath('soportes', storageBucketPath),
+            storage_path: storageBucketPath,
             archivo_mime_type: mimeType,
             archivo_size_bytes: generatedDoc.pdfBytes.byteLength,
             created_by_user_id: user.id,

@@ -41,7 +41,7 @@ async function uploadToR2(fileBuffer: Uint8Array, filePath: string, contentType:
     headers: { 'Content-Type': contentType },
     body: fileBuffer,
   })
-  const signedRequest = await aws.sign(uploadRequest)
+  const signedRequest = await aws.sign(uploadRequest, { aws4request: true })
   const uploadResponse = await fetch(signedRequest)
   if (!uploadResponse.ok) {
     throw new Error(`Failed to upload to R2: ${uploadResponse.status} ${uploadResponse.statusText}`)

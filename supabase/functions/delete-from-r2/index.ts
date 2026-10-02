@@ -49,7 +49,7 @@ async function deleteFromR2(filePath: string): Promise<void> {
     method: 'DELETE',
   })
 
-  const signedRequest = await aws.sign(deleteRequest)
+  const signedRequest = await aws.sign(deleteRequest, { aws4request: true })
   const deleteResponse = await fetch(signedRequest)
 
   if (!deleteResponse.ok && deleteResponse.status !== 404) {

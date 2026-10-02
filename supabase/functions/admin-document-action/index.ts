@@ -53,7 +53,7 @@ async function uploadToR2(fileBuffer: Uint8Array, filePath: string, contentType:
     body: fileBuffer,
   })
 
-  const signedRequest = await aws.sign(uploadRequest)
+  const signedRequest = await aws.sign(uploadRequest, { aws4request: true })
   const uploadResponse = await fetch(signedRequest)
 
   if (!uploadResponse.ok) {
@@ -76,7 +76,7 @@ async function deleteFromR2(filePath: string): Promise<void> {
   const r2Url = `${config.endpoint}/${config.bucket}/${filePath}`
   
   const deleteRequest = new Request(r2Url, { method: 'DELETE' })
-  const signedRequest = await aws.sign(deleteRequest)
+  const signedRequest = await aws.sign(deleteRequest, { aws4request: true })
   const deleteResponse = await fetch(signedRequest)
 
   if (!deleteResponse.ok && deleteResponse.status !== 404) {

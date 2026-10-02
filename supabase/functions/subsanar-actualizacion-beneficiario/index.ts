@@ -214,7 +214,7 @@ Deno.serve(async (req) => {
           body: buffer,
         })
         
-        const signedRequest = await aws.sign(uploadRequest)
+        const signedRequest = await aws.sign(uploadRequest, { aws4request: true })
         const uploadResponse = await fetch(signedRequest)
         
         if (!uploadResponse.ok) {
@@ -229,7 +229,7 @@ Deno.serve(async (req) => {
           try {
             const deleteUrl = `${r2Endpoint}/${r2Bucket}/${docAnterior.storage_path}`
             const deleteRequest = new Request(deleteUrl, { method: 'DELETE' })
-            const signedDeleteRequest = await aws.sign(deleteRequest)
+            const signedDeleteRequest = await aws.sign(deleteRequest, { aws4request: true })
             await fetch(signedDeleteRequest)
           } catch (deleteError) {
             console.warn(`⚠️ No se pudo eliminar archivo anterior: ${deleteError.message}`)

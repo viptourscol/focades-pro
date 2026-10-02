@@ -47,16 +47,22 @@ async function getPresignedUploadUrl(
     service: 's3',
   })
 
-  const r2Url = `${config.endpoint}/${config.bucket}/${filePath}`
-
-  const uploadRequest = new Request(r2Url, {
+  // Build URL
+  const r2Url = new URL(`${config.endpoint}/${config.bucket}/${filePath}`)
+  
+  const uploadRequest = new Request(r2Url.toString(), {
     method: 'PUT',
     headers: {
       'Content-Type': contentType,
     },
   })
 
-  const signedRequest = await aws.sign(uploadRequest, { aws4request: true })
+  // Sign with expiration parameter
+  const signedRequest = await aws.sign(uploadRequest, { 
+    aws4request: true,
+    expiresIn: expiresIn,
+  })
+  
   const presignedUrl = signedRequest.url
 
   const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()

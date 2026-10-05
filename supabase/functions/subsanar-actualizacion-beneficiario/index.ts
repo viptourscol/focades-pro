@@ -79,10 +79,42 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: false, error: 'Esta actualización no está en estado de subsanación.' }, 409)
     }
 
+    // 2. Validar que no haya pasado la fecha límite de subsanación
+    // Obtener la ventana asociada y verificar fecha_cierre_subsanacion
+    const { data: ventanaData, error: ventanaError } = await supabase
+      .from('portal_actualizaciones')
+      .select('ventana_id')
+      .eq('id', actualizacion_id)
+      .maybeSingle()
+
+    if (ventanaData?.ventana_id) {
+      const { data: ventana, error: ventanaFetchError } = await supabase
+        .from('portal_ventanas_actualizacion')
+        .select('fecha_cierre_subsanacion')
+        .eq('id', ventanaData.ventana_id)
+        .maybeSingle()
+
+      if (ventana?.fecha_cierre_subsanacion) {
+        const now = new Date()
+        const deadline = new Date(ventana.fecha_cierre_subsanacion)
+        if (now > deadline) {
+          const formattedDate = deadline.toLocaleDateString('es-CO', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
+          return jsonResponse({
+            ok: false,
+            error: `El plazo para realizar correcciones ha expirado (${formattedDate}).`,
+          }, 410) // 410 Gone - resource no longer available
+        }
+      }
+    }
+
     const camposACorregir = Array.isArray(actualizacion.campos_a_corregir) ? actualizacion.campos_a_corregir : []
     const documentosACorregir = Array.isArray(actualizacion.documentos_a_corregir) ? actualizacion.documentos_a_corregir : []
 
-    // 2. Validar que solo se intenten corregir documentos solicitados
+    // 3. Validar que solo se intenten corregir documentos solicitados
     const documentosEnviados = Object.keys(files_base64 || {}).filter((k) => DOC_TIPOS.includes(k) && files_base64[k]?.data)
     const documentosNoSolicitados = documentosEnviados.filter((tipo) => !documentosACorregir.includes(tipo))
     if (documentosNoSolicitados.length > 0) {
@@ -100,7 +132,7 @@ Deno.serve(async (req) => {
       }, 400)
     }
 
-    // 3. Construir el update solo con los campos habilitados, validando cada uno
+    // 4. Construir el update solo con los campos habilitados, validando cada uno
     const updatePayload = {}
     const payloadFormularioUpdates = {}
     const datosFormulario = form_data || {}
@@ -182,7 +214,7 @@ Deno.serve(async (req) => {
         .eq('id', beneficiario_id)
     }
 
-    // 4. Reemplazar documentos solicitados: subir a R2 y registrar los nuevos paths
+    // 5. Reemplazar documentos solicitados: subir a R2 y registrar los nuevos paths
     for (const tipo of documentosACorregir) {
       const fileData = files_base64[tipo]
       const base64Data = fileData.data.split(',')[1] || fileData.data
@@ -269,7 +301,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 5. Actualizar la fila: vuelve a en_revision, se limpian los marcadores de subsanación
+    // 6. Actualizar la fila: vuelve a en_revision, se limpian los marcadores de subsanación
     const mergedPayloadFormulario = {
       ...(actualizacion.payload_formulario || {}),
       ...payloadFormularioUpdates,
@@ -293,7 +325,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: false, error: updateError.message }, 500)
     }
 
-    // 6. Registrar el evento en la bitácora del beneficiario
+    // 7. Registrar el evento en la bitácora del beneficiario
     await supabase.rpc('registrar_evento_bitacora', {
       p_beneficiario_id: beneficiario_id,
       p_actualizacion_id: actualizacion_id,

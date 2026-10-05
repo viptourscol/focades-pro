@@ -49,6 +49,23 @@ Deno.serve(async (req) => {
       console.log('✅ Ventana encontrada:', ventana ? ventana.nombre : 'ninguna')
     }
 
+    // Consultar deadline de subsanación (para beneficiarios en estado 'subsanacion')
+    // Puede existir incluso si la ventana ya cerró
+    const { data: subsanacionDeadline, error: subsanacionError } = await supabase
+      .from('portal_ventanas_actualizacion')
+      .select('fecha_cierre_subsanacion')
+      .eq('is_active', true)
+      .gte('fecha_cierre_subsanacion', nowIso)
+      .order('fecha_inicio', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (subsanacionError) {
+      console.error('❌ Error consultando deadline subsanación:', subsanacionError)
+    } else {
+      console.log('✅ Deadline subsanación:', subsanacionDeadline?.fecha_cierre_subsanacion || 'ninguno')
+    }
+
     // Consultar configuración activa
     const { data: config, error: configError } = await supabase
       .from('portal_configuracion')
@@ -66,6 +83,7 @@ Deno.serve(async (req) => {
       JSON.stringify({
         ok: true,
         ventana: ventana || null,
+        subsanacionDeadline: subsanacionDeadline?.fecha_cierre_subsanacion || null,
         config: config || null,
       }),
       {

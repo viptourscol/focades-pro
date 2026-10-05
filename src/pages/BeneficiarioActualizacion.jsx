@@ -152,6 +152,7 @@ const BeneficiarioActualizacion = () => {
   const [submitDone, setSubmitDone] = useState(false);
   const [submittedPeriodo, setSubmittedPeriodo] = useState('');
   const [windowInfo, setWindowInfo] = useState(null);
+  const [subsanacionDeadline, setSubsanacionDeadline] = useState(null);
   const [config, setConfig] = useState(null);
   const [profile, setProfile] = useState(null);
   const [previousUpdate, setPreviousUpdate] = useState(null);
@@ -265,6 +266,7 @@ const BeneficiarioActualizacion = () => {
 
         if (!error && result?.ok) {
           ventanaData = result.ventana || null;
+          setSubsanacionDeadline(result.subsanacionDeadline || null);
           configData = result.config || null;
         }
       } catch (err) {
@@ -390,18 +392,40 @@ const BeneficiarioActualizacion = () => {
   const canUpdate = useMemo(() => {
     if (!profile) return false;
     if (profile.estado_beneficiario !== 'activo') return false;
+    
+    // Si está en subsanación, no permite nueva actualización (solo correcciones)
+    if (isSubsanacionMode) return false;
+    
+    // Para nueva actualización, requiere ventana activa
     if (!windowInfo) return false;
-    // No puede enviar una actualización nueva si ya existe una en revisión, aprobada
-    // o pendiente de subsanación (esta última se corrige, no se reenvía desde cero).
-    if (previousUpdate && ['en_revision', 'aprobada', 'subsanacion'].includes(previousUpdate.estado)) {
+    
+    // No puede enviar una actualización nueva si ya existe una en revisión o aprobada
+    if (previousUpdate && ['en_revision', 'aprobada'].includes(previousUpdate.estado)) {
       return false;
     }
+    
     return true;
-  }, [profile, windowInfo, previousUpdate]);
+  }, [profile, windowInfo, previousUpdate, isSubsanacionMode]);
 
   const isSubsanacionMode = previousUpdate?.estado === 'subsanacion';
   const camposASubsanar = Array.isArray(previousUpdate?.campos_a_corregir) ? previousUpdate.campos_a_corregir : [];
   const documentosASubsanar = Array.isArray(previousUpdate?.documentos_a_corregir) ? previousUpdate.documentos_a_corregir : [];
+
+  // Validar si puede subsanar: debe estar en modo subsanación y no haber pasado fecha límite
+  const canSubsanate = useMemo(() => {
+    if (!profile) return false;
+    if (profile.estado_beneficiario !== 'activo') return false;
+    if (!isSubsanacionMode) return false;
+    
+    // Si hay deadline de subsanación, validar que no ha pasado
+    if (subsanacionDeadline) {
+      const now = new Date();
+      const deadline = new Date(subsanacionDeadline);
+      if (now > deadline) return false;
+    }
+    
+    return true;
+  }, [profile, isSubsanacionMode, subsanacionDeadline]);
 
   const validateFile = (file, label) => {
     if (!file) {
@@ -420,9 +444,19 @@ const BeneficiarioActualizacion = () => {
   const handleSubmit = async () => {
     if (!profile) return;
     if (!canUpdate) {
+      let mensajeError = 'Tu estado o la ventana de fechas no permite enviar actualización en este momento.';
+      
+      if (isSubsanacionMode && !canSubsanate) {
+        if (subsanacionDeadline && new Date() > new Date(subsanacionDeadline)) {
+          mensajeError = `El plazo para realizar correcciones ha expirado (${new Date(subsanacionDeadline).toLocaleDateString('es-CO')}).`;
+        } else {
+          mensajeError = 'No estás habilitado para realizar correcciones en este momento.';
+        }
+      }
+      
       await showWarningAlert({
         title: 'Actualización no disponible',
-        text: 'Tu estado o la ventana de fechas no permite enviar actualización en este momento.',
+        text: mensajeError,
       });
       return;
     }
@@ -646,6 +680,19 @@ const BeneficiarioActualizacion = () => {
 
   const handleSubsanar = async () => {
     if (!profile || !previousUpdate || previousUpdate.estado !== 'subsanacion') return;
+
+    // Validar que esté dentro del plazo de subsanación
+    if (!canSubsanate) {
+      let mensajeError = 'No estás habilitado para realizar correcciones en este momento.';
+      if (subsanacionDeadline && new Date() > new Date(subsanacionDeadline)) {
+        mensajeError = `El plazo para realizar correcciones ha expirado (${new Date(subsanacionDeadline).toLocaleDateString('es-CO')}).`;
+      }
+      await showWarningAlert({
+        title: 'Correcciones no disponibles',
+        text: mensajeError,
+      });
+      return;
+    }
 
     try {
       if (camposASubsanar.includes('email')) {

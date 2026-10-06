@@ -33,3 +33,12 @@ verify_jwt = false
 
 [functions.reset-password-beneficiario]
 verify_jwt = false
+
+[functions.get-presigned-upload-url]
+verify_jwt = false
+
+[functions.get-presigned-download-url]
+verify_jwt = false
+
+[functions.delete-from-r2]
+verify_jwt = false

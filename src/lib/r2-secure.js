@@ -161,8 +161,7 @@ export const getPresignedUploadUrl = async (filePath, contentType = 'application
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // Supabase requires Authorization header; use JWT if available, else use dummy
-          Authorization: accessToken ? `Bearer ${accessToken}` : 'Bearer anonymous',
+          ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
         },
         body: JSON.stringify({
           filePath: normalizedPath,
@@ -285,8 +284,7 @@ export const getPresignedDownloadUrl = async (filePath, expiresIn = 86400) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // Supabase requires Authorization header; use JWT if available, else use dummy
-          Authorization: accessToken ? `Bearer ${accessToken}` : 'Bearer anonymous',
+          ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
         },
         body: JSON.stringify({
           filePath: normalizedPath,
@@ -380,8 +378,7 @@ export const deleteFromR2 = async (filePath, motivo = null) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // Supabase requires Authorization header; use JWT if available, else use dummy
-          Authorization: accessToken ? `Bearer ${accessToken}` : 'Bearer anonymous',
+          ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
         },
         body: JSON.stringify({
           filePath: normalizedPath,

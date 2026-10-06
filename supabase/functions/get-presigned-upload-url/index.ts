@@ -182,15 +182,19 @@ Deno.serve(async (req) => {
 
     // If no valid JWT, try beneficiario_id
     if (!validatedUserId && beneficiario_id) {
-      console.log(`🔍 Validating beneficiario_id: ${beneficiario_id}`)
+      console.log(`🔍 Validating beneficiario_id: ${beneficiario_id} (type: ${typeof beneficiario_id})`)
       
       try {
+        // Ensure beneficiario_id is a number for comparison with BD
+        const beneficiarioIdNum = typeof beneficiario_id === 'string' ? parseInt(beneficiario_id, 10) : beneficiario_id
+        console.log(`  Converted to: ${beneficiarioIdNum} (type: ${typeof beneficiarioIdNum})`)
+        
         const query = supabase
           .from('portal_beneficiarios')
           .select('id')
-          .eq('id', beneficiario_id)
+          .eq('id', beneficiarioIdNum)
         
-        console.log(`  Executing query...`)
+        console.log(`  Executing query with id=${beneficiarioIdNum}...`)
         const result = await query.maybeSingle()
         const { data: beneficiario, error: benefError } = result
 
@@ -206,7 +210,7 @@ Deno.serve(async (req) => {
         } else if (benefError) {
           console.log(`❌ Query error:`, benefError.message || JSON.stringify(benefError))
         } else {
-          console.log(`❌ Beneficiario ID ${beneficiario_id} not found in database`)
+          console.log(`❌ Beneficiario ID ${beneficiarioIdNum} not found in database`)
         }
       } catch (queryError) {
         console.log(`❌ Exception during beneficiario lookup:`, queryError)

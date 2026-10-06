@@ -18,12 +18,15 @@ const R2_PUBLIC_URL = import.meta.env.VITE_R2_PUBLIC_URL || 'https://focades-pro
  * @returns {Promise<string>} JWT access token
  */
 const getAccessToken = async () => {
+  console.log('🔍 getAccessToken(): Buscando token...')
+  
   // Method 1: Active Supabase session
   const { data: { session } } = await supabase.auth.getSession()
   if (session?.access_token) {
     console.log('✅ Using token from active session')
     return session.access_token
   }
+  console.log('❌ No active Supabase session')
 
   // Method 2: Check multiple localStorage keys
   const possibleKeys = [
@@ -36,6 +39,7 @@ const getAccessToken = async () => {
     try {
       const stored = localStorage.getItem(key)
       if (stored) {
+        console.log(`  Found key "${key}", parsing...`)
         const parsed = JSON.parse(stored)
         if (parsed.session?.access_token) {
           console.log(`✅ Using token from localStorage (${key})`)
@@ -43,11 +47,19 @@ const getAccessToken = async () => {
         }
       }
     } catch (e) {
-      // Continue
+      console.log(`  Key "${key}": No access_token found or JSON parse error`)
     }
   }
 
   // Method 3: Scan entire localStorage for JWT
+  console.log(`📋 Scanning localStorage (${localStorage.length} items)...`)
+  const allKeys = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    allKeys.push(key)
+  }
+  console.log('  localStorage keys:', allKeys)
+  
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i)
     const value = localStorage.getItem(key)
@@ -70,6 +82,10 @@ const getAccessToken = async () => {
     }
   }
 
+  console.log('❌ NO TOKEN FOUND IN:')
+  console.log('  - Active Supabase session')
+  console.log('  - Known localStorage keys')
+  console.log('  - localStorage scan')
   throw new Error('User must be authenticated')
 }
 

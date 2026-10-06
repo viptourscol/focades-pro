@@ -194,7 +194,11 @@ Deno.serve(async (req) => {
         const result = await query.maybeSingle()
         const { data: beneficiario, error: benefError } = result
 
-        console.log(`  Query result:`, { data: beneficiario, error: benefError, status: result?.status })
+        console.log(`  Query result:`, { 
+          beneficiario: beneficiario ? `found: id=${beneficiario.id}` : 'null',
+          error: benefError ? `${benefError.code}: ${benefError.message}` : 'null',
+          status: result?.status 
+        })
         
         if (!benefError && beneficiario) {
           validatedBeneficiarioId = beneficiario_id
@@ -202,7 +206,7 @@ Deno.serve(async (req) => {
         } else if (benefError) {
           console.log(`❌ Query error:`, benefError.message || JSON.stringify(benefError))
         } else {
-          console.log(`❌ Beneficiario ID not found in database`)
+          console.log(`❌ Beneficiario ID ${beneficiario_id} not found in database`)
         }
       } catch (queryError) {
         console.log(`❌ Exception during beneficiario lookup:`, queryError)

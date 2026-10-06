@@ -182,20 +182,26 @@ Deno.serve(async (req) => {
 
     // If no valid JWT, try beneficiario_id
     if (!validatedUserId && beneficiario_id) {
+      console.log(`🔍 Validating beneficiario_id: ${beneficiario_id}`)
       const { data: beneficiario, error: benefError } = await supabase
         .from('portal_beneficiarios')
         .select('id')
         .eq('id', beneficiario_id)
         .maybeSingle()
 
+      console.log(`  Query result:`, { beneficiario, benefError })
+      
       if (!benefError && beneficiario) {
         validatedBeneficiarioId = beneficiario_id
         console.log(`✅ Authorized by beneficiario_id: ${beneficiario_id}`)
+      } else {
+        console.log(`❌ Beneficiario not found or error:`, benefError)
       }
     }
 
     // Must have either valid JWT or valid beneficiario_id
     if (!validatedUserId && !validatedBeneficiarioId) {
+      console.log(`❌ No valid authentication - validatedUserId: ${validatedUserId}, validatedBeneficiarioId: ${validatedBeneficiarioId}`)
       return new Response(JSON.stringify({ error: 'Unauthorized - no valid authentication' }), {
         status: 401,
         headers: corsHeaders,

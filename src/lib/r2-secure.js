@@ -28,9 +28,27 @@ export const getPresignedUploadUrl = async (filePath, contentType = 'application
       normalizedPath = `soportes/${normalizedPath}`
     }
 
-    // Get auth token
+    // Get auth token - try session first, then localStorage fallback
+    let accessToken = null
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) {
+    if (session?.access_token) {
+      accessToken = session.access_token
+    } else {
+      // Fallback: check localStorage for JWT
+      const sessionStr = localStorage.getItem('sb-jwifxjzxdxjntbdqbyku-auth-token')
+      if (sessionStr) {
+        try {
+          const sessionData = JSON.parse(sessionStr)
+          if (sessionData.session?.access_token) {
+            accessToken = sessionData.session.access_token
+          }
+        } catch (e) {
+          // Invalid JSON, continue
+        }
+      }
+    }
+
+    if (!accessToken) {
       throw new Error('User must be authenticated')
     }
 
@@ -41,7 +59,7 @@ export const getPresignedUploadUrl = async (filePath, contentType = 'application
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           filePath: normalizedPath,
@@ -127,9 +145,27 @@ export const getPresignedDownloadUrl = async (filePath, expiresIn = 86400) => {
       normalizedPath = `soportes/${normalizedPath}`
     }
 
-    // Get auth token
+    // Get auth token - try session first, then localStorage fallback
+    let accessToken = null
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) {
+    if (session?.access_token) {
+      accessToken = session.access_token
+    } else {
+      // Fallback: check localStorage for JWT
+      const sessionStr = localStorage.getItem('sb-jwifxjzxdxjntbdqbyku-auth-token')
+      if (sessionStr) {
+        try {
+          const sessionData = JSON.parse(sessionStr)
+          if (sessionData.session?.access_token) {
+            accessToken = sessionData.session.access_token
+          }
+        } catch (e) {
+          // Invalid JSON, continue
+        }
+      }
+    }
+
+    if (!accessToken) {
       throw new Error('User must be authenticated')
     }
 
@@ -140,7 +176,7 @@ export const getPresignedDownloadUrl = async (filePath, expiresIn = 86400) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           filePath: normalizedPath,
@@ -197,9 +233,27 @@ export const deleteFromR2 = async (filePath, motivo = null) => {
 
     console.log(`🗑️ Deleting ${normalizedPath}...`)
 
-    // Get auth token
+    // Get auth token - try session first, then localStorage fallback
+    let accessToken = null
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) {
+    if (session?.access_token) {
+      accessToken = session.access_token
+    } else {
+      // Fallback: check localStorage for JWT
+      const sessionStr = localStorage.getItem('sb-jwifxjzxdxjntbdqbyku-auth-token')
+      if (sessionStr) {
+        try {
+          const sessionData = JSON.parse(sessionStr)
+          if (sessionData.session?.access_token) {
+            accessToken = sessionData.session.access_token
+          }
+        } catch (e) {
+          // Invalid JSON, continue
+        }
+      }
+    }
+
+    if (!accessToken) {
       throw new Error('User must be authenticated')
     }
 
@@ -210,7 +264,7 @@ export const deleteFromR2 = async (filePath, motivo = null) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           filePath: normalizedPath,

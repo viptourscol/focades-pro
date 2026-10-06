@@ -693,6 +693,15 @@ const BeneficiarioActualizacion = () => {
     if (!profile || !previousUpdate || previousUpdate.estado !== 'subsanacion') return;
 
     // Validar que esté dentro del plazo de subsanación
+    console.log('🔍 Debug canSubsanate:', {
+      canSubsanate,
+      profile: !!profile,
+      profileEstado: profile?.estado_beneficiario,
+      isSubsanacionMode,
+      subsanacionDeadline,
+      previousUpdate: previousUpdate ? { id: previousUpdate.id, estado: previousUpdate.estado } : null,
+    });
+    
     if (!canSubsanate) {
       let mensajeError = 'No estás habilitado para realizar correcciones en este momento.';
       if (subsanacionDeadline && new Date() > new Date(subsanacionDeadline)) {

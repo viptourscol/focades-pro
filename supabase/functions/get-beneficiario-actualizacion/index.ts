@@ -31,9 +31,9 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const { beneficiario_id, ventana_id } = body
 
-    if (!beneficiario_id || !ventana_id) {
+    if (!beneficiario_id) {
       return new Response(
-        JSON.stringify({ ok: false, error: 'beneficiario_id y ventana_id requeridos' }),
+        JSON.stringify({ ok: false, error: 'beneficiario_id es requerido' }),
         {
           status: 400,
           headers: {
@@ -44,17 +44,22 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log('📋 Cargando actualización para beneficiario:', beneficiario_id, 'ventana:', ventana_id)
+    console.log('📋 Cargando actualización para beneficiario:', beneficiario_id, ventana_id ? `ventana: ${ventana_id}` : '(sin filtro de ventana)')
 
-    // Obtener actualización previa (última en esa ventana)
-    const { data: actualizacion, error: actualizacionError } = await supabase
+    // Construir query
+    let query = supabase
       .from('portal_actualizaciones')
-      .select('id,estado,created_at,observacion_admin,campos_a_corregir,documentos_a_corregir,marcado_subsanacion_at,semestre_actual,promedio_semestre_anterior,email,telefono,direccion,payload_formulario')
+      .select('id,estado,created_at,observacion_admin,campos_a_corregir,documentos_a_corregir,marcado_subsanacion_at,semestre_actual,promedio_semestre_anterior,email,telefono,direccion,payload_formulario,ventana_id')
       .eq('beneficiario_id', beneficiario_id)
-      .eq('ventana_id', ventana_id)
       .in('estado', ['en_revision', 'aprobada', 'rechazada', 'subsanacion'])
       .order('created_at', { ascending: false })
-      .maybeSingle()
+
+    // Si se especifica ventana_id, filtrar por esa ventana
+    if (ventana_id) {
+      query = query.eq('ventana_id', ventana_id)
+    }
+
+    const { data: actualizacion, error: actualizacionError } = await query.maybeSingle()
 
     if (actualizacionError) {
       console.error('❌ Error obteniendo actualización:', actualizacionError)
@@ -71,9 +76,9 @@ Deno.serve(async (req) => {
     }
 
     if (actualizacion) {
-      console.log('✅ Actualización encontrada:', actualizacion.id, 'estado:', actualizacion.estado)
+      console.log('✅ Actualización encontrada:', actualizacion.id, 'estado:', actualizacion.estado, 'ventana:', actualizacion.ventana_id)
     } else {
-      console.log('ℹ️ No hay actualización previa en esta ventana')
+      console.log('ℹ️ No hay actualización previa para este beneficiario')
     }
 
     return new Response(

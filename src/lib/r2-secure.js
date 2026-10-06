@@ -106,7 +106,8 @@ const getAccessToken = async () => {
   console.log('  - Active Supabase session')
   console.log('  - Known localStorage keys')
   console.log('  - localStorage scan')
-  throw new Error('User must be authenticated')
+  // Return null instead of throwing - let caller decide
+  return null
 }
 
 /**
@@ -128,12 +129,13 @@ export const getPresignedUploadUrl = async (filePath, contentType = 'application
     let accessToken = null
     let beneficiarioId = null
     
-    try {
-      accessToken = await getAccessToken()
+    // Method 1: Try to get JWT token
+    accessToken = await getAccessToken()
+    if (accessToken) {
       console.log('✅ Using JWT token from getAccessToken()')
-    } catch (e) {
+    } else {
       console.log('⚠️ No JWT token found, trying beneficiario_id...')
-      // Try to get beneficiario_id from focades:beneficiario-session
+      // Method 2: Try to get beneficiario_id from focades:beneficiario-session
       try {
         const sessionStr = localStorage.getItem('focades:beneficiario-session')
         if (sessionStr) {
@@ -144,7 +146,7 @@ export const getPresignedUploadUrl = async (filePath, contentType = 'application
           }
         }
       } catch (parseError) {
-        console.log('Failed to parse focades:beneficiario-session')
+        console.log('❌ Failed to parse focades:beneficiario-session')
       }
     }
 
@@ -250,12 +252,13 @@ export const getPresignedDownloadUrl = async (filePath, expiresIn = 86400) => {
     let accessToken = null
     let beneficiarioId = null
     
-    try {
-      accessToken = await getAccessToken()
+    // Method 1: Try to get JWT token
+    accessToken = await getAccessToken()
+    if (accessToken) {
       console.log('✅ Using JWT token from getAccessToken()')
-    } catch (e) {
+    } else {
       console.log('⚠️ No JWT token found, trying beneficiario_id...')
-      // Try to get beneficiario_id from focades:beneficiario-session
+      // Method 2: Try to get beneficiario_id from focades:beneficiario-session
       try {
         const sessionStr = localStorage.getItem('focades:beneficiario-session')
         if (sessionStr) {
@@ -266,7 +269,7 @@ export const getPresignedDownloadUrl = async (filePath, expiresIn = 86400) => {
           }
         }
       } catch (parseError) {
-        console.log('Failed to parse focades:beneficiario-session')
+        console.log('❌ Failed to parse focades:beneficiario-session')
       }
     }
 
@@ -343,12 +346,13 @@ export const deleteFromR2 = async (filePath, motivo = null) => {
     let accessToken = null
     let beneficiarioId = null
     
-    try {
-      accessToken = await getAccessToken()
+    // Method 1: Try to get JWT token
+    accessToken = await getAccessToken()
+    if (accessToken) {
       console.log('✅ Using JWT token from getAccessToken()')
-    } catch (e) {
+    } else {
       console.log('⚠️ No JWT token found, trying beneficiario_id...')
-      // Try to get beneficiario_id from focades:beneficiario-session
+      // Method 2: Try to get beneficiario_id from focades:beneficiario-session
       try {
         const sessionStr = localStorage.getItem('focades:beneficiario-session')
         if (sessionStr) {
@@ -359,7 +363,7 @@ export const deleteFromR2 = async (filePath, motivo = null) => {
           }
         }
       } catch (parseError) {
-        console.log('Failed to parse focades:beneficiario-session')
+        console.log('❌ Failed to parse focades:beneficiario-session')
       }
     }
 

@@ -423,9 +423,10 @@ const BeneficiarioActualizacion = () => {
   }, [profile, windowInfo, previousUpdate, isSubsanacionMode]);
 
   // Validar si puede subsanar: debe estar en modo subsanación y no haber pasado fecha límite
+  // Nota: No validamos estado_beneficiario porque puede ser 'egresado', 'condonado', etc.
+  // pero aún así estar en estado 'subsanacion' de una actualización anterior
   const canSubsanate = useMemo(() => {
     if (!profile) return false;
-    if (profile.estado_beneficiario !== 'activo') return false;
     if (!isSubsanacionMode) return false;
     
     // Si hay deadline de subsanación, validar que no ha pasado

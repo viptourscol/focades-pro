@@ -14,6 +14,66 @@ const BUCKET_NAME = 'focades-pro'
 const R2_PUBLIC_URL = import.meta.env.VITE_R2_PUBLIC_URL || 'https://focades-pro.82fdb4a6fd4628d720932bee674b6f7d.r2.dev'
 
 /**
+ * Get authentication token - tries multiple methods
+ * @returns {Promise<string>} JWT access token
+ */
+const getAccessToken = async () => {
+  // Method 1: Active Supabase session
+  const { data: { session } } = await supabase.auth.getSession()
+  if (session?.access_token) {
+    console.log('✅ Using token from active session')
+    return session.access_token
+  }
+
+  // Method 2: Check multiple localStorage keys
+  const possibleKeys = [
+    'sb-jwifxjzxdxjntbdqbyku-auth-token',
+    'SUPABASE_JWT',
+    'supabase.auth.token',
+  ]
+  
+  for (const key of possibleKeys) {
+    try {
+      const stored = localStorage.getItem(key)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (parsed.session?.access_token) {
+          console.log(`✅ Using token from localStorage (${key})`)
+          return parsed.session.access_token
+        }
+      }
+    } catch (e) {
+      // Continue
+    }
+  }
+
+  // Method 3: Scan entire localStorage for JWT
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    const value = localStorage.getItem(key)
+    
+    // Look for JWT-like strings (starts with ey)
+    if (value?.startsWith('ey') && value.includes('.')) {
+      console.log(`✅ Found JWT token in localStorage (key: ${key})`)
+      return value
+    }
+    
+    // Try parsing as JSON
+    try {
+      const parsed = JSON.parse(value)
+      if (parsed?.session?.access_token) {
+        console.log(`✅ Found JWT in JSON localStorage (key: ${key})`)
+        return parsed.session.access_token
+      }
+    } catch (e) {
+      // Continue
+    }
+  }
+
+  throw new Error('User must be authenticated')
+}
+
+/**
  * Get presigned URL for uploading a file to R2
  * @param {string} filePath - Target path in R2 (e.g., "soportes/beneficiarios/123/doc.pdf")
  * @param {string} contentType - MIME type (default: "application/pdf")
@@ -28,29 +88,7 @@ export const getPresignedUploadUrl = async (filePath, contentType = 'application
       normalizedPath = `soportes/${normalizedPath}`
     }
 
-    // Get auth token - try session first, then localStorage fallback
-    let accessToken = null
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session?.access_token) {
-      accessToken = session.access_token
-    } else {
-      // Fallback: check localStorage for JWT
-      const sessionStr = localStorage.getItem('sb-jwifxjzxdxjntbdqbyku-auth-token')
-      if (sessionStr) {
-        try {
-          const sessionData = JSON.parse(sessionStr)
-          if (sessionData.session?.access_token) {
-            accessToken = sessionData.session.access_token
-          }
-        } catch (e) {
-          // Invalid JSON, continue
-        }
-      }
-    }
-
-    if (!accessToken) {
-      throw new Error('User must be authenticated')
-    }
+    const accessToken = await getAccessToken()
 
     // Call serverless function
     const response = await fetch(
@@ -145,29 +183,7 @@ export const getPresignedDownloadUrl = async (filePath, expiresIn = 86400) => {
       normalizedPath = `soportes/${normalizedPath}`
     }
 
-    // Get auth token - try session first, then localStorage fallback
-    let accessToken = null
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session?.access_token) {
-      accessToken = session.access_token
-    } else {
-      // Fallback: check localStorage for JWT
-      const sessionStr = localStorage.getItem('sb-jwifxjzxdxjntbdqbyku-auth-token')
-      if (sessionStr) {
-        try {
-          const sessionData = JSON.parse(sessionStr)
-          if (sessionData.session?.access_token) {
-            accessToken = sessionData.session.access_token
-          }
-        } catch (e) {
-          // Invalid JSON, continue
-        }
-      }
-    }
-
-    if (!accessToken) {
-      throw new Error('User must be authenticated')
-    }
+    const accessToken = await getAccessToken()
 
     // Call serverless function
     const response = await fetch(
@@ -233,29 +249,7 @@ export const deleteFromR2 = async (filePath, motivo = null) => {
 
     console.log(`🗑️ Deleting ${normalizedPath}...`)
 
-    // Get auth token - try session first, then localStorage fallback
-    let accessToken = null
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session?.access_token) {
-      accessToken = session.access_token
-    } else {
-      // Fallback: check localStorage for JWT
-      const sessionStr = localStorage.getItem('sb-jwifxjzxdxjntbdqbyku-auth-token')
-      if (sessionStr) {
-        try {
-          const sessionData = JSON.parse(sessionStr)
-          if (sessionData.session?.access_token) {
-            accessToken = sessionData.session.access_token
-          }
-        } catch (e) {
-          // Invalid JSON, continue
-        }
-      }
-    }
-
-    if (!accessToken) {
-      throw new Error('User must be authenticated')
-    }
+    const accessToken = await getAccessToken()
 
     // Call serverless function
     const response = await fetch(

@@ -124,7 +124,33 @@ export const getPresignedUploadUrl = async (filePath, contentType = 'application
       normalizedPath = `soportes/${normalizedPath}`
     }
 
-    const accessToken = await getAccessToken()
+    // Try to get access token, but allow missing token for beneficiario auth
+    let accessToken = null
+    let beneficiarioId = null
+    
+    try {
+      accessToken = await getAccessToken()
+      console.log('✅ Using JWT token from getAccessToken()')
+    } catch (e) {
+      console.log('⚠️ No JWT token found, trying beneficiario_id...')
+      // Try to get beneficiario_id from focades:beneficiario-session
+      try {
+        const sessionStr = localStorage.getItem('focades:beneficiario-session')
+        if (sessionStr) {
+          const session = JSON.parse(sessionStr)
+          if (session.beneficiario_id) {
+            beneficiarioId = session.beneficiario_id
+            console.log(`✅ Using beneficiario_id: ${beneficiarioId}`)
+          }
+        }
+      } catch (parseError) {
+        console.log('Failed to parse focades:beneficiario-session')
+      }
+    }
+
+    if (!accessToken && !beneficiarioId) {
+      throw new Error('No authentication method available (JWT or beneficiario_id)')
+    }
 
     // Call serverless function
     const response = await fetch(
@@ -133,12 +159,13 @@ export const getPresignedUploadUrl = async (filePath, contentType = 'application
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
+          ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
         },
         body: JSON.stringify({
           filePath: normalizedPath,
           contentType,
           expiresIn,
+          ...(beneficiarioId && { beneficiario_id: beneficiarioId }),
         }),
       }
     )
@@ -219,7 +246,33 @@ export const getPresignedDownloadUrl = async (filePath, expiresIn = 86400) => {
       normalizedPath = `soportes/${normalizedPath}`
     }
 
-    const accessToken = await getAccessToken()
+    // Try to get access token, but allow missing token for beneficiario auth
+    let accessToken = null
+    let beneficiarioId = null
+    
+    try {
+      accessToken = await getAccessToken()
+      console.log('✅ Using JWT token from getAccessToken()')
+    } catch (e) {
+      console.log('⚠️ No JWT token found, trying beneficiario_id...')
+      // Try to get beneficiario_id from focades:beneficiario-session
+      try {
+        const sessionStr = localStorage.getItem('focades:beneficiario-session')
+        if (sessionStr) {
+          const session = JSON.parse(sessionStr)
+          if (session.beneficiario_id) {
+            beneficiarioId = session.beneficiario_id
+            console.log(`✅ Using beneficiario_id: ${beneficiarioId}`)
+          }
+        }
+      } catch (parseError) {
+        console.log('Failed to parse focades:beneficiario-session')
+      }
+    }
+
+    if (!accessToken && !beneficiarioId) {
+      throw new Error('No authentication method available (JWT or beneficiario_id)')
+    }
 
     // Call serverless function
     const response = await fetch(
@@ -228,11 +281,12 @@ export const getPresignedDownloadUrl = async (filePath, expiresIn = 86400) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
+          ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
         },
         body: JSON.stringify({
           filePath: normalizedPath,
           expiresIn,
+          ...(beneficiarioId && { beneficiario_id: beneficiarioId }),
         }),
       }
     )
@@ -285,7 +339,33 @@ export const deleteFromR2 = async (filePath, motivo = null) => {
 
     console.log(`🗑️ Deleting ${normalizedPath}...`)
 
-    const accessToken = await getAccessToken()
+    // Try to get access token, but allow missing token for beneficiario auth
+    let accessToken = null
+    let beneficiarioId = null
+    
+    try {
+      accessToken = await getAccessToken()
+      console.log('✅ Using JWT token from getAccessToken()')
+    } catch (e) {
+      console.log('⚠️ No JWT token found, trying beneficiario_id...')
+      // Try to get beneficiario_id from focades:beneficiario-session
+      try {
+        const sessionStr = localStorage.getItem('focades:beneficiario-session')
+        if (sessionStr) {
+          const session = JSON.parse(sessionStr)
+          if (session.beneficiario_id) {
+            beneficiarioId = session.beneficiario_id
+            console.log(`✅ Using beneficiario_id: ${beneficiarioId}`)
+          }
+        }
+      } catch (parseError) {
+        console.log('Failed to parse focades:beneficiario-session')
+      }
+    }
+
+    if (!accessToken && !beneficiarioId) {
+      throw new Error('No authentication method available (JWT or beneficiario_id)')
+    }
 
     // Call serverless function
     const response = await fetch(
@@ -294,11 +374,12 @@ export const deleteFromR2 = async (filePath, motivo = null) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
+          ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
         },
         body: JSON.stringify({
           filePath: normalizedPath,
           motivo,
+          ...(beneficiarioId && { beneficiario_id: beneficiarioId }),
         }),
       }
     )

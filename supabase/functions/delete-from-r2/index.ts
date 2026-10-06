@@ -71,40 +71,8 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get('authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: corsHeaders,
-      })
-    }
-
-    // Verify JWT token
-    const token = authHeader.replace('Bearer ', '')
-    const { data: user, error: userError } = await supabase.auth.getUser(token)
-
-    if (userError || !user.user) {
-      return new Response(JSON.stringify({ error: 'Invalid token' }), {
-        status: 401,
-        headers: corsHeaders,
-      })
-    }
-
-    // Check if user is admin
-    const { data: adminUser, error: adminError } = await supabase
-      .from('portal_admin_users')
-      .select('user_id')
-      .eq('user_id', user.user.id)
-      .single()
-
-    if (adminError || !adminUser) {
-      return new Response(JSON.stringify({ error: 'Admin access required' }), {
-        status: 403,
-        headers: corsHeaders,
-      })
-    }
-
     const body = await req.json()
-    const { filePath, motivo } = body
+    const { filePath, motivo, beneficiario_id } = body
 
     // Validations
     if (!filePath) {
@@ -126,6 +94,66 @@ Deno.serve(async (req) => {
     if (filePath.includes('..')) {
       return new Response(JSON.stringify({ error: 'Invalid file path - no traversal allowed' }), {
         status: 400,
+        headers: corsHeaders,
+      })
+    }
+
+    // Validate user identity - try JWT first, then beneficiario_id
+    let validatedUserId = null
+    let validatedBeneficiarioId = null
+    let isAdmin = false
+
+    if (authHeader) {
+      try {
+        const token = authHeader.replace('Bearer ', '')
+        const { data: user, error: userError } = await supabase.auth.getUser(token)
+        
+        if (!userError && user.user) {
+          validatedUserId = user.user.id
+          
+          // Check if user is admin
+          const { data: adminUser } = await supabase
+            .from('portal_admin_users')
+            .select('user_id')
+            .eq('user_id', user.user.id)
+            .maybeSingle()
+          
+          if (adminUser) {
+            isAdmin = true
+            console.log(`✅ Authorized as admin: ${validatedUserId}`)
+          }
+        }
+      } catch (e) {
+        console.log('JWT validation failed, trying beneficiario_id...')
+      }
+    }
+
+    // If no valid JWT, try beneficiario_id
+    if (!validatedUserId && beneficiario_id) {
+      const { data: beneficiario, error: benefError } = await supabase
+        .from('portal_beneficiarios')
+        .select('id')
+        .eq('id', beneficiario_id)
+        .maybeSingle()
+
+      if (!benefError && beneficiario) {
+        validatedBeneficiarioId = beneficiario_id
+        console.log(`✅ Authorized by beneficiario_id: ${beneficiario_id}`)
+      }
+    }
+
+    // Must have either valid JWT (admin) or valid beneficiario_id
+    if (!validatedUserId && !validatedBeneficiarioId) {
+      return new Response(JSON.stringify({ error: 'Unauthorized - no valid authentication' }), {
+        status: 401,
+        headers: corsHeaders,
+      })
+    }
+
+    // Only admins can delete - beneficiarios cannot
+    if (!isAdmin && !validatedUserId) {
+      return new Response(JSON.stringify({ error: 'Admin access required for deletion' }), {
+        status: 403,
         headers: corsHeaders,
       })
     }

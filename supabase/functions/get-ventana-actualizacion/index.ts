@@ -31,39 +31,58 @@ Deno.serve(async (req) => {
     console.log('🔍 Consultando ventana de actualización activa...')
 
     const nowIso = new Date().toISOString()
-
-    // Consultar ventana activa usando service key (bypasses RLS)
-    const { data: ventana, error: ventanaError } = await supabase
-      .from('portal_ventanas_actualizacion')
-      .select('*')
-      .eq('is_active', true)
-      .lte('fecha_inicio', nowIso)
-      .gte('fecha_fin', nowIso)
-      .order('fecha_inicio', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (ventanaError) {
-      console.error('❌ Error consultando ventana:', ventanaError)
-    } else {
-      console.log('✅ Ventana encontrada:', ventana ? ventana.nombre : 'ninguna')
+    
+    // Obtener parámetros del body (para subsanación, puede incluir ventana_id)
+    let ventanaId = null
+    if (req.method === 'POST') {
+      try {
+        const body = await req.json()
+        ventanaId = body.ventana_id
+      } catch {
+        // Si no hay body válido, continuar sin ventana_id
+      }
     }
 
-    // Consultar deadline de subsanación (para beneficiarios en estado 'subsanacion')
-    // Puede existir incluso si la ventana ya cerró
-    const { data: subsanacionDeadline, error: subsanacionError } = await supabase
-      .from('portal_ventanas_actualizacion')
-      .select('fecha_cierre_subsanacion')
-      .eq('is_active', true)
-      .gte('fecha_cierre_subsanacion', nowIso)
-      .order('fecha_inicio', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    let ventana = null
+    let ventanaError = null
 
-    if (subsanacionError) {
-      console.error('❌ Error consultando deadline subsanación:', subsanacionError)
+    // Si se especifica ventana_id (subsanación), buscar esa ventana específica
+    // aunque esté cerrada por fecha
+    if (ventanaId) {
+      console.log(`🔍 Buscando ventana específica: ${ventanaId} (subsanación)`)
+      const query = await supabase
+        .from('portal_ventanas_actualizacion')
+        .select('*')
+        .eq('id', ventanaId)
+        .maybeSingle()
+      ventana = query.data
+      ventanaError = query.error
+      
+      if (!ventana) {
+        console.warn(`⚠️ Ventana ${ventanaId} no encontrada`)
+      } else {
+        console.log(`✅ Ventana encontrada (subsanación): ${ventana.nombre}`)
+      }
     } else {
-      console.log('✅ Deadline subsanación:', subsanacionDeadline?.fecha_cierre_subsanacion || 'ninguno')
+      // Sin ventana_id, buscar ventana activa por fechas (para nuevas actualizaciones)
+      console.log('🔍 Buscando ventana activa por fechas (nueva actualización)')
+      const query = await supabase
+        .from('portal_ventanas_actualizacion')
+        .select('*')
+        .eq('is_active', true)
+        .lte('fecha_inicio', nowIso)
+        .gte('fecha_fin', nowIso)
+        .order('fecha_inicio', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      ventana = query.data
+      ventanaError = query.error
+      
+      if (ventanaError) {
+        console.error('❌ Error consultando ventana:', ventanaError)
+      } else {
+        console.log('✅ Ventana encontrada:', ventana ? ventana.nombre : 'ninguna')
+      }
     }
 
     // Consultar configuración activa
@@ -83,7 +102,7 @@ Deno.serve(async (req) => {
       JSON.stringify({
         ok: true,
         ventana: ventana || null,
-        subsanacionDeadline: subsanacionDeadline?.fecha_cierre_subsanacion || null,
+        subsanacionDeadline: ventana?.fecha_cierre_subsanacion || null,
         config: config || null,
       }),
       {

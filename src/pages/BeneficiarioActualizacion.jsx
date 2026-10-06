@@ -261,8 +261,44 @@ const BeneficiarioActualizacion = () => {
       // Cargar ventana activa y configuración usando Edge Function (bypasses RLS)
       let ventanaData = null;
       let configData = null;
+      let previousUpdateData = null;
+      
+      // PASO 1: Obtener actualización previa del beneficiario (sin filtro de ventana)
+      if (beneficiarioId) {
+        try {
+          console.log('🔍 Buscando actualización anterior del beneficiario...');
+          
+          const { data: result, error: invokeError } = await supabase.functions.invoke('get-beneficiario-actualizacion', {
+            body: {
+              beneficiario_id: beneficiarioId,
+              // No especificamos ventana_id aquí para obtener la actualización más reciente
+            },
+          });
+
+          if (!invokeError && result?.actualizacion) {
+            previousUpdateData = result.actualizacion;
+            console.log('📋 Actualización previa encontrada:', {
+              id: previousUpdateData.id,
+              estado: previousUpdateData.estado,
+              ventana_id: previousUpdateData.ventana_id,
+            });
+          }
+        } catch (err) {
+          console.error('❌ Error buscando actualización previa:', err);
+        }
+      }
+
+      // PASO 2: Buscar ventana apropiada
       try {
-        const { data: result, error } = await supabase.functions.invoke('get-ventana-actualizacion');
+        // Si está en subsanación, buscar la ventana específica de esa actualización
+        // Si NO está en subsanación, buscar la ventana activa por fechas
+        const ventanaRequest = previousUpdateData?.estado === 'subsanacion' && previousUpdateData?.ventana_id
+          ? { ventana_id: previousUpdateData.ventana_id }
+          : {}; // Sin parámetros busca ventana activa por fechas
+          
+        const { data: result, error } = await supabase.functions.invoke('get-ventana-actualizacion', {
+          body: ventanaRequest,
+        });
 
         if (!error && result?.ok) {
           ventanaData = result.ventana || null;
@@ -270,7 +306,7 @@ const BeneficiarioActualizacion = () => {
           configData = result.config || null;
         }
       } catch (err) {
-        // Error invocando get-ventana-actualizacion
+        console.error('❌ Error invocando get-ventana-actualizacion:', err);
       }
 
       if (!mounted) return;
@@ -278,65 +314,40 @@ const BeneficiarioActualizacion = () => {
       setProfile(profileData);
       setConfig(configData);
       setWindowInfo(ventanaData);
+      
+      // Si ya obtuvo la actualización previa en PASO 1, usarla directamente
+      const prevUpdate = previousUpdateData;
+      
+      if (prevUpdate) {
+        console.log('📋 Actualización previa cargada:', {
+          id: prevUpdate.id,
+          estado: prevUpdate.estado,
+          campos_a_corregir: prevUpdate.campos_a_corregir,
+          documentos_a_corregir: prevUpdate.documentos_a_corregir,
+          marcado_subsanacion_at: prevUpdate.marcado_subsanacion_at,
+        });
+        setPreviousUpdate(prevUpdate);
 
-      // Consultar si existe actualización previa en esta ventana
-      if (beneficiarioId && ventanaData?.id) {
-        try {
-          console.log('🔍 Buscando actualización anterior con:', {
-            beneficiario_id: beneficiarioId,
-            ventana_id: ventanaData.id,
-            ventana_nombre: ventanaData.nombre,
+        if (prevUpdate.estado === 'subsanacion') {
+          console.log('✅ Modo subsanación activado');
+          const payloadPrevio = prevUpdate.payload_formulario || {};
+          setSubsanacionForm({
+            email: prevUpdate.email || '',
+            telefono: prevUpdate.telefono || '',
+            direccion: prevUpdate.direccion || '',
+            semestre_actual: String(prevUpdate.semestre_actual || ''),
+            promedio_semestre_anterior: String(prevUpdate.promedio_semestre_anterior ?? ''),
+            banco: payloadPrevio.banco || '',
+            tipo_cuenta: payloadPrevio.tipo_cuenta || '',
+            cuenta_bancaria: payloadPrevio.cuenta_bancaria || '',
+            fecha_expedicion_cert_bancario: payloadPrevio.fecha_expedicion_cert_bancario || '',
           });
-          
-          // Usar Edge Function para evitar bloqueo de RLS
-          const { data: result, error: invokeError } = await supabase.functions.invoke('get-beneficiario-actualizacion', {
-            body: {
-              beneficiario_id: beneficiarioId,
-              ventana_id: ventanaData.id,
-            },
-          });
 
-          if (invokeError) {
-            console.error('❌ Error invocando Edge Function:', invokeError);
-            throw invokeError;
-          }
-
-          const prevUpdate = result?.actualizacion || null;
-          
-          if (prevUpdate) {
-            console.log('📋 Actualización previa cargada:', {
-              id: prevUpdate.id,
-              estado: prevUpdate.estado,
-              campos_a_corregir: prevUpdate.campos_a_corregir,
-              documentos_a_corregir: prevUpdate.documentos_a_corregir,
-              marcado_subsanacion_at: prevUpdate.marcado_subsanacion_at,
-            });
-            setPreviousUpdate(prevUpdate);
-
-            if (prevUpdate.estado === 'subsanacion') {
-              console.log('✅ Modo subsanación activado');
-              const payloadPrevio = prevUpdate.payload_formulario || {};
-              setSubsanacionForm({
-                email: prevUpdate.email || '',
-                telefono: prevUpdate.telefono || '',
-                direccion: prevUpdate.direccion || '',
-                semestre_actual: String(prevUpdate.semestre_actual || ''),
-                promedio_semestre_anterior: String(prevUpdate.promedio_semestre_anterior ?? ''),
-                banco: payloadPrevio.banco || '',
-                tipo_cuenta: payloadPrevio.tipo_cuenta || '',
-                cuenta_bancaria: payloadPrevio.cuenta_bancaria || '',
-                fecha_expedicion_cert_bancario: payloadPrevio.fecha_expedicion_cert_bancario || '',
-              });
-
-              const { data: docsPrevios } = await supabase
-                .from('portal_actualizacion_documentos')
-                .select('tipo_documento, nombre_original')
-                .eq('actualizacion_id', prevUpdate.id);
-              if (docsPrevios) setSubsanacionDocsActuales(docsPrevios);
-            }
-          }
-        } catch (err) {
-          // Error consultando actualización previa
+          const { data: docsPrevios } = await supabase
+            .from('portal_actualizacion_documentos')
+            .select('tipo_documento, nombre_original')
+            .eq('actualizacion_id', prevUpdate.id);
+          if (docsPrevios) setSubsanacionDocsActuales(docsPrevios);
         }
       }
 

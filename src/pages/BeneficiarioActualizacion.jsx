@@ -389,6 +389,10 @@ const BeneficiarioActualizacion = () => {
     };
   }, []);
 
+  const isSubsanacionMode = previousUpdate?.estado === 'subsanacion';
+  const camposASubsanar = Array.isArray(previousUpdate?.campos_a_corregir) ? previousUpdate.campos_a_corregir : [];
+  const documentosASubsanar = Array.isArray(previousUpdate?.documentos_a_corregir) ? previousUpdate.documentos_a_corregir : [];
+
   const canUpdate = useMemo(() => {
     if (!profile) return false;
     if (profile.estado_beneficiario !== 'activo') return false;
@@ -406,10 +410,6 @@ const BeneficiarioActualizacion = () => {
     
     return true;
   }, [profile, windowInfo, previousUpdate, isSubsanacionMode]);
-
-  const isSubsanacionMode = previousUpdate?.estado === 'subsanacion';
-  const camposASubsanar = Array.isArray(previousUpdate?.campos_a_corregir) ? previousUpdate.campos_a_corregir : [];
-  const documentosASubsanar = Array.isArray(previousUpdate?.documentos_a_corregir) ? previousUpdate.documentos_a_corregir : [];
 
   // Validar si puede subsanar: debe estar en modo subsanación y no haber pasado fecha límite
   const canSubsanate = useMemo(() => {

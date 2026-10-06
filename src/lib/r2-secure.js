@@ -33,32 +33,48 @@ const getAccessToken = async () => {
     'sb-jwifxjzxdxjntbdqbyku-auth-token',
     'SUPABASE_JWT',
     'supabase.auth.token',
+    'focades:beneficiario-session', // Custom app key
   ]
   
   for (const key of possibleKeys) {
     try {
       const stored = localStorage.getItem(key)
       if (stored) {
-        console.log(`  Found key "${key}", parsing...`)
+        console.log(`  Found key "${key}"`)
+        console.log(`    Value preview: ${stored.substring(0, 100)}...`)
+        
         const parsed = JSON.parse(stored)
+        console.log(`    Parsed structure:`, Object.keys(parsed))
+        
+        // Try multiple paths
         if (parsed.session?.access_token) {
-          console.log(`✅ Using token from localStorage (${key})`)
+          console.log(`✅ Using token from localStorage (${key}) - path: parsed.session.access_token`)
           return parsed.session.access_token
         }
+        if (parsed.access_token) {
+          console.log(`✅ Using token from localStorage (${key}) - path: parsed.access_token`)
+          return parsed.access_token
+        }
+        if (parsed.user?.access_token) {
+          console.log(`✅ Using token from localStorage (${key}) - path: parsed.user.access_token`)
+          return parsed.user.access_token
+        }
+        // Log full object for debugging
+        console.log(`    No access_token found. Full object:`, parsed)
       }
     } catch (e) {
-      console.log(`  Key "${key}": No access_token found or JSON parse error`)
+      console.log(`  Key "${key}": JSON parse error or not found`)
     }
   }
 
   // Method 3: Scan entire localStorage for JWT
-  console.log(`📋 Scanning localStorage (${localStorage.length} items)...`)
+  console.log(`📋 Scanning entire localStorage (${localStorage.length} items)...`)
   const allKeys = []
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i)
     allKeys.push(key)
   }
-  console.log('  localStorage keys:', allKeys)
+  console.log('  All localStorage keys:', allKeys)
   
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i)
@@ -74,8 +90,12 @@ const getAccessToken = async () => {
     try {
       const parsed = JSON.parse(value)
       if (parsed?.session?.access_token) {
-        console.log(`✅ Found JWT in JSON localStorage (key: ${key})`)
+        console.log(`✅ Found JWT in JSON localStorage (key: ${key}) - path: session.access_token`)
         return parsed.session.access_token
+      }
+      if (parsed?.access_token) {
+        console.log(`✅ Found JWT in JSON localStorage (key: ${key}) - path: access_token`)
+        return parsed.access_token
       }
     } catch (e) {
       // Continue

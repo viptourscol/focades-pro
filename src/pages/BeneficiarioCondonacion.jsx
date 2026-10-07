@@ -13,6 +13,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { getCondonacionUploadIdentity } from '../lib/portalAuth';
 import { uploadToR2 } from '../lib/r2-secure';
 import { loadActiveCertificateSignatures, openPazYSalvoPrintView } from '../lib/certificadoPazYSalvo';
 import { showWarningAlert } from '../lib/alerts';
@@ -261,31 +262,28 @@ const BeneficiarioCondonacion = () => {
     const safeBaseName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const storagePath = `beneficiarios/${payload.beneficiario_id}/condonacion-final/${docType}/${Date.now()}-${safeBaseName}`;
 
+    let uploaded = false;
     try {
+      const identity = await getCondonacionUploadIdentity(payload.beneficiario_id);
       await uploadToR2(file, storagePath);
+      uploaded = true;
+      const { data, error: rpcError } = await supabase.rpc(identity.rpc, {
+        ...identity.params,
+        p_tipo_documento: docType,
+        p_storage_path: storagePath,
+        p_nombre_original: file.name,
+        p_mime_type: file.type || null,
+        p_size_bytes: file.size,
+      });
+      if (rpcError) throw rpcError;
+      if (!data?.ok) throw new Error('No se confirmo el registro del documento.');
+      setSelectedFiles((prev) => ({ ...prev, [docType]: null }));
+      await loadData();
     } catch (uploadError) {
+      setError(`${uploaded ? 'El archivo se subio, pero no se pudo registrar. ' : ''}${uploadError.message || 'No se pudo cargar el documento.'}`);
+    } finally {
       setUploadingDocType('');
-      setError(uploadError.message || 'No se pudo cargar el documento al almacenamiento.');
-      return;
     }
-
-    const { error: rpcError } = await supabase.rpc('beneficiario_subir_documento_condonacion_final', {
-      p_tipo_documento: docType,
-      p_storage_path: storagePath,
-      p_nombre_original: file.name,
-      p_mime_type: file.type || null,
-      p_size_bytes: file.size,
-    });
-
-    setUploadingDocType('');
-
-    if (rpcError) {
-      setError(rpcError.message || 'El documento se subio, pero no se pudo registrar en la base de datos.');
-      return;
-    }
-
-    setSelectedFiles((prev) => ({ ...prev, [docType]: null }));
-    await loadData();
   };
 
   if (loading) {

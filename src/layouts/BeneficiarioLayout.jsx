@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Bell, ChevronLeft, ChevronRight, ClipboardList, FileClock, GraduationCap, Home, LifeBuoy, LogOut, Menu, UserCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { resolvePortalAccess, logoutBeneficiaryDueToTimeout } from '../lib/portalAuth';
+import { resolvePortalAccess, logoutBeneficiaryDueToTimeout, revokeDocumentSession } from '../lib/portalAuth';
 import { useSessionTimeout } from '../lib/hooks/useSessionTimeout';
 import { SessionTimeoutWarning } from '../components/SessionTimeoutWarning';
 
@@ -131,6 +131,7 @@ const BeneficiarioLayout = () => {
   }, []);
 
   const handleLogout = async () => {
+    await revokeDocumentSession();
     // Limpiar sesión de Auth y de documento
     await supabase.auth.signOut();
     try {

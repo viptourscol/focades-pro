@@ -41,7 +41,6 @@ const getAccessToken = async () => {
       const stored = localStorage.getItem(key)
       if (stored) {
         console.log(`  Found key "${key}"`)
-        console.log(`    Value preview: ${stored.substring(0, 100)}...`)
         
         const parsed = JSON.parse(stored)
         console.log(`    Parsed structure:`, Object.keys(parsed))
@@ -59,8 +58,6 @@ const getAccessToken = async () => {
           console.log(`✅ Using token from localStorage (${key}) - path: parsed.user.access_token`)
           return parsed.user.access_token
         }
-        // Log full object for debugging
-        console.log(`    No access_token found. Full object:`, parsed)
       }
     } catch (e) {
       console.log(`  Key "${key}": JSON parse error or not found`)

@@ -202,27 +202,37 @@ export const uploadToR2 = async (file, filePath) => {
 
     console.log(`📤 Uploading ${file.name} to ${normalizedPath}...`)
 
-    // Get presigned upload URL from server
-    const { presignedUrl, expiresAt } = await getPresignedUploadUrl(
-      normalizedPath,
-      file.type || 'application/pdf'
+    // Convert file to base64 for proxy transmission
+    const arrayBuffer = await file.arrayBuffer()
+    const binaryString = String.fromCharCode(...new Uint8Array(arrayBuffer))
+    const fileDataBase64 = btoa(binaryString)
+
+    console.log(`📦 File size: ${file.size} bytes, sending to proxy...`)
+
+    // Use proxy to upload (server does PUT, avoiding CORS issues)
+    const proxyResponse = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/r2-upload-proxy`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${await getAccessToken()}`,
+        },
+        body: JSON.stringify({
+          filePath: normalizedPath,
+          fileData: fileDataBase64,
+          contentType: file.type || 'application/pdf',
+        }),
+      }
     )
 
-    console.log(`🔑 Got presigned URL, expires at ${expiresAt}`)
-
-    // Upload using presigned URL
-    const arrayBuffer = await file.arrayBuffer()
-    const uploadResponse = await fetch(presignedUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': file.type || 'application/pdf',
-      },
-      body: new Uint8Array(arrayBuffer),
-    })
-
-    if (!uploadResponse.ok) {
-      throw new Error(`Upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`)
+    if (!proxyResponse.ok) {
+      const errorData = await proxyResponse.json()
+      throw new Error(`Proxy upload failed: ${errorData.error || proxyResponse.statusText}`)
     }
+
+    const result = await proxyResponse.json()
+    console.log(`✅ Proxy upload successful:`, result)
 
     // Return public URL
     const publicUrl = `${R2_PUBLIC_URL}/${normalizedPath}`

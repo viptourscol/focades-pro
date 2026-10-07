@@ -69,6 +69,65 @@ La prueba SQL usa tablas minimas; no sustituye el smoke test con el esquema real
 No se ha validado concurrencia con conexiones independientes ni subida real R2.
 ESLint conserva 10 errores previos en los archivos tocados, sin nuevos hallazgos.
 
+## Correccion de visualizacion: R2 devuelve 403
+
+La funcion `get-presigned-download-url` omitia el bucket en la ruta y firmaba
+`Content-Type`, una cabecera que el visor PDF no envia al hacer GET. Se reemplazo
+su firma manual por AWS SDK con `Bucket` explicito y `forcePathStyle: true`.
+`R2_ENDPOINT` debe ser el endpoint de cuenta de R2; `R2_BUCKET` contiene el bucket.
+
+Prueba local sin credenciales reales:
+
+```sh
+node scripts/test-r2-download.mjs
+```
+
+Desplegar solamente esta funcion para activar la correccion de visualizacion:
+
+```sh
+supabase functions deploy get-presigned-download-url --project-ref jwifxjzxdxjntbdqbyku
+```
+
+Despues, recargar `admin/condonaciones` para generar URLs nuevas. Las URLs antiguas
+siguen siendo invalidas. No requiere migraciones, cambios de CORS, publicar el
+bucket ni volver a subir documentos. Falta comprobar una descarga real tras el
+despliegue; las pruebas locales verifican firma y contrato con servicios simulados.
+
+## Revision final: motivos en portal y bitacora
+
+Aplicar la migracion `20261007170000_condonacion_revision_bitacora.sql` despues
+de revisar `supabase db push --dry-run`. No aplicar pendientes ajenos sin revisar.
+Los triggers auditan aprobacion y rechazo de documentos y solicitudes finales,
+incluyendo beneficiario, actor, motivo, estado anterior/nuevo y fecha de revision.
+Rechazar sin motivo falla en BD. Si falla el registro de bitacora, se revierte
+la decision. No se reconstruyen eventos anteriores a esta migracion.
+
+Despues desplegar la consulta del portal:
+
+```sh
+supabase functions deploy get-condonacion-modulo --project-ref jwifxjzxdxjntbdqbyku
+```
+
+Publicar el frontend actualizado. Al abrir o recargar su condonacion, el
+beneficiario vera motivos de solicitud y documentos, los estados reales y
+la accion Enviar correccion para soportes rechazados. No se agregan correos
+ni notificaciones push; la informacion se presenta en el modulo de condonacion.
+Se conserva la carga existente: un documento nuevo queda pendiente de revision
+y se muestra la version mas reciente de cada tipo. La ultima observacion final
+se conserva identificada como tal cuando la solicitud cambia de estado.
+
+Prueba aislada (PGlite instalado como en las pruebas anteriores):
+
+```sh
+node scripts/test-condonacion-revision.mjs "$(find ~/.npm/_npx -path '*/@electric-sql/pglite/dist/index.js' -print -quit)"
+```
+
+Comprobar en entorno de prueba: rechazar un documento y la solicitud con motivo,
+recargar portal beneficiario, verificar textos y bitacora, enviar correccion y
+comprobar que aparece pendiente; aprobar y verificar el nuevo evento y la
+limpieza del motivo anterior en el modal administrativo. No se ha realizado
+esta prueba manual contra produccion ni una verificacion visual en navegador.
+
 ## Riesgos fuera de este arreglo
 
 R2 y otras rutas existentes que aceptan solo beneficiario_id siguen necesitando

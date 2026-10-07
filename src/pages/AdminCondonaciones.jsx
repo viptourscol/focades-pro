@@ -283,7 +283,7 @@ const AdminCondonaciones = () => {
       if (!aprobar) {
         observacion = await showTextareaConfirmAlert({
           title: 'Rechazar documento',
-          text: 'Indica la observación administrativa del rechazo del soporte.',
+          text: 'El beneficiario verá este motivo en su portal. La decisión quedará registrada en la bitácora.',
           inputLabel: 'Observación del rechazo',
           inputPlaceholder: 'Escribe la observación del documento...',
           inputValue: doc.observacion_admin || '',
@@ -315,7 +315,7 @@ const AdminCondonaciones = () => {
               ? {
                   ...item,
                   estado_validacion: data.estado_documento,
-                  observacion_admin: observacion || item.observacion_admin,
+                  observacion_admin: observacion,
                   revisado_at: new Date().toISOString(),
                 }
               : item
@@ -331,7 +331,7 @@ const AdminCondonaciones = () => {
       if (!aprobar) {
         observacion = await showTextareaConfirmAlert({
           title: 'Rechazar condonación final',
-          text: 'Registra el motivo administrativo del rechazo de la solicitud final.',
+          text: 'El beneficiario verá este motivo en su portal. La decisión quedará registrada en la bitácora.',
           inputLabel: 'Motivo del rechazo',
           inputPlaceholder: 'Escribe el motivo del rechazo final...',
           inputValue: row.observacion_admin || '',
@@ -361,7 +361,7 @@ const AdminCondonaciones = () => {
           row: {
             ...prev.row,
             estado: data.estado,
-            observacion_admin: observacion || prev.row?.observacion_admin,
+            observacion_admin: observacion,
           },
         }));
       }

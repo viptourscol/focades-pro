@@ -223,19 +223,42 @@ export const uploadToR2 = async (file, filePath) => {
 
     console.log(`📦 File size: ${file.size} bytes, converted to base64, sending to proxy...`)
 
+    // Try to get access token (for JWT auth)
+    const accessToken = await getAccessToken()
+    
+    // Try to get beneficiario_id from localStorage (for document-based auth)
+    let beneficiario_id = null
+    try {
+      const session = localStorage.getItem('focades:beneficiario-session')
+      if (session) {
+        const parsed = JSON.parse(session)
+        beneficiario_id = parsed.beneficiario_id
+        console.log(`✅ Using beneficiario_id for proxy: ${beneficiario_id}`)
+      }
+    } catch (e) {
+      console.log('No beneficiario session found')
+    }
+
+    const headers = {
+      'Content-Type': 'application/json',
+    }
+    
+    // Only add Authorization header if we have a token
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`
+    }
+
     // Use proxy to upload (server does PUT, avoiding CORS issues)
     const proxyResponse = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/r2-upload-proxy`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${await getAccessToken()}`,
-        },
+        headers,
         body: JSON.stringify({
           filePath: normalizedPath,
           fileData: fileDataBase64,
           contentType: file.type || 'application/pdf',
+          beneficiario_id, // Include beneficiario_id for auth fallback
         }),
       }
     )

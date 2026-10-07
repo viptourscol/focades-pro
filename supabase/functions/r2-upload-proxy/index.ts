@@ -3,8 +3,20 @@
  * Esto evita completamente los problemas de CORS
  */
 
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { crypto } from 'https://deno.land/std/crypto/mod.ts'
 import { encodeHex } from 'https://deno.land/std/encoding/hex.ts'
+
+const supabaseUrl = Deno.env.get('SUPABASE_URL')
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error('Missing Supabase environment variables')
+}
+
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: { autoRefreshToken: false, persistSession: false },
+})
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -40,8 +52,9 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const authHeader = req.headers.get('authorization')
     const body = await req.json()
-    const { filePath, fileData, contentType } = body
+    const { filePath, fileData, contentType, beneficiario_id } = body
 
     if (!filePath || !fileData || !contentType) {
       return new Response(JSON.stringify({ error: 'Missing required fields: filePath, fileData, contentType' }), {
@@ -60,6 +73,66 @@ Deno.serve(async (req) => {
     if (filePath.includes('..')) {
       return new Response(JSON.stringify({ error: 'Invalid file path - no traversal allowed' }), {
         status: 400,
+        headers: corsHeaders,
+      })
+    }
+
+    // Validate user identity - try JWT first, then beneficiario_id
+    let validatedUserId = null
+    let validatedBeneficiarioId = null
+
+    if (authHeader) {
+      try {
+        const token = authHeader.replace('Bearer ', '')
+        const { data: user, error: userError } = await supabase.auth.getUser(token)
+        
+        if (!userError && user.user) {
+          validatedUserId = user.user.id
+          console.log(`✅ Authorized by JWT: ${validatedUserId}`)
+        }
+      } catch (e) {
+        console.log('JWT validation failed, trying beneficiario_id...')
+      }
+    }
+
+    // If no valid JWT, try beneficiario_id
+    if (!validatedUserId && beneficiario_id) {
+      console.log(`🔍 Validating beneficiario_id: ${beneficiario_id} (type: ${typeof beneficiario_id})`)
+      
+      try {
+        // Ensure beneficiario_id is a number for comparison with BD
+        const beneficiarioIdNum = typeof beneficiario_id === 'string' ? parseInt(beneficiario_id, 10) : beneficiario_id
+        console.log(`  Converted to: ${beneficiarioIdNum} (type: ${typeof beneficiarioIdNum})`)
+        
+        const result = await supabase
+          .from('portal_beneficiarios')
+          .select('id')
+          .eq('id', beneficiarioIdNum)
+          .maybeSingle()
+
+        console.log(`  Query result:`, { 
+          found: result.data ? `id=${result.data.id}` : 'null',
+          error: result.error ? `${result.error.code}: ${result.error.message}` : 'null'
+        })
+        
+        if (!result.error && result.data) {
+          validatedBeneficiarioId = beneficiario_id
+          console.log(`✅ Authorized by beneficiario_id: ${beneficiario_id}`)
+        }
+      } catch (queryError) {
+        console.log(`❌ Exception during beneficiario lookup:`, queryError)
+      }
+    }
+
+    // Must have either valid JWT or valid beneficiario_id
+    if (!validatedUserId && !validatedBeneficiarioId) {
+      console.log(`❌ No valid authentication`)
+      return new Response(JSON.stringify({ 
+        error: 'Unauthorized - no valid authentication',
+        hadAuthHeader: !!authHeader,
+        receivedBeneficiarioId: beneficiario_id,
+      }), {
+        status: 401,
         headers: corsHeaders,
       })
     }

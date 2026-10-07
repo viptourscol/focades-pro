@@ -56,8 +56,23 @@ Deno.serve(async (req) => {
     const body = await req.json()
     const { filePath, fileData, contentType, beneficiario_id } = body
 
+    console.log(`📨 Proxy received:`, {
+      hasAuthHeader: !!authHeader,
+      receivedBeneficiarioId: beneficiario_id,
+      filePath,
+      fileDataLength: fileData?.length,
+      contentType,
+    })
+
     if (!filePath || !fileData || !contentType) {
-      return new Response(JSON.stringify({ error: 'Missing required fields: filePath, fileData, contentType' }), {
+      const missingFields = []
+      if (!filePath) missingFields.push('filePath')
+      if (!fileData) missingFields.push('fileData')
+      if (!contentType) missingFields.push('contentType')
+      
+      return new Response(JSON.stringify({ 
+        error: `Missing required fields: ${missingFields.join(', ')}` 
+      }), {
         status: 400,
         headers: corsHeaders,
       })
@@ -97,40 +112,59 @@ Deno.serve(async (req) => {
 
     // If no valid JWT, try beneficiario_id
     if (!validatedUserId && beneficiario_id) {
-      console.log(`🔍 Validating beneficiario_id: ${beneficiario_id} (type: ${typeof beneficiario_id})`)
+      console.log(`🔍 Proxy validating beneficiario_id: ${beneficiario_id}`)
       
       try {
         // Ensure beneficiario_id is a number for comparison with BD
         const beneficiarioIdNum = typeof beneficiario_id === 'string' ? parseInt(beneficiario_id, 10) : beneficiario_id
-        console.log(`  Converted to: ${beneficiarioIdNum} (type: ${typeof beneficiarioIdNum})`)
         
-        const result = await supabase
-          .from('portal_beneficiarios')
-          .select('id')
-          .eq('id', beneficiarioIdNum)
-          .maybeSingle()
+        if (isNaN(beneficiarioIdNum)) {
+          console.log(`❌ Invalid beneficiario_id (not a number): ${beneficiario_id}`)
+        } else {
+          console.log(`  Query: SELECT id FROM portal_beneficiarios WHERE id = ${beneficiarioIdNum}`)
+          
+          const result = await supabase
+            .from('portal_beneficiarios')
+            .select('id')
+            .eq('id', beneficiarioIdNum)
+            .maybeSingle()
 
-        console.log(`  Query result:`, { 
-          found: result.data ? `id=${result.data.id}` : 'null',
-          error: result.error ? `${result.error.code}: ${result.error.message}` : 'null'
-        })
-        
-        if (!result.error && result.data) {
-          validatedBeneficiarioId = beneficiario_id
-          console.log(`✅ Authorized by beneficiario_id: ${beneficiario_id}`)
+          console.log(`  Result:`, {
+            data: result.data ? `id=${result.data.id}` : null,
+            error: result.error ? `${result.error.code}: ${result.error.message}` : null,
+            count: result.data ? 1 : 0,
+          })
+          
+          if (!result.error && result.data) {
+            validatedBeneficiarioId = beneficiario_id
+            console.log(`✅ Proxy: Authorized by beneficiario_id: ${beneficiario_id}`)
+          } else if (result.error) {
+            console.log(`❌ Proxy: Query error:`, result.error.message)
+          } else {
+            console.log(`❌ Proxy: Beneficiario ID ${beneficiarioIdNum} not found in database`)
+          }
         }
       } catch (queryError) {
-        console.log(`❌ Exception during beneficiario lookup:`, queryError)
+        console.log(`❌ Proxy: Exception during beneficiario lookup:`, queryError)
       }
     }
 
     // Must have either valid JWT or valid beneficiario_id
     if (!validatedUserId && !validatedBeneficiarioId) {
-      console.log(`❌ No valid authentication`)
+      console.log(`❌ Proxy auth failed - no valid authentication`)
+      console.log(`   hadAuthHeader: ${!!authHeader}`)
+      console.log(`   receivedBeneficiarioId: ${beneficiario_id}`)
+      console.log(`   validatedUserId: ${validatedUserId}`)
+      console.log(`   validatedBeneficiarioId: ${validatedBeneficiarioId}`)
+      
       return new Response(JSON.stringify({ 
         error: 'Unauthorized - no valid authentication',
-        hadAuthHeader: !!authHeader,
-        receivedBeneficiarioId: beneficiario_id,
+        debug: {
+          hadAuthHeader: !!authHeader,
+          receivedBeneficiarioId: beneficiario_id,
+          validatedUserId,
+          validatedBeneficiarioId,
+        }
       }), {
         status: 401,
         headers: corsHeaders,

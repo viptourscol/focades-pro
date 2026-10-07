@@ -43,7 +43,8 @@ async function deleteFromR2(filePath: string): Promise<void> {
     service: 's3',
   })
 
-  const r2Url = `${config.endpoint}/${config.bucket}/${filePath}`
+  // NOTE: config.endpoint already includes the domain, filePath has no leading slash
+  const r2Url = `${config.endpoint}/${filePath}`
 
   const deleteRequest = new Request(r2Url, {
     method: 'DELETE',

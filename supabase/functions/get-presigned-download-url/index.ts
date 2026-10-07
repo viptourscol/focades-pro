@@ -43,7 +43,8 @@ async function generatePresignedUrl(
   const config = getR2Config()
   
   // Parse URL components
-  const url = new URL(`${config.endpoint}/${config.bucket}/${filePath}`)
+  // NOTE: config.endpoint already includes the domain, filePath has no leading slash
+  const url = new URL(`${config.endpoint}/${filePath}`)
   const host = url.hostname
   const pathname = url.pathname
   

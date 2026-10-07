@@ -192,6 +192,21 @@ export const getPresignedUploadUrl = async (filePath, contentType = 'application
  * @param {string} filePath - Target path in R2
  * @returns {Promise<string>} Public URL of the uploaded file
  */
+// Helper: Convert ArrayBuffer to base64 without stack overflow
+const arrayBufferToBase64 = (arrayBuffer) => {
+  const bytes = new Uint8Array(arrayBuffer)
+  let binary = ''
+  const chunkSize = 32768 // 32KB chunks
+  
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize)
+    // Use apply with spread on smaller chunks to avoid stack overflow
+    binary += String.fromCharCode.apply(null, Array.from(chunk))
+  }
+  
+  return btoa(binary)
+}
+
 export const uploadToR2 = async (file, filePath) => {
   try {
     // Normalize path
@@ -202,12 +217,11 @@ export const uploadToR2 = async (file, filePath) => {
 
     console.log(`📤 Uploading ${file.name} to ${normalizedPath}...`)
 
-    // Convert file to base64 for proxy transmission
+    // Convert file to base64 for proxy transmission (process in chunks to avoid stack overflow)
     const arrayBuffer = await file.arrayBuffer()
-    const binaryString = String.fromCharCode(...new Uint8Array(arrayBuffer))
-    const fileDataBase64 = btoa(binaryString)
+    const fileDataBase64 = arrayBufferToBase64(arrayBuffer)
 
-    console.log(`📦 File size: ${file.size} bytes, sending to proxy...`)
+    console.log(`📦 File size: ${file.size} bytes, converted to base64, sending to proxy...`)
 
     // Use proxy to upload (server does PUT, avoiding CORS issues)
     const proxyResponse = await fetch(

@@ -62,18 +62,19 @@ Variables requeridas/recomendadas:
 
 - `DOCS_GAS_ENABLED=true`
 - `DOCS_GAS_WEBHOOK_URL=https://script.google.com/macros/s/.../exec`
-- `DOCS_GAS_API_KEY=...` (opcional, si el Web App valida API key)
-- `DOCS_GAS_SHARED_SECRET=...` (opcional, para validación adicional)
+- `DOCS_GAS_API_KEY=...` (obligatoria: el script rechaza peticiones si no está configurada)
+- `DOCS_GAS_SHARED_SECRET=...` (obligatoria, igual que la anterior)
 - `DOCS_GAS_TIMEOUT_MS=20000`
-- `DOCS_GAS_FALLBACK_LOCAL=true` (solo aplica a `generate-inscripcion-docs`)
+- `DOCS_GAS_FALLBACK_LOCAL=false` (si es `true`, `generate-inscripcion-docs` genera PDFs locales cuando GAS falla)
 
-Template IDs opcionales por tipo de documento:
+IDs de las plantillas de Google Docs (usados por las dos funciones):
 
 - `DOCS_GAS_TEMPLATE_FORMULARIO_ID=...`
 - `DOCS_GAS_TEMPLATE_TERMINOS_ID=...`
 - `DOCS_GAS_TEMPLATE_DATOS_ID=...`
-- `DOCS_GAS_TEMPLATE_HISTORICOS_TERMINOS_ID=...`
-- `DOCS_GAS_TEMPLATE_HISTORICOS_DATOS_ID=...`
+
+Dónde está alojado el proyecto GAS (cuenta, Script ID, implementación), cómo desplegarlo, probarlo
+y recuperarlo: `scripts/gas/CHECKLIST_GAS_DEPLOY.md`.
 
 Funciones involucradas:
 

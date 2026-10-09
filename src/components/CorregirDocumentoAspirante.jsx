@@ -5,7 +5,6 @@ import { supabase } from '../lib/supabase';
 import {
   showConfirmAlert,
   showErrorAlert,
-  showInfoAlert,
   showSuccessAlert,
   showTextareaConfirmAlert,
   showWarningAlert,
@@ -45,6 +44,28 @@ const invokeCorrection = async (body) => {
 const CorregirDocumentoAspirante = ({ aspirante, onCorrected }) => {
   const [busy, setBusy] = useState(false);
 
+  const runRegeneration = async () => {
+    showLoading('Regenerando documentos...');
+    let failure = null;
+    try {
+      await invokeCorrection({ mode: 'regenerar', inscripcion_id: aspirante.id });
+    } catch (error) {
+      failure = error;
+    }
+    Swal.close();
+
+    if (failure) {
+      await showErrorAlert({ title: 'No se pudo generar', text: failure.message });
+      return false;
+    }
+
+    await showSuccessAlert({
+      title: 'Documentos regenerados',
+      text: 'Los documentos automáticos se generaron con el número corregido.',
+    });
+    return true;
+  };
+
   const retryRegeneration = async () => {
     for (;;) {
       const retry = await showConfirmAlert({
@@ -54,16 +75,7 @@ const CorregirDocumentoAspirante = ({ aspirante, onCorrected }) => {
         cancelButtonText: 'Más tarde',
       });
       if (!retry) return false;
-
-      showLoading('Regenerando documentos...');
-      try {
-        await invokeCorrection({ mode: 'regenerar', inscripcion_id: aspirante.id });
-        Swal.close();
-        return true;
-      } catch (error) {
-        Swal.close();
-        await showErrorAlert({ title: 'Aún no se pudo generar', text: error.message });
-      }
+      if (await runRegeneration()) return true;
     }
   };
 
@@ -138,7 +150,14 @@ const CorregirDocumentoAspirante = ({ aspirante, onCorrected }) => {
       }
 
       if (result.sin_cambios) {
-        await showInfoAlert({ title: 'Sin cambios', text: 'El documento y los archivos ya estaban actualizados.' });
+        const regenerate = await showConfirmAlert({
+          title: 'Archivos ya actualizados',
+          text: 'El documento y los archivos ya estaban actualizados. ¿Quieres regenerar los documentos automáticos con este número? Se creará una versión nueva.',
+          confirmButtonText: 'Regenerar',
+          cancelButtonText: 'No',
+        });
+        if (regenerate && !(await runRegeneration())) await retryRegeneration();
+        onCorrected?.();
         return;
       }
 

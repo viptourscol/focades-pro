@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { getSafeSession, supabase } from '../lib/supabase';
 import { getPublicUrlR2 } from '../lib/r2-secure';
 import ReviewChecklist from './ReviewChecklist';
+import CorregirDocumentoAspirante from './CorregirDocumentoAspirante';
 import { 
   X, Copy, Cpu, User, Home, 
   GraduationCap, FileText, CheckCircle, 
@@ -64,6 +65,7 @@ const buildAttachedDocuments = (aspirante, historialDocs = []) => {
       ? historialDocs.map((item) => [
           item?.tipo_documento || 'documento',
           item?.storage_path,
+          item?.version,
         ])
       : []),
     ['firma_digital', aspirante?.firma_url],
@@ -71,13 +73,13 @@ const buildAttachedDocuments = (aspirante, historialDocs = []) => {
   ];
 
   const dedup = new Map();
-  entries.forEach(([key, rawPath]) => {
+  entries.forEach(([key, rawPath, version]) => {
     const path = String(rawPath || '').trim();
     if (!path) return;
     if (dedup.has(path)) return;
     dedup.set(path, {
       key,
-      label: getDocumentLabel(key),
+      label: `${getDocumentLabel(key)}${Number(version) > 1 ? ` (v${Number(version)})` : ''}`,
       path,
     });
   });
@@ -144,7 +146,7 @@ const getFlowHintMessage = ({ etapa, certRequired, hasCertUploaded, permiteReemp
   return 'Sin alertas de flujo. Ajusta etapa y banderas según avance del proceso.';
 };
 
-const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, onPromote, adminUsers = [], assignReviewer, assignmentDraft, setAssignmentDraft, assigningId }) => {
+const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, onPromote, onDocumentoCorregido, adminUsers = [], assignReviewer, assignmentDraft, setAssignmentDraft, assigningId }) => {
     // Para asignar revisor
     const [showAssign, setShowAssign] = useState(false);
     const isAdmin = true; // Aquí podrías poner lógica real de permisos si la tienes
@@ -232,7 +234,7 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
 
       const { data, error } = await supabase
         .from('inscripciones_documentos')
-        .select('tipo_documento,storage_path')
+        .select('tipo_documento,storage_path,version')
         .eq('inscripcion_id', aspirante.id)
         .not('storage_path', 'is', null)
         .limit(200);
@@ -612,6 +614,9 @@ const AspiranteModal = ({ aspirante, onClose, onUpdateStatus, onUpdateWorkflow, 
               >
                 <Copy size={12} /> {radicadoCopied ? 'Copiado' : 'Copiar'}
               </button>
+              {isAdmin && !aspirante.promovido_a_beneficiario && (
+                <CorregirDocumentoAspirante aspirante={aspirante} onCorrected={onDocumentoCorregido} />
+              )}
             </div>
 
             {/* Título */}

@@ -6,6 +6,7 @@ import { TEMPLATES } from './templates.ts';
 import { renderWithHtml } from './renderers/html-renderer.ts';
 import { renderWithPdfLib } from './renderers/pdf-lib-renderer.ts';
 import { encodeBytesToBase64, generatePdfDocumentsWithGas, resolveTemplateId } from '../_shared/gas-docs.ts';
+import { downloadSignature } from '../_shared/signature-download.ts';
 import { AwsClient } from 'https://esm.sh/aws4fetch@1';
 
 const corsHeaders = {
@@ -21,6 +22,7 @@ type Payload = {
   firma_path: string;
   documento_persona: string;
   form_data: Record<string, unknown>;
+  regenerar?: boolean;
 };
 
 class HttpError extends Error {
@@ -384,6 +386,7 @@ Deno.serve(async (req) => {
 
     const payload = (await req.json()) as Payload;
     const { inscripcion_id, radicado, firma_path, documento_persona, form_data } = payload;
+    const regenerar = payload.regenerar === true;
 
     if (!inscripcion_id || !radicado || !firma_path) {
       throw new Error('Parámetros obligatorios faltantes para generar documentos.');
@@ -406,16 +409,30 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { data: signatureData, error: signatureError } = await admin.storage
-      .from('soportes')
-      .download(firma_path);
-
-    if (signatureError || !signatureData) {
-      throw new Error(`No se pudo descargar la firma desde Storage: ${signatureError?.message || 'sin archivo'}`);
+    if (regenerar) {
+      if (!jwt) {
+        throw new HttpError('No se recibió token de autenticación.', 401);
+      }
+      const {
+        data: { user: regenerationUser },
+        error: regenerationUserError,
+      } = await admin.auth.getUser(jwt);
+      if (regenerationUserError || !regenerationUser) {
+        throw new HttpError('Token inválido o sesión no vigente.', 401);
+      }
+      const { data: isAdmin } = await admin.rpc('is_portal_admin', { p_user_id: regenerationUser.id });
+      if (isAdmin !== true) {
+        throw new HttpError('Solo administradores pueden regenerar documentos.', 403);
+      }
     }
 
-    const signatureBytes = new Uint8Array(await signatureData.arrayBuffer());
-    const signatureMimeType = String(signatureData.type || '').trim() || 'image/png';
+    let signatureBytes: Uint8Array;
+    let signatureMimeType: string;
+    try {
+      ({ bytes: signatureBytes, mimeType: signatureMimeType } = await downloadSignature(admin, firma_path));
+    } catch (signatureError) {
+      throw new HttpError(signatureError instanceof Error ? signatureError.message : 'No se pudo descargar la firma.', 400);
+    }
     const logoBytes = await loadHeaderLogoBytes(admin);
     if (!logoBytes) {
       console.warn('No se pudo cargar logo para encabezado (logoBytes=null).');
@@ -451,8 +468,28 @@ Deno.serve(async (req) => {
     }> = [];
 
     const templatesToGenerate = [];
+    const templateVersions = new Map<string, number>();
 
     for (const template of TEMPLATES) {
+      if (regenerar) {
+        const { data: latestDoc, error: latestDocError } = await admin
+          .from('inscripciones_documentos')
+          .select('version')
+          .eq('inscripcion_id', inscripcion_id)
+          .eq('tipo_documento', template.tipo)
+          .order('version', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (latestDocError) {
+          throw new Error(`No se pudo consultar la versión de ${template.tipo}: ${latestDocError.message}`);
+        }
+
+        templateVersions.set(template.tipo, Number(latestDoc?.version || 0) + 1);
+        templatesToGenerate.push(template);
+        continue;
+      }
+
       const { data: existingDoc, error: existingDocError } = await admin
         .from('inscripciones_documentos')
         .select('tipo_documento,storage_path,nombre_original,mime_type,size_bytes')
@@ -576,7 +613,10 @@ Deno.serve(async (req) => {
         throw new Error(`No se recibió el PDF del documento ${template.tipo} desde el proveedor configurado.`);
       }
 
-      const fileName = generatedDoc.fileName || `${template.tipo}.pdf`;
+      const documentVersion = templateVersions.get(template.tipo) || 1;
+      const fileName = documentVersion > 1
+        ? `${template.tipo}-v${documentVersion}.pdf`
+        : generatedDoc.fileName || `${template.tipo}.pdf`;
       const path = `soportes/expedientes/${cleanDocumento}/${cleanRadicado}/generados/${fileName}`;
 
       // Convertir PDF bytes a Uint8Array para R2
@@ -604,7 +644,7 @@ Deno.serve(async (req) => {
         nombre_original: fileName,
         mime_type: generatedDoc.mimeType || 'application/pdf',
         size_bytes: generatedDoc.pdfBytes.byteLength,
-        version: 1,
+        version: documentVersion,
       });
 
       if (insertDocError) {
@@ -612,12 +652,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    const emailResult = await sendRegistrationConfirmationEmail({
-      to: aspiranteEmail,
-      nombreCompleto: aspiranteNombre,
-      modalidad: aspiranteModalidad,
-      radicado,
-    });
+    const emailResult = regenerar
+      ? { sent: false, reason: 'Correo omitido en regeneración de documentos.' }
+      : await sendRegistrationConfirmationEmail({
+          to: aspiranteEmail,
+          nombreCompleto: aspiranteNombre,
+          modalidad: aspiranteModalidad,
+          radicado,
+        });
 
     return new Response(
       JSON.stringify({

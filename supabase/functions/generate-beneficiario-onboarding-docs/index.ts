@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 import { encodeBytesToBase64, generatePdfDocumentsWithGas, resolveTemplateId } from '../_shared/gas-docs.ts';
+import { downloadSignature } from '../_shared/signature-download.ts';
 import { AwsClient } from 'https://esm.sh/aws4fetch@1';
 
 const corsHeaders = {
@@ -146,16 +147,13 @@ Deno.serve(async (req) => {
       throw new HttpError('No tienes permiso para generar documentos de este beneficiario.', 403);
     }
 
-    const { data: signatureData, error: signatureError } = await admin.storage
-      .from('soportes')
-      .download(firmaPath);
-
-    if (signatureError || !signatureData) {
-      throw new HttpError(`No se pudo descargar la firma desde Storage: ${signatureError?.message || 'sin archivo'}`, 400);
+    let signatureBytes: Uint8Array;
+    let signatureMimeType: string;
+    try {
+      ({ bytes: signatureBytes, mimeType: signatureMimeType } = await downloadSignature(admin, firmaPath));
+    } catch (signatureError) {
+      throw new HttpError(signatureError instanceof Error ? signatureError.message : 'No se pudo descargar la firma.', 400);
     }
-
-    const signatureBytes = new Uint8Array(await signatureData.arrayBuffer());
-    const signatureMimeType = String(signatureData.type || '').trim() || 'image/png';
     const nowIso = new Date().toISOString();
     const signatureHash = await sha256(
       JSON.stringify({

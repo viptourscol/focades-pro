@@ -42,3 +42,6 @@ verify_jwt = false
 
 [functions.delete-from-r2]
 verify_jwt = false
+
+[functions.admin-corregir-documento-aspirante]
+verify_jwt = false

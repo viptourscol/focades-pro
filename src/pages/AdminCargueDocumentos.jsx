@@ -31,7 +31,8 @@ const AdminCargueDocumentos = () => {
   const [userRole, setUserRole] = useState(null)
   const [documentoSeleccionado, setDocumentoSeleccionado] = useState(null)
   const [documentoDetalle, setDocumentoDetalle] = useState(null)
-  const [convocatoriaId, setConvocatoriaId] = useState(1)
+  const [convocatorias, setConvocatorias] = useState([])
+  const [convocatoriaId, setConvocatoriaId] = useState('')
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState(null)
   const [activeTab, setActiveTab] = useState('editor') // 'editor' | 'validaciones' | 'historial'
@@ -64,6 +65,15 @@ const AdminCargueDocumentos = () => {
         return
       }
       setUserRole(role)
+
+      const { data: listaConvocatorias, error: convError } = await supabase
+        .from('convocatorias')
+        .select('id, nombre, activa')
+        .order('nombre')
+      if (convError) throw convError
+      setConvocatorias(listaConvocatorias || [])
+      const activa = (listaConvocatorias || []).find((c) => c.activa) || listaConvocatorias?.[0]
+      if (activa) setConvocatoriaId(activa.id)
 
       // Cargar estadísticas
       // En caso real, esto vendría de una función SQL o Edge Function
@@ -133,12 +143,37 @@ const AdminCargueDocumentos = () => {
             </div>
 
             {/* Main content - Lista de documentos */}
-            <div className="lg:col-span-2">
-              <DocumentosCargueIndex
-                onSelectDocumento={setDocumentoSeleccionado}
-                userRole={userRole}
-                convocatoriaId={convocatoriaId}
-              />
+            <div className="lg:col-span-2 space-y-4">
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <label htmlFor="select-convocatoria" className="block text-xs font-semibold text-gray-600 mb-2">
+                  CONVOCATORIA
+                </label>
+                <select
+                  id="select-convocatoria"
+                  value={convocatoriaId}
+                  onChange={(e) => setConvocatoriaId(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Seleccionar convocatoria...</option>
+                  {convocatorias.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nombre}{c.activa ? '' : ' (inactiva)'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {convocatoriaId ? (
+                <DocumentosCargueIndex
+                  onSelectDocumento={setDocumentoSeleccionado}
+                  userRole={userRole}
+                  convocatoriaId={convocatoriaId}
+                />
+              ) : (
+                <p className="text-sm text-gray-600 bg-white p-4 rounded-lg border border-gray-200">
+                  Selecciona una convocatoria para ver sus documentos.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -255,7 +290,8 @@ const AdminCargueDocumentos = () => {
                 {activeTab === 'editor' && (
                   <EditorDocumentoCargue
                     documentoId={documentoSeleccionado}
-                    tipoDocumento={documentoSeleccionado?.split('-')[1] || 'terceros'}
+                    tipoDocumento={documentoDetalle?.tipo_documento || documentoSeleccionado?.split('-')[1] || 'terceros'}
+                    userRole={userRole}
                     onGuardado={(data) => {
                       console.log('Documento guardado:', data)
                     }}

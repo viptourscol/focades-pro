@@ -130,7 +130,7 @@ SELECT
 FROM public.portal_valores_cargue v
 INNER JOIN public.portal_documentos_cargue d ON v.documento_id = d.id
 GROUP BY v.identificacion, v.nombre_beneficiario
-ORDER BY v.valor_neto_total DESC;
+ORDER BY SUM(v.valor_neto) DESC;
 
 -- ============================================================================
 -- 7. View: Análisis de validaciones

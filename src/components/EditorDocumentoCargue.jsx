@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { AlertCircle, CheckCircle, X, Plus, Trash2 } from 'lucide-react'
 
-const EditorDocumentoCargue = ({ documentoId, tipoDocumento, onGuardado, onCancelado }) => {
+const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardado, onCancelado }) => {
   const [filas, setFilas] = useState([])
   const [cargando, setCargando] = useState(false)
+  const [precargando, setPrecargando] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState(null)
   const [exito, setExito] = useState(null)
@@ -57,21 +58,59 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, onGuardado, onCance
     cargarDatos()
   }, [documentoId, tipoDocumento])
 
+  const esDocumentoExistente = Boolean(documentoId) && !String(documentoId).startsWith('nuevo')
+  const puedePrecargar = tipoDocumento === 'terceros' && userRole === 'admin_educacion' && esDocumentoExistente
+
+  const filaVacia = () => ({ id: `temp-${Date.now()}`, ...campos.reduce((acc, c) => ({ ...acc, [c.name]: '' }), {}) })
+
   const cargarDatos = async () => {
-    if (documentoId === 'nuevo') {
-      setFilas([{ id: `temp-${Date.now()}`, ...campos.reduce((acc, c) => ({ ...acc, [c.name]: '' }), {}) }])
+    if (!esDocumentoExistente) {
+      setFilas([filaVacia()])
       return
     }
 
     try {
       setCargando(true)
-      // Aquí iría la carga de datos desde la BD
-      // Por ahora, inicializamos con una fila vacía
-      setFilas([{ id: `temp-${Date.now()}`, ...campos.reduce((acc, c) => ({ ...acc, [c.name]: '' }), {}) }])
+      const { data, error: errorCarga } = await supabase
+        .from('portal_valores_cargue')
+        .select('id, identificacion, nombre_beneficiario')
+        .eq('documento_id', documentoId)
+        .order('nombre_beneficiario')
+      if (errorCarga) throw errorCarga
+
+      if (tipoDocumento === 'terceros' && data.length > 0) {
+        setFilas(
+          data.map((r) => ({
+            ...filaVacia(),
+            id: String(r.id),
+            cc_nit: r.identificacion,
+            nombre_razon_social: r.nombre_beneficiario
+          }))
+        )
+      } else {
+        setFilas([filaVacia()])
+      }
     } catch (err) {
       setError(err.message)
     } finally {
       setCargando(false)
+    }
+  }
+
+  const precargarDesdeAspirantes = async () => {
+    try {
+      setPrecargando(true)
+      setError(null)
+      const { data, error: errorRpc } = await supabase.rpc('precargar_terceros_convocatoria', {
+        p_documento_id: documentoId
+      })
+      if (errorRpc) throw errorRpc
+      setExito(`Precarga completada: ${data} tercero(s) nuevo(s) agregado(s)`)
+      await cargarDatos()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setPrecargando(false)
     }
   }
 
@@ -261,13 +300,24 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, onGuardado, onCance
 
       {/* Botones de acción */}
       <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-        <button
-          onClick={agregarFila}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition font-medium text-sm"
-        >
-          <Plus size={18} />
-          Agregar Fila
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={agregarFila}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition font-medium text-sm"
+          >
+            <Plus size={18} />
+            Agregar Fila
+          </button>
+          {puedePrecargar && (
+            <button
+              onClick={precargarDesdeAspirantes}
+              disabled={precargando}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 border border-emerald-600 text-emerald-700 rounded-lg hover:bg-emerald-50 transition font-medium text-sm disabled:opacity-50"
+            >
+              {precargando ? 'Precargando...' : 'Precargar desde aspirantes'}
+            </button>
+          )}
+        </div>
 
         <div className="flex gap-3">
           <button

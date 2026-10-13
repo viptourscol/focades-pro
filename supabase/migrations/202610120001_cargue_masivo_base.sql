@@ -4,6 +4,21 @@
 -- PURPOSE: Create tables for multi-departmental bulk upload workflow system
 -- ============================================================================
 
+-- Recrea tablas de documentos (estaban vacias). Aborta si hay datos.
+DO $$
+BEGIN
+  IF to_regclass('public.portal_documentos_cargue') IS NOT NULL
+     AND (SELECT count(*) FROM public.portal_documentos_cargue) > 0 THEN
+    RAISE EXCEPTION 'portal_documentos_cargue tiene datos; migracion abortada';
+  END IF;
+END $$;
+
+DROP TABLE IF EXISTS public.portal_cargue_validaciones CASCADE;
+DROP TABLE IF EXISTS public.portal_valores_cargue CASCADE;
+DROP TABLE IF EXISTS public.portal_cargue_beneficiarios_terceros CASCADE;
+DROP TABLE IF EXISTS public.portal_transiciones_documento CASCADE;
+DROP TABLE IF EXISTS public.portal_documentos_cargue CASCADE;
+
 -- ============================================================================
 -- 1. TABLA: portal_plantillas_cargue
 -- Metadata para cada tipo de plantilla (TERCEROS, RP, OP, CONTABILIDAD, SIAFE)
@@ -34,8 +49,8 @@ CREATE TABLE IF NOT EXISTS public.portal_plantillas_cargue (
   CONSTRAINT validar_orden_secuencia CHECK (orden_secuencia > 0 AND orden_secuencia <= 5)
 );
 
-CREATE INDEX idx_plantillas_tipo ON public.portal_plantillas_cargue(tipo_documento);
-CREATE INDEX idx_plantillas_orden ON public.portal_plantillas_cargue(orden_secuencia);
+CREATE INDEX IF NOT EXISTS idx_plantillas_tipo ON public.portal_plantillas_cargue(tipo_documento);
+CREATE INDEX IF NOT EXISTS idx_plantillas_orden ON public.portal_plantillas_cargue(orden_secuencia);
 
 -- ============================================================================
 -- 2. TABLA: portal_documentos_cargue
@@ -44,7 +59,7 @@ CREATE INDEX idx_plantillas_orden ON public.portal_plantillas_cargue(orden_secue
 
 CREATE TABLE IF NOT EXISTS public.portal_documentos_cargue (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  convocatoria_id INTEGER NOT NULL REFERENCES public.portal_convocatorias(id) ON DELETE CASCADE,
+  convocatoria_id UUID NOT NULL REFERENCES public.convocatorias(id) ON DELETE CASCADE,
   tipo_documento VARCHAR(50) NOT NULL,
   
   -- Estado del documento en el flujo
@@ -84,7 +99,7 @@ CREATE TABLE IF NOT EXISTS public.portal_documentos_cargue (
 );
 
 CREATE INDEX idx_documentos_convocatoria ON public.portal_documentos_cargue(convocatoria_id);
-CREATE INDEX idx_documentos_tipo ON public.portal_documentos_cargue(tipo_documento);
+CREATE INDEX idx_cargue_documentos_tipo ON public.portal_documentos_cargue(tipo_documento);
 CREATE INDEX idx_documentos_estado ON public.portal_documentos_cargue(estado);
 CREATE INDEX idx_documentos_creado_por ON public.portal_documentos_cargue(creado_por);
 CREATE INDEX idx_documentos_creado_en ON public.portal_documentos_cargue(creado_en);
@@ -130,7 +145,7 @@ CREATE INDEX idx_transiciones_estado_nuevo ON public.portal_transiciones_documen
 CREATE TABLE IF NOT EXISTS public.portal_cargue_beneficiarios_terceros (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   documento_cargue_id UUID NOT NULL REFERENCES public.portal_documentos_cargue(id) ON DELETE CASCADE,
-  beneficiario_id UUID NOT NULL REFERENCES public.portal_beneficiarios(id) ON DELETE CASCADE,
+  beneficiario_id BIGINT NOT NULL REFERENCES public.portal_beneficiarios(id) ON DELETE CASCADE,
   
   -- Identificación en el documento
   numero_identificacion VARCHAR(15) NOT NULL,

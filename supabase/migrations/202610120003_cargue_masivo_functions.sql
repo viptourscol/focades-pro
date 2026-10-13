@@ -66,7 +66,7 @@ $$;
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.fn_crear_documento_cargue(
-  p_convocatoria_id INTEGER,
+  p_convocatoria_id UUID,
   p_tipo_documento VARCHAR(50),
   p_cantidad_registros INTEGER DEFAULT 0
 )
@@ -114,7 +114,7 @@ CREATE OR REPLACE FUNCTION public.fn_obtener_documento_cargue(
 )
 RETURNS TABLE (
   id UUID,
-  convocatoria_id INTEGER,
+  convocatoria_id UUID,
   tipo_documento VARCHAR,
   estado VARCHAR,
   version INTEGER,
@@ -146,11 +146,11 @@ BEGIN
     d.aprobado_por,
     d.aprobado_en,
     (
-      auth.jwt() ->> 'role' = 'admin_educacion'
-      OR (auth.jwt() ->> 'role' = 'admin_presupuesto' AND d.tipo_documento IN ('terceros', 'rp'))
-      OR (auth.jwt() ->> 'role' = 'admin_contabilidad' AND d.tipo_documento IN ('op', 'contabilidad'))
-      OR (auth.jwt() ->> 'role' = 'admin_pagos')
-      OR (auth.jwt() ->> 'role' = 'admin_visualizacion')
+      public.fn_tiene_rol('admin_educacion')
+      OR (public.fn_tiene_rol('admin_presupuesto') AND d.tipo_documento IN ('terceros', 'rp'))
+      OR (public.fn_tiene_rol('admin_contabilidad') AND d.tipo_documento IN ('op', 'contabilidad'))
+      OR public.fn_tiene_rol('admin_pagos')
+      OR public.fn_tiene_rol('admin_visualizacion')
     ) as acceso_permitido
   FROM public.portal_documentos_cargue d
   WHERE d.id = p_documento_id;
@@ -305,7 +305,7 @@ $$;
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.fn_resumen_cargue_convocatoria(
-  p_convocatoria_id INTEGER
+  p_convocatoria_id UUID
 )
 RETURNS TABLE (
   tipo_documento VARCHAR,

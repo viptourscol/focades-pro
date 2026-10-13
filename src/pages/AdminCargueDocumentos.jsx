@@ -68,12 +68,11 @@ const AdminCargueDocumentos = () => {
 
       const { data: listaConvocatorias, error: convError } = await supabase
         .from('convocatorias')
-        .select('id, nombre, activa')
-        .order('nombre')
+        .select('id, nombre, anio')
+        .order('anio', { ascending: false })
       if (convError) throw convError
       setConvocatorias(listaConvocatorias || [])
-      const activa = (listaConvocatorias || []).find((c) => c.activa) || listaConvocatorias?.[0]
-      if (activa) setConvocatoriaId(activa.id)
+      if (listaConvocatorias?.[0]) setConvocatoriaId(listaConvocatorias[0].id)
 
       // Cargar estadísticas
       // En caso real, esto vendría de una función SQL o Edge Function
@@ -157,7 +156,7 @@ const AdminCargueDocumentos = () => {
                   <option value="">Seleccionar convocatoria...</option>
                   {convocatorias.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.nombre}{c.activa ? '' : ' (inactiva)'}
+                      {c.nombre}
                     </option>
                   ))}
                 </select>

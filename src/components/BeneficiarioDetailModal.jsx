@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Save, User, GraduationCap, CreditCard, Shield, AlertCircle, FileText, Edit2, Check, Eye, ChevronLeft, ChevronRight, Printer, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { getPublicUrlR2 } from '../lib/r2-secure';
 import { showSuccessAlert, showErrorAlert } from '../lib/alerts';
 
 const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
@@ -138,28 +139,11 @@ const BeneficiarioDetailModal = ({ beneficiario, isOpen, onClose, onSave }) => {
       return path;
     }
 
-    // Limpiar el path: remover prefijo del bucket si existe
-    // storage_path puede venir como "soportes/ruta/archivo.pdf" pero .from('soportes') 
-    // ya especifica el bucket, así que necesitamos solo "ruta/archivo.pdf"
-    let cleanPath = path;
-    const bucketPrefix = 'soportes/';
-    if (cleanPath.startsWith(bucketPrefix)) {
-      cleanPath = cleanPath.substring(bucketPrefix.length);
-    }
+    // Generar presigned URL (válida 24 horas, imposible falsificar)
+    const url = await getPublicUrlR2(path);
+    if (url) return url;
 
-    const { data: signedData, error: signedError } = await supabase.storage
-      .from('soportes')
-      .createSignedUrl(cleanPath, 60 * 30);
-
-    if (!signedError && signedData?.signedUrl) {
-      return signedData.signedUrl;
-    }
-
-    const publicData = supabase.storage.from('soportes').getPublicUrl(cleanPath);
-    const publicUrl = String(publicData?.data?.publicUrl || '').trim();
-    if (publicUrl) return publicUrl;
-
-    throw new Error(signedError?.message || 'No se pudo obtener una URL para visualizar el documento.');
+    throw new Error('No se pudo obtener una URL para visualizar el documento.');
   };
 
   const handleOpenDocument = async (doc) => {

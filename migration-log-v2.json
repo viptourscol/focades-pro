@@ -1,0 +1,43 @@
+{
+  "startTime": "2026-09-29T21:14:40.149Z",
+  "endTime": "2026-09-29T21:14:48.010Z",
+  "summary": {
+    "totalFiles": 3,
+    "totalMigrated": 0,
+    "totalFailed": 3,
+    "errors": [
+      {
+        "file": "test-1789501929372.pdf",
+        "error": "Access Denied"
+      },
+      {
+        "file": "test-1789501986054.pdf",
+        "error": "Access Denied"
+      },
+      {
+        "file": "expedientes/.emptyFolderPlaceholder",
+        "error": "Access Denied"
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": "test-1789501929372.pdf",
+      "status": "FAILED",
+      "bucket": "soportes",
+      "reason": "Access Denied"
+    },
+    {
+      "path": "test-1789501986054.pdf",
+      "status": "FAILED",
+      "bucket": "soportes",
+      "reason": "Access Denied"
+    },
+    {
+      "path": "expedientes/.emptyFolderPlaceholder",
+      "status": "FAILED",
+      "bucket": "soportes",
+      "reason": "Access Denied"
+    }
+  ]
+}

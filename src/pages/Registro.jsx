@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import SignaturePad from 'signature_pad';
 import { supabase } from '../lib/supabase';
+import { uploadToR2 } from '../lib/r2-secure';
 import {
   showConfirmAlert,
   showErrorAlert,
@@ -2025,12 +2026,10 @@ const Registro = () => {
             fileName: file.name,
           });
 
-    const { error: uploadError } = await supabase.storage
-      .from('soportes')
-      .upload(path, file, { upsert: true, contentType: 'application/pdf' });
+    const { error: uploadError } = await uploadToR2(file, path) ? { error: null } : { error: { message: 'No se pudo subir el archivo' } };
 
-    if (uploadError) {
-      throw new Error(`No se pudo subir el documento: ${uploadError.message}`);
+    if (uploadError?.error) {
+      throw new Error(`No se pudo subir el documento: ${uploadError.error.message}`);
     }
 
     if (existingDocRow?.id) {
@@ -2365,12 +2364,9 @@ const Registro = () => {
         fileName: file.name,
       });
 
-      const { error } = await supabase.storage
-        .from('soportes')
-        .upload(path, file, { upsert: false, contentType: 'application/pdf' });
-
-      if (error) {
-        throw new Error(`Error subiendo ${key}: ${error.message}`);
+      const uploadedUrl = await uploadToR2(file, path);
+      if (!uploadedUrl) {
+        throw new Error(`Error subiendo ${key}: No se pudo subir el archivo`);
       }
 
       uploaded[key] = path;
@@ -2440,12 +2436,9 @@ const Registro = () => {
       }
 
       const firmaPath = `expedientes/${sanitizePathSegment(documentoPersona) || 'sin-documento'}/${sanitizePathSegment(radicado)}/firma/${Date.now()}-firma.png`;
-      const { error: firmaError } = await supabase.storage.from('soportes').upload(firmaPath, firmaBlob, {
-        upsert: false,
-        contentType: 'image/png',
-      });
-
-      if (firmaError) {
+      try {
+        await uploadToR2(firmaBlob, firmaPath);
+      } catch (firmaError) {
         throw new Error(`Error subiendo firma: ${firmaError.message}`);
       }
 

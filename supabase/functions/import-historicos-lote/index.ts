@@ -1,4 +1,5 @@
 ﻿import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { AwsClient } from 'https://esm.sh/aws4fetch@1'
 
 const privateKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
@@ -31,6 +32,41 @@ function decodeBase64ToUint8Array(base64: string): Uint8Array {
   }
   return bytes
 }
+
+// ===== R2 Helper Functions (inline) =====
+function getR2Config() {
+  const accessKeyId = Deno.env.get('R2_ACCESS_KEY_ID')
+  const secretAccessKey = Deno.env.get('R2_SECRET_ACCESS_KEY')
+  const endpoint = Deno.env.get('R2_ENDPOINT')
+  const bucket = Deno.env.get('R2_BUCKET')
+  if (!accessKeyId || !secretAccessKey || !endpoint || !bucket) {
+    throw new Error('Missing R2 environment variables')
+  }
+  return { accessKeyId, secretAccessKey, endpoint, bucket }
+}
+
+async function uploadToR2(fileBuffer: Uint8Array, filePath: string, contentType: string = 'application/pdf'): Promise<string> {
+  const config = getR2Config()
+  const aws = new AwsClient({
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey,
+    region: 'auto',
+    service: 's3',
+  })
+  const r2Url = `${config.endpoint}/${config.bucket}/${filePath}`
+  const uploadRequest = new Request(r2Url, {
+    method: 'PUT',
+    headers: { 'Content-Type': contentType },
+    body: fileBuffer,
+  })
+  const signedRequest = await aws.sign(uploadRequest, { aws4request: true })
+  const uploadResponse = await fetch(signedRequest)
+  if (!uploadResponse.ok) {
+    throw new Error(`Failed to upload to R2: ${uploadResponse.status} ${uploadResponse.statusText}`)
+  }
+  return filePath
+}
+// ===== Fin de R2 Helper Functions =====
 
 interface BeneficiarioHistorico {
   nombre: string
@@ -427,20 +463,20 @@ export async function handleImportHistoricosLote(req: Request) {
 
       for (const doc of beneficiario.documentos) {
         try {
-          // Si viene documento en base64, guardarlo en storage
+          // Si viene documento en base64, guardarlo en R2
           if (doc.contenido_base64) {
             const fileName = `${doc.tipo}-${Date.now()}`
-            const storageDir = `beneficiarios_historicos/${beneficiarioInsertado.id}`
+            const storagePath = `soportes/beneficiarios_historicos/${beneficiarioInsertado.id}/${fileName}`
 
-            const { error: storageError } = await supabase.storage
-              .from('soportes')
-              .upload(`${storageDir}/${fileName}`, decodeBase64ToUint8Array(doc.contenido_base64))
-
-            if (storageError) {
+            try {
+              const pdfBuffer = decodeBase64ToUint8Array(doc.contenido_base64)
+              await uploadToR2(pdfBuffer, storagePath, 'application/pdf')
+              console.log(`✓ Documento ${doc.tipo} subido a R2: ${storagePath}`)
+            } catch (uploadError) {
               documentosConError.push({
                 beneficiario_cedula: beneficiario.cedula,
                 documento_titulo: doc.titulo,
-                error: storageError.message
+                error: uploadError.message
               })
               continue
             }

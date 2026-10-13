@@ -13,6 +13,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { getCondonacionUploadIdentity } from '../lib/portalAuth';
+import { uploadToR2 } from '../lib/r2-secure';
 import { loadActiveCertificateSignatures, openPazYSalvoPrintView } from '../lib/certificadoPazYSalvo';
 import { showWarningAlert } from '../lib/alerts';
 
@@ -180,6 +182,7 @@ const BeneficiarioCondonacion = () => {
   }, [payload]);
 
   const finalActivationSemester = paymentCapForLevel(beneficiarioProfile?.nivel_formacion);
+  const rejectedDocuments = FINAL_DOC_TYPES.filter((doc) => docsByType.get(doc.key)?.estado_validacion === 'rechazado');
   const currentSemester = Number(beneficiarioProfile?.semestre_actual || 0) || null;
   const hasFinalProcess = Boolean(payload?.condonacion_final) || docsByType.size > 0;
   const isGraduateState = String(beneficiarioProfile?.estado_beneficiario || '').toLowerCase() === 'egresado';
@@ -260,35 +263,28 @@ const BeneficiarioCondonacion = () => {
     const safeBaseName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const storagePath = `beneficiarios/${payload.beneficiario_id}/condonacion-final/${docType}/${Date.now()}-${safeBaseName}`;
 
-    const { error: uploadError } = await supabase.storage.from('soportes').upload(storagePath, file, {
-      cacheControl: '3600',
-      upsert: false,
-      contentType: 'application/pdf',
-    });
-
-    if (uploadError) {
+    let uploaded = false;
+    try {
+      const identity = await getCondonacionUploadIdentity(payload.beneficiario_id);
+      await uploadToR2(file, storagePath);
+      uploaded = true;
+      const { data, error: rpcError } = await supabase.rpc(identity.rpc, {
+        ...identity.params,
+        p_tipo_documento: docType,
+        p_storage_path: storagePath,
+        p_nombre_original: file.name,
+        p_mime_type: file.type || null,
+        p_size_bytes: file.size,
+      });
+      if (rpcError) throw rpcError;
+      if (!data?.ok) throw new Error('No se confirmo el registro del documento.');
+      setSelectedFiles((prev) => ({ ...prev, [docType]: null }));
+      await loadData();
+    } catch (uploadError) {
+      setError(`${uploaded ? 'El archivo se subio, pero no se pudo registrar. ' : ''}${uploadError.message || 'No se pudo cargar el documento.'}`);
+    } finally {
       setUploadingDocType('');
-      setError(uploadError.message || 'No se pudo cargar el documento al almacenamiento.');
-      return;
     }
-
-    const { error: rpcError } = await supabase.rpc('beneficiario_subir_documento_condonacion_final', {
-      p_tipo_documento: docType,
-      p_storage_path: storagePath,
-      p_nombre_original: file.name,
-      p_mime_type: file.type || null,
-      p_size_bytes: file.size,
-    });
-
-    setUploadingDocType('');
-
-    if (rpcError) {
-      setError(rpcError.message || 'El documento se subio, pero no se pudo registrar en la base de datos.');
-      return;
-    }
-
-    setSelectedFiles((prev) => ({ ...prev, [docType]: null }));
-    await loadData();
   };
 
   if (loading) {
@@ -556,6 +552,23 @@ const BeneficiarioCondonacion = () => {
             </p>
           ) : null}
 
+          {payload?.condonacion_final?.observacion_admin && (
+            <div role="status" className={`mt-3 rounded-xl border px-4 py-3 text-sm ${payload.condonacion_final.estado === 'rechazada_admin' ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>
+              <p className="font-bold">{payload.condonacion_final.estado === 'rechazada_admin' ? 'Solicitud rechazada' : 'Última observación administrativa'}</p>
+              <p className="mt-1 whitespace-pre-wrap break-words">{payload.condonacion_final.observacion_admin}</p>
+            </div>
+          )}
+
+          {rejectedDocuments.length > 0 && (
+            <div role="status" className="mt-3 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="min-w-0">
+                <p className="font-bold">Documentos que requieren corrección</p>
+                <p className="mt-1 break-words">{rejectedDocuments.map((doc) => doc.label).join(', ')}</p>
+              </div>
+            </div>
+          )}
+
           {/* Barra de progreso de documentos */}
           {isFinalEnabled && (
             <div className="mt-4 animate-fade-in">
@@ -578,13 +591,17 @@ const BeneficiarioCondonacion = () => {
           <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
             {FINAL_DOC_TYPES.map((doc, i) => {
               const uploaded = docsByType.get(doc.key);
+              const rejected = uploaded?.estado_validacion === 'rechazado';
+              const approved = uploaded?.estado_validacion === 'aprobado';
               const selectedFile = selectedFiles[doc.key];
               const isUploading = uploadingDocType === doc.key;
               return (
                 <div
                   key={doc.key}
                   className={`animate-slide-up rounded-xl border p-4 transition-all duration-200 ${
-                    uploaded
+                    rejected
+                      ? 'border-rose-200 bg-rose-50/60'
+                      : approved
                       ? 'border-emerald-200 bg-emerald-50/60'
                       : !isFinalEnabled
                         ? 'border-slate-200 bg-slate-50'
@@ -594,9 +611,11 @@ const BeneficiarioCondonacion = () => {
                 >
                   <div className="flex items-start gap-2.5">
                     <div
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${uploaded ? 'bg-emerald-100' : 'bg-slate-100'}`}
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${rejected ? 'bg-rose-100' : approved ? 'bg-emerald-100' : 'bg-slate-100'}`}
                     >
-                      {uploaded ? (
+                      {rejected ? (
+                        <XCircle className="h-4 w-4 text-rose-600" />
+                      ) : approved ? (
                         <FileCheck2 className="h-4 w-4 text-emerald-600" />
                       ) : (
                         <FileText className="h-4 w-4 text-slate-400" />
@@ -609,6 +628,16 @@ const BeneficiarioCondonacion = () => {
                       </p>
                     </div>
                   </div>
+
+                  {uploaded && (
+                    <div className="mt-3 text-xs" role="status">
+                      <p className={`font-bold ${rejected ? 'text-rose-700' : approved ? 'text-emerald-700' : 'text-amber-700'}`}>
+                        {rejected ? 'Documento rechazado' : approved ? 'Documento aprobado' : 'Pendiente de revisión'}
+                      </p>
+                      {uploaded.observacion_admin && <p className="mt-1 whitespace-pre-wrap break-words text-slate-700">{uploaded.observacion_admin}</p>}
+                      {rejected && <p className="mt-2 text-rose-700">Requiere un documento corregido para una nueva revisión.</p>}
+                    </div>
+                  )}
 
                   {isFinalEnabled ? (
                     <div className="mt-3 space-y-2">
@@ -675,7 +704,7 @@ const BeneficiarioCondonacion = () => {
                         ) : (
                           <>
                             <Upload className="h-3.5 w-3.5" />
-                            Subir documento
+                            {rejected ? 'Enviar corrección' : 'Subir documento'}
                           </>
                         )}
                       </button>

@@ -324,10 +324,27 @@ Deno.serve(async (req) => {
       // 6. Verificar si necesita completar onboarding
       const needsOnboarding = !beneficiario.onboarding_completado
 
+      const sessionToken = generateSetupToken()
+      const tokenDigest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(sessionToken))
+      const tokenHash = Array.from(new Uint8Array(tokenDigest), byte => byte.toString(16).padStart(2, '0')).join('')
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      const { error: sessionError } = await supabase.from('portal_document_sessions').insert({
+        beneficiario_id: cred.beneficiario_id,
+        token_hash: tokenHash,
+        expires_at: expiresAt,
+      })
+      if (sessionError) {
+        return new Response(JSON.stringify({ ok: false, error: 'No se pudo crear la sesion. Intenta nuevamente.' }), {
+          status: 503, headers: corsHeaders,
+        })
+      }
+
       return new Response(
         JSON.stringify({
           ok: true,
           message: 'Login exitoso',
+          session_token: sessionToken,
+          expires_at: expiresAt,
           beneficiario_id: cred.beneficiario_id,
           profile: beneficiario,
           needs_onboarding: needsOnboarding,

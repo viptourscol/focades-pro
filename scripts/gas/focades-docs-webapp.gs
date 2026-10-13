@@ -1,7 +1,18 @@
+// Debe cambiar con cada despliegue; doGet lo expone para comparar lo desplegado con el repo.
+var SCRIPT_VERSION = '2026-10-09.1';
+
+// Los IDs de plantilla NO van en el codigo: se guardan en Project Settings > Script properties con estos nombres.
+// El ID es el texto entre /d/ y /edit en la URL del Google Doc.
+var TEMPLATE_PROPERTIES = ['TEMPLATE_FORMULARIO_ID', 'TEMPLATE_TERMINOS_ID', 'TEMPLATE_DATOS_ID'];
+var SIGNATURE_PLACEHOLDERS = ['{{firma_aspirante}}', '{{firma_placeholder}}'];
+
 function doGet() {
   return jsonResponse({
     ok: true,
     service: 'focades-gas-pdf',
+    version: SCRIPT_VERSION,
+    auth_configured: isAuthConfigured(),
+    templates_configured: missingTemplateProperties().length === 0,
     now: new Date().toISOString()
   }, 200);
 }
@@ -56,22 +67,48 @@ function parseRequestBody(e) {
   return parsed;
 }
 
+function readScriptProperty(name) {
+  return String(PropertiesService.getScriptProperties().getProperty(name) || '').trim();
+}
+
+function isAuthConfigured() {
+  return !!readScriptProperty('DOCS_GAS_API_KEY') && !!readScriptProperty('DOCS_GAS_SHARED_SECRET');
+}
+
+function missingTemplateProperties() {
+  return TEMPLATE_PROPERTIES.filter(function (name) {
+    return !readScriptProperty(name);
+  });
+}
+
+function safeEquals(a, b) {
+  var left = String(a);
+  var right = String(b);
+  if (left.length !== right.length) return false;
+  var diff = 0;
+  for (var i = 0; i < left.length; i++) {
+    diff |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+// Sin ambas claves configuradas se rechaza todo: el Web App es publico y crea archivos en el Drive del propietario.
 function validateAuth(body) {
-  var expectedApiKey = String(PropertiesService.getScriptProperties().getProperty('DOCS_GAS_API_KEY') || '').trim();
-  var expectedSecret = String(PropertiesService.getScriptProperties().getProperty('DOCS_GAS_SHARED_SECRET') || '').trim();
+  var expectedApiKey = readScriptProperty('DOCS_GAS_API_KEY');
+  var expectedSecret = readScriptProperty('DOCS_GAS_SHARED_SECRET');
+
+  if (!expectedApiKey || !expectedSecret) {
+    return { ok: false, error: 'Autenticacion no configurada en el script.' };
+  }
 
   var receivedApiKey = String((body && body.api_key) || '').trim();
   var receivedSecret = String((body && body.shared_secret) || '').trim();
 
-  if (!expectedApiKey && !expectedSecret) {
-    return { ok: true };
-  }
-
-  if (expectedApiKey && expectedApiKey !== receivedApiKey) {
+  if (!safeEquals(expectedApiKey, receivedApiKey)) {
     return { ok: false, error: 'API key invalida.' };
   }
 
-  if (expectedSecret && expectedSecret !== receivedSecret) {
+  if (!safeEquals(expectedSecret, receivedSecret)) {
     return { ok: false, error: 'Shared secret invalido.' };
   }
 
@@ -107,7 +144,7 @@ function generateOneDocument(source, docCfg, payload) {
 
     replaceTextPlaceholders(body, tokenMap);
 
-    insertSignatureAtPlaceholder(body, payload, ['{{firma_aspirante}}', '{{firma_placeholder}}']);
+    insertSignatureAtPlaceholder(body, payload, SIGNATURE_PLACEHOLDERS);
 
     cleanupRemainingPlaceholders(body);
 
@@ -136,17 +173,19 @@ function generateOneDocument(source, docCfg, payload) {
 }
 
 function resolveTemplateId(tipo, docCfg) {
+  // Supabase puede enviar el ID en cada peticion (DOCS_GAS_TEMPLATE_*_ID); si lo envia, tiene prioridad.
   var explicit = String(docCfg.templateId || '').trim();
   if (explicit) return explicit;
 
   var props = PropertiesService.getScriptProperties();
 
+  // Propiedad del script (clave) que contiene el ID de la plantilla de cada tipo de documento.
   var byTipo = {
-    formulario_credito_educativo: 'TEMPLATE_FORMULARIO_ID',
-    aceptacion_terminos_condiciones: 'TEMPLATE_TERMINOS_ID',
-    autorizacion_tratamiento_datos: 'TEMPLATE_DATOS_ID',
-    aceptacion_terminos: 'TEMPLATE_HISTORICOS_TERMINOS_ID',
-    tratamiento_datos: 'TEMPLATE_HISTORICOS_DATOS_ID'
+    formulario_credito_educativo: 'TEMPLATE_FORMULARIO_ID', // Formulario de solicitud
+    aceptacion_terminos_condiciones: 'TEMPLATE_TERMINOS_ID', // Terminos y condiciones
+    autorizacion_tratamiento_datos: 'TEMPLATE_DATOS_ID', // Tratamiento de datos
+    aceptacion_terminos: 'TEMPLATE_HISTORICOS_TERMINOS_ID', // Solo si Supabase no envia templateId
+    tratamiento_datos: 'TEMPLATE_HISTORICOS_DATOS_ID' // Solo si Supabase no envia templateId
   };
 
   var key = byTipo[tipo];
@@ -292,10 +331,26 @@ function buildSoporteUrls(soportes) {
   return out;
 }
 
+// Cada replaceText es una llamada lenta a la API de Docs: solo se reemplazan los marcadores que la plantilla contiene.
+function findPlaceholders(text) {
+  var seen = {};
+  var found = [];
+  var pattern = /\{\{([a-zA-Z0-9_\-\.]+)\}\}/g;
+  var match;
+  while ((match = pattern.exec(String(text || ''))) !== null) {
+    if (!seen[match[1]]) {
+      seen[match[1]] = true;
+      found.push(match[1]);
+    }
+  }
+  return found;
+}
+
 function replaceTextPlaceholders(body, tokenMap) {
-  var keys = Object.keys(tokenMap);
-  for (var i = 0; i < keys.length; i++) {
-    var key = keys[i];
+  var present = findPlaceholders(body.getText());
+  for (var i = 0; i < present.length; i++) {
+    var key = present[i];
+    if (!Object.prototype.hasOwnProperty.call(tokenMap, key)) continue;
     var value = safeText(tokenMap[key]);
     var pattern = escapeForReplaceText('{{' + key + '}}');
     body.replaceText(pattern, value);
@@ -400,4 +455,67 @@ function jsonResponse(obj, statusCode) {
   var output = ContentService.createTextOutput(JSON.stringify(obj));
   output.setMimeType(ContentService.MimeType.JSON);
   return output;
+}
+
+// Se ejecuta a mano desde el editor: comprueba carpeta, plantillas y marcadores antes de conectar Supabase.
+function validateTemplates() {
+  var known = Object.keys(buildTokenMap('validacion', {}));
+  var items = [];
+
+  items.push({
+    check: 'autenticacion',
+    ok: isAuthConfigured(),
+    detail: isAuthConfigured() ? 'DOCS_GAS_API_KEY y DOCS_GAS_SHARED_SECRET configuradas.' : 'Faltan DOCS_GAS_API_KEY o DOCS_GAS_SHARED_SECRET.'
+  });
+
+  var folderId = readScriptProperty('OUTPUT_FOLDER_ID');
+  try {
+    items.push({
+      check: 'carpeta_salida',
+      ok: true,
+      detail: folderId ? DriveApp.getFolderById(folderId).getName() : 'OUTPUT_FOLDER_ID vacio: se usara la raiz de Drive.'
+    });
+  } catch (err) {
+    items.push({ check: 'carpeta_salida', ok: false, detail: String(err && err.message ? err.message : err) });
+  }
+
+  TEMPLATE_PROPERTIES.forEach(function (name) {
+    var templateId = readScriptProperty(name);
+    if (!templateId) {
+      items.push({ check: name, ok: false, detail: 'Propiedad vacia.' });
+      return;
+    }
+
+    try {
+      var file = DriveApp.getFileById(templateId);
+      var text = DocumentApp.openById(templateId).getBody().getText();
+      var placeholders = findPlaceholders(text);
+      var unknown = placeholders.filter(function (key) {
+        return known.indexOf(key) === -1 && key !== 'firma_aspirante' && key !== 'firma_placeholder';
+      });
+      var hasSignature = SIGNATURE_PLACEHOLDERS.some(function (marker) {
+        return text.indexOf(marker) !== -1;
+      });
+
+      items.push({
+        check: name,
+        ok: true,
+        name: file.getName(),
+        placeholders: placeholders.length,
+        unknown_placeholders: unknown,
+        has_signature_placeholder: hasSignature
+      });
+    } catch (err) {
+      items.push({ check: name, ok: false, detail: String(err && err.message ? err.message : err) });
+    }
+  });
+
+  var result = {
+    ok: items.every(function (item) { return item.ok; }),
+    version: SCRIPT_VERSION,
+    timezone: Session.getScriptTimeZone(),
+    items: items
+  };
+  Logger.log(JSON.stringify(result, null, 2));
+  return result;
 }

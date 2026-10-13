@@ -1,6 +1,8 @@
 // @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 import { encodeBytesToBase64, generatePdfDocumentsWithGas, resolveTemplateId } from '../_shared/gas-docs.ts';
+import { downloadSignature } from '../_shared/signature-download.ts';
+import { AwsClient } from 'https://esm.sh/aws4fetch@1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -52,6 +54,41 @@ const normalizeFirmaPath = (value: string) => {
 const buildDbStoragePath = (bucket: string, path: string) => `${bucket}/${path}`;
 
 const gasTimeoutMs = parseTimeout(Deno.env.get('DOCS_GAS_TIMEOUT_MS'), 20000);
+
+// ===== R2 Helper Functions (inline) =====
+function getR2Config() {
+  const accessKeyId = Deno.env.get('R2_ACCESS_KEY_ID')
+  const secretAccessKey = Deno.env.get('R2_SECRET_ACCESS_KEY')
+  const endpoint = Deno.env.get('R2_ENDPOINT')
+  const bucket = Deno.env.get('R2_BUCKET')
+  if (!accessKeyId || !secretAccessKey || !endpoint || !bucket) {
+    throw new Error('Missing R2 environment variables')
+  }
+  return { accessKeyId, secretAccessKey, endpoint, bucket }
+}
+
+async function uploadToR2(fileBuffer: Uint8Array, filePath: string, contentType: string = 'application/pdf'): Promise<string> {
+  const config = getR2Config()
+  const aws = new AwsClient({
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey,
+    region: 'auto',
+    service: 's3',
+  })
+  const r2Url = `${config.endpoint}/${config.bucket}/${filePath}`
+  const uploadRequest = new Request(r2Url, {
+    method: 'PUT',
+    headers: { 'Content-Type': contentType },
+    body: fileBuffer,
+  })
+  const signedRequest = await aws.sign(uploadRequest, { aws4request: true })
+  const uploadResponse = await fetch(signedRequest)
+  if (!uploadResponse.ok) {
+    throw new Error(`Failed to upload to R2: ${uploadResponse.status} ${uploadResponse.statusText}`)
+  }
+  return filePath
+}
+// ===== Fin de R2 Helper Functions =====
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -110,16 +147,13 @@ Deno.serve(async (req) => {
       throw new HttpError('No tienes permiso para generar documentos de este beneficiario.', 403);
     }
 
-    const { data: signatureData, error: signatureError } = await admin.storage
-      .from('soportes')
-      .download(firmaPath);
-
-    if (signatureError || !signatureData) {
-      throw new HttpError(`No se pudo descargar la firma desde Storage: ${signatureError?.message || 'sin archivo'}`, 400);
+    let signatureBytes: Uint8Array;
+    let signatureMimeType: string;
+    try {
+      ({ bytes: signatureBytes, mimeType: signatureMimeType } = await downloadSignature(admin, firmaPath));
+    } catch (signatureError) {
+      throw new HttpError(signatureError instanceof Error ? signatureError.message : 'No se pudo descargar la firma.', 400);
     }
-
-    const signatureBytes = new Uint8Array(await signatureData.arrayBuffer());
-    const signatureMimeType = String(signatureData.type || '').trim() || 'image/png';
     const nowIso = new Date().toISOString();
     const signatureHash = await sha256(
       JSON.stringify({
@@ -234,17 +268,16 @@ Deno.serve(async (req) => {
 
         const outputFileName = sanitizeText(generatedDoc.fileName || expected.fileName || `${expected.tipo}.pdf`, 180);
         const mimeType = sanitizeText(generatedDoc.mimeType || 'application/pdf', 120) || 'application/pdf';
-        const storageBucketPath = `beneficiarios_historicos/${beneficiario.id}/generados/${outputFileName}`;
+        const storageBucketPath = `soportes/beneficiarios_historicos/${beneficiario.id}/generados/${outputFileName}`;
 
-        const { error: uploadError } = await admin.storage
-          .from('soportes')
-          .upload(storageBucketPath, new Blob([generatedDoc.pdfBytes], { type: mimeType }), {
-            upsert: true,
-            contentType: mimeType,
-          });
+        // Convertir PDF bytes a Uint8Array para R2
+        const pdfBuffer = new Uint8Array(generatedDoc.pdfBytes);
 
-        if (uploadError) {
-          throw new HttpError(`Error subiendo ${expected.tipo}: ${uploadError.message}`, 400);
+        try {
+          await uploadToR2(pdfBuffer, storageBucketPath, mimeType);
+          console.log(`✓ Documento ${expected.tipo} subido a R2: ${storageBucketPath}`);
+        } catch (uploadError) {
+          throw new HttpError(`Error subiendo ${expected.tipo} a R2: ${uploadError.message}`, 400);
         }
 
         const { data: insertedDoc, error: insertDocError } = await admin
@@ -255,7 +288,7 @@ Deno.serve(async (req) => {
             tipo_documento: expected.tipo,
             estado: 'cargado',
             storage_bucket: 'soportes',
-            storage_path: buildDbStoragePath('soportes', storageBucketPath),
+            storage_path: storageBucketPath,
             archivo_mime_type: mimeType,
             archivo_size_bytes: generatedDoc.pdfBytes.byteLength,
             created_by_user_id: user.id,

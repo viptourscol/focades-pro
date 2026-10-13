@@ -1,0 +1,26 @@
+{
+  "startTime": "2026-09-29T21:37:56.953Z",
+  "config": {
+    "supabaseBucket": "soportes",
+    "r2Bucket": "focades-pro"
+  },
+  "phases": {
+    "analysis": null,
+    "migration": null,
+    "verification": null
+  },
+  "statistics": {
+    "totalFiles": 0,
+    "successfulMigrations": 0,
+    "failedMigrations": 0,
+    "skippedFiles": 0,
+    "totalSizeBytes": 0,
+    "totalSizeMigrated": 0
+  },
+  "errors": [],
+  "warnings": [
+    "No se pudo listar archivos con service key: signature verification failed. Probablemente buckets vacíos."
+  ],
+  "files": [],
+  "endTime": "2026-09-29T21:37:57.676Z"
+}

@@ -4,6 +4,7 @@ import {
   Loader2, Save, ListChecks, Lightbulb, UploadCloud, ExternalLink, Download, MonitorPlay,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { getPublicUrlR2, uploadToR2 } from '../lib/r2-secure';
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from '../lib/alerts';
 import { PreviewRequisitos, PreviewGuia, PreviewDocumento, ICONOS_GUIA } from '../components/DocumentacionPreview';
 
@@ -403,17 +404,14 @@ export default function AdminDocumentacion() {
     const nombreLimpio = file.name.replace(/[^\w.\-]/g, '_');
     const ruta = `documentos/${Date.now()}-${nombreLimpio}`;
 
-    const { error } = await supabase.storage
-      .from('public-assets')
-      .upload(ruta, file, { upsert: false, contentType: file.type || 'application/pdf' });
-
-    if (error) {
+    const uploadedUrl = await uploadToR2(file, ruta);
+    if (!uploadedUrl) {
       setUploading(false);
-      setFormError(`No se pudo subir el archivo: ${error.message}`);
+      setFormError('No se pudo subir el archivo');
       return;
     }
 
-    const { data } = supabase.storage.from('public-assets').getPublicUrl(ruta);
+      const data = { publicUrl: getPublicUrlR2(`public-assets/${ruta}`) };
     setForm((f) => ({
       ...f,
       archivo_url: data.publicUrl,

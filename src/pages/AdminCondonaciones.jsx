@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ChevronLeft, ChevronRight, Eye, FileCheck2, FileText, FileX2, RefreshCcw, ScrollText, ShieldAlert, X } from 'lucide-react';
 import { showConfirmAlert, showErrorAlert, showSuccessAlert, showTextareaConfirmAlert } from '../lib/alerts';
 import { supabase } from '../lib/supabase';
+import { uploadToR2, getPublicUrlR2 } from '../lib/r2-secure';
 import {
   CERTIFICATE_SIGNATURE_ROLES,
   loadActiveCertificateSignatures,
@@ -282,7 +283,7 @@ const AdminCondonaciones = () => {
       if (!aprobar) {
         observacion = await showTextareaConfirmAlert({
           title: 'Rechazar documento',
-          text: 'Indica la observación administrativa del rechazo del soporte.',
+          text: 'El beneficiario verá este motivo en su portal. La decisión quedará registrada en la bitácora.',
           inputLabel: 'Observación del rechazo',
           inputPlaceholder: 'Escribe la observación del documento...',
           inputValue: doc.observacion_admin || '',
@@ -314,7 +315,7 @@ const AdminCondonaciones = () => {
               ? {
                   ...item,
                   estado_validacion: data.estado_documento,
-                  observacion_admin: observacion || item.observacion_admin,
+                  observacion_admin: observacion,
                   revisado_at: new Date().toISOString(),
                 }
               : item
@@ -330,7 +331,7 @@ const AdminCondonaciones = () => {
       if (!aprobar) {
         observacion = await showTextareaConfirmAlert({
           title: 'Rechazar condonación final',
-          text: 'Registra el motivo administrativo del rechazo de la solicitud final.',
+          text: 'El beneficiario verá este motivo en su portal. La decisión quedará registrada en la bitácora.',
           inputLabel: 'Motivo del rechazo',
           inputPlaceholder: 'Escribe el motivo del rechazo final...',
           inputValue: row.observacion_admin || '',
@@ -360,7 +361,7 @@ const AdminCondonaciones = () => {
           row: {
             ...prev.row,
             estado: data.estado,
-            observacion_admin: observacion || prev.row?.observacion_admin,
+            observacion_admin: observacion,
           },
         }));
       }
@@ -383,20 +384,12 @@ const AdminCondonaciones = () => {
         return { ...doc, signed_url: null };
       }
 
-      // Limpiar el path: remover prefijo del bucket si existe
-      let cleanPath = doc.storage_path;
-      const bucketPrefix = 'soportes/';
-      if (cleanPath.startsWith(bucketPrefix)) {
-        cleanPath = cleanPath.substring(bucketPrefix.length);
-      }
-
-      const { data } = await supabase.storage
-        .from('soportes')
-        .createSignedUrl(cleanPath, 60 * 60);
+      // Generar URL pública desde R2 (presigned URL válida 24 horas)
+      const publicUrl = await getPublicUrlR2(doc.storage_path);
 
       return {
         ...doc,
-        signed_url: data?.signedUrl || null,
+        signed_url: publicUrl || null,
       };
     }));
 
@@ -466,17 +459,12 @@ const AdminCondonaciones = () => {
         const safeName = String(selectedFile.name || 'firma.png').replace(/[^a-zA-Z0-9._-]/g, '_');
         storagePath = `firmas-certificados/${cargo}/${Date.now()}-${safeName}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from('soportes')
-          .upload(storagePath, selectedFile, {
-            upsert: true,
-            contentType: selectedFile.type || 'image/png',
-          });
-
-        if (uploadError) {
+        try {
+          await uploadToR2(selectedFile, storagePath);
+        } catch (uploadError) {
           const uploadMessage = String(uploadError.message || '').toLowerCase();
           if (uploadMessage.includes('row-level security') || uploadMessage.includes('policy') || uploadMessage.includes('permission')) {
-            throw new Error('No tienes permisos de Storage para firmas. Falta aplicar la migracion de politicas 202603170003_storage_firmas_certificados_policies.sql.');
+            throw new Error('No tienes permisos de Storage para firmas.');
           }
           throw new Error(uploadError.message || 'No se pudo subir la firma.');
         }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Download, ExternalLink, FileText, Loader2, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { getPublicUrlR2 } from '../lib/r2-secure';
 
 const DOC_LABELS = {
   certificado_bancario: 'Certificado bancario',
@@ -48,30 +49,19 @@ const DocViewerModal = ({ doc, onClose, allDocs = [], currentIndex = -1, onNavig
       setUrlError(null);
       setSignedUrl(null);
       try {
-        console.log('[DocViewerModal] Solicitando signed URL para:', doc.storage_path);
+        console.log('[DocViewerModal] Generando presigned URL para:', doc.storage_path);
         
-        // Usar Edge Function para generar signed URL (bypasses RLS)
-        const { data: result, error: invokeError } = await supabase.functions.invoke('get-signed-url', {
-          body: {
-            storage_path: doc.storage_path,
-            expires_in: 300,
-          },
-        });
-
+        // Generar presigned URL (válida por 24 horas)
+        const url = await getPublicUrlR2(doc.storage_path);
+        
         if (!mounted) return;
 
-        if (invokeError) {
-          console.error('[DocViewerModal] Error invocando Edge Function:', invokeError);
-          throw new Error(invokeError.message || 'Error al generar enlace del documento');
+        if (!url) {
+          throw new Error('No se pudo generar la URL del documento');
         }
 
-        if (!result?.ok) {
-          console.error('[DocViewerModal] Error en respuesta:', result);
-          throw new Error(result.error || 'No se pudo generar el enlace del documento');
-        }
-
-        console.log('[DocViewerModal] Signed URL generada exitosamente');
-        setSignedUrl(result.signedUrl);
+        console.log('[DocViewerModal] Presigned URL generada exitosamente');
+        setSignedUrl(url);
       } catch (e) {
         if (!mounted) return;
         console.error('[DocViewerModal] Error:', e);

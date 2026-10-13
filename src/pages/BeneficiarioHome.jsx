@@ -93,11 +93,9 @@ const BeneficiarioHome = () => {
         
         // Intentar obtener beneficiario_id desde localStorage
         const sessionStr = localStorage.getItem('focades:beneficiario-session');
-        console.log('🔍 Session en localStorage:', sessionStr);
         
         if (sessionStr) {
           const session = JSON.parse(sessionStr);
-          console.log('🔍 Session parseada:', session);
           beneficiarioId = session.profile?.id || session.beneficiario_id;
           console.log('🔍 Beneficiario ID extraído:', beneficiarioId, 'desde:', session.profile?.id ? 'profile.id' : 'beneficiario_id');
         }

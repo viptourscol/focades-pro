@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarClock, ChevronLeft, ChevronRight, CircleDollarSign, 
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from '../lib/alerts';
 import { invokeAdminTickets } from '../lib/adminTickets';
 import { getSafeSession, supabase } from '../lib/supabase';
+import { getPublicUrlR2 } from '../lib/r2-secure';
 import DocViewerModal from '../components/DocViewerModal';
 import BitacoraTimeline from '../components/BitacoraTimeline';
 
@@ -786,26 +787,11 @@ const AdminBeneficiarioDetalle = () => {
       return path;
     }
 
-    // Limpiar el path: remover prefijo del bucket si existe
-    let cleanPath = path;
-    const bucketPrefix = 'soportes/';
-    if (cleanPath.startsWith(bucketPrefix)) {
-      cleanPath = cleanPath.substring(bucketPrefix.length);
-    }
+    // Generar presigned URL (válida 24 horas, imposible falsificar)
+    const url = await getPublicUrlR2(path);
+    if (url) return url;
 
-    const { data: signedData, error: signedError } = await supabase.storage
-      .from('soportes')
-      .createSignedUrl(cleanPath, 60 * 30);
-
-    if (!signedError && signedData?.signedUrl) {
-      return signedData.signedUrl;
-    }
-
-    const publicData = supabase.storage.from('soportes').getPublicUrl(cleanPath);
-    const publicUrl = String(publicData?.data?.publicUrl || '').trim();
-    if (publicUrl) return publicUrl;
-
-    throw new Error(signedError?.message || 'No se pudo obtener una URL para visualizar el documento.');
+    throw new Error('No se pudo obtener una URL para visualizar el documento.');
   };
 
   const handleViewDocument = async (doc) => {

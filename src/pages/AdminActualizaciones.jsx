@@ -24,6 +24,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import ReviewChecklist from '../components/ReviewChecklist';
+import ResponsiveDrawer from '../components/ResponsiveDrawer';
+import BeneficiarioFicha360Modal from '../components/BeneficiarioFicha360Modal';
 import { showErrorAlert, showSuccessAlert } from '../lib/alerts';
 import { clearLocalAuthSession, getSafeSession, supabase } from '../lib/supabase';
 import DocViewerModal from '../components/DocViewerModal';
@@ -150,6 +152,7 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
     catch { return ''; }
   });
   const [notasSaved, setNotasSaved] = useState(false);
+  const [showFicha360Modal, setShowFicha360Modal] = useState(false);
 
   // Cargar checklist desde BD
   useEffect(() => {
@@ -451,13 +454,23 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+    <>
+      {/* DESKTOP: Modal centrado (sin ficha 360) O split-view (con ficha 360) */}
+      <div className={`hidden lg:flex fixed top-0 h-screen ${
+        showFicha360Modal ? 'z-50' : 'z-40'
+      } bg-transparent ${
+        showFicha360Modal
+          ? 'left-0 w-1/2'  // Split-view: modal izquierda 50%
+          : 'inset-0 items-center justify-center bg-black/50'  // Centrado: modal al medio
+      }`}>
+        {/* Modal de actualización */}
+        <div className={`overflow-y-auto bg-white flex flex-col ${
+          showFicha360Modal 
+            ? 'w-full h-full border-r border-slate-200'
+            : 'rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh]'
+        }`}>
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 rounded-t-3xl flex items-start justify-between z-10">
+        <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 flex items-start justify-between z-10">
           <div>
             <h2 className="text-lg font-black text-slate-800">Detalle de actualización #{update.id}</h2>
             <p className="text-sm text-slate-500">{formatDateTime(update.created_at)}</p>
@@ -495,13 +508,13 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
             {ventana?.nombre && (
               <p className="text-sm text-slate-500">Ventana: <span className="font-medium">{ventana.nombre}</span></p>
             )}
-            <Link
-              to={`/admin/beneficiarios/${beneficiario?.id}`}
-              onClick={onClose}
-              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium mt-1"
+            <button
+              type="button"
+              onClick={() => setShowFicha360Modal(true)}
+              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium mt-1 hover:underline"
             >
               Ver ficha 360 <ChevronRight size={12} />
-            </Link>
+            </button>
           </section>
 
           {/* Historial de subsanación */}
@@ -791,7 +804,145 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
             Ctrl+S guardar · Ctrl+A aprobar · Ctrl+R rechazar · Esc cerrar
           </span>
         </div>
+        </div>
       </div>
+
+      {/* TABLET & MOBILE: Modal centrado (solo cuando drawer está cerrado) */}
+      {!showFicha360Modal && (
+        <div className="lg:hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        >
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 rounded-t-3xl flex items-start justify-between z-10">
+              <div>
+                <h2 className="text-lg font-black text-slate-800">Detalle de actualización #{update.id}</h2>
+                <p className="text-sm text-slate-500">{formatDateTime(update.created_at)}</p>
+              </div>
+              <button
+                onClick={onClose}
+                className="text-slate-400 hover:text-slate-700 text-xl font-bold leading-none mt-1"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="overflow-y-auto flex-1 p-6 space-y-6">
+              {/* Beneficiario info */}
+              <div className="grid grid-cols-2 gap-3">
+                <DataField label="Nombre" value={beneficiario?.primer_nombre} />
+                <DataField label="Apellido" value={beneficiario?.primer_apellido} />
+              </div>
+
+              {/* Estado + Observaciones + Documentos */}
+              <section className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Estado</label>
+                  <select
+                    value={reviewEstado}
+                    onChange={(e) => setReviewEstado(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
+                  >
+                    {UPDATE_STATUS_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>{estadoLabel(opt)}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {reviewEstado === 'subsanacion' && (
+                  <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 space-y-3">
+                    <p className="text-xs font-bold text-blue-800">¿Qué debe corregir el beneficiario?</p>
+                    <div>
+                      <p className="text-[11px] font-semibold text-blue-700 uppercase tracking-wide mb-1.5">Campos</p>
+                      <div className="space-y-1.5">
+                        {CAMPOS_CORREGIBLES.map((doc) => (
+                          <label key={doc.value} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={documentosACorregir.includes(doc.value)}
+                              onChange={(e) => {
+                                setDocumentosACorregir((prev) =>
+                                  e.target.checked ? [...prev, doc.value] : prev.filter((d) => d !== doc.value)
+                                );
+                              }}
+                              className="rounded border-slate-300"
+                            />
+                            {doc.label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Observación {['rechazada', 'subsanacion'].includes(reviewEstado) ? <span className="text-red-500">*</span> : '(opcional)'}</label>
+                  <textarea
+                    rows={3}
+                    value={reviewObs}
+                    onChange={(e) => setReviewObs(e.target.value)}
+                    placeholder={reviewEstado === 'subsanacion' ? 'Explica qué debe corregir el beneficiario (se muestra en su portal)...' : 'Escribe aquí las observaciones de la revisión...'}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-secondary"
+                  />
+                </div>
+              </section>
+            </div>
+
+            {/* Floating action bar */}
+            <div className="sticky bottom-0 bg-white/95 backdrop-blur-sm border-t border-slate-200 px-6 py-3 rounded-b-3xl flex items-center gap-2 flex-wrap">
+              <button
+                onClick={saveReview}
+                disabled={saving || notifying}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 disabled:opacity-50 ${
+                  reviewEstado === 'aprobada'
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    : reviewEstado === 'rechazada'
+                    ? 'bg-red-600 hover:bg-red-700 text-white'
+                    : reviewEstado === 'subsanacion'
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                    : 'bg-secondary hover:brightness-110 text-white'
+                }`}
+              >
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                {saving ? 'Guardando…' : `Guardar (${estadoLabel(reviewEstado)})`}
+              </button>
+              <button
+                onClick={() => { setReviewEstado('aprobada'); }}
+                disabled={saving || notifying || reviewEstado === 'aprobada'}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-40 transition-all"
+              >
+                <CheckCircle size={14} /> Aprobar
+              </button>
+              <button
+                onClick={() => { setReviewEstado('rechazada'); }}
+                disabled={saving || notifying || reviewEstado === 'rechazada'}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-40 transition-all"
+              >
+                <XCircle size={14} /> Rechazar
+              </button>
+              <button
+                onClick={() => { setReviewEstado('subsanacion'); }}
+                disabled={saving || notifying || reviewEstado === 'subsanacion'}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-40 transition-all"
+              >
+                <AlertTriangle size={14} /> Pedir subsanación
+              </button>
+              <button
+                onClick={notifyBeneficiario}
+                disabled={saving || notifying}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-40 transition-all"
+              >
+                {notifying ? <Loader2 size={14} className="animate-spin" /> : <BellRing size={14} />}
+                Notificar
+              </button>
+              <span className="ml-auto text-[9px] text-slate-300 uppercase tracking-wide hidden sm:block">
+                Ctrl+S guardar · Ctrl+A aprobar · Ctrl+R rechazar · Esc cerrar
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {viewingDoc && (
         <DocViewerModal 
@@ -802,7 +953,16 @@ const UpdateModal = ({ update, beneficiario, ventana, adminUsers, convocatoriasM
           onNavigate={(newIndex) => setViewingDoc(docs[newIndex])}
         />
       )}
-    </div>
+
+      {/* Ficha 360 en drawer lateral responsive */}
+      <ResponsiveDrawer
+        isOpen={showFicha360Modal}
+        onClose={() => setShowFicha360Modal(false)}
+        title="Ficha 360 del beneficiario"
+      >
+        <BeneficiarioFicha360Modal beneficiarioId={beneficiario?.id} />
+      </ResponsiveDrawer>
+    </>
   );
 };
 

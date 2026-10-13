@@ -152,6 +152,7 @@ const BeneficiarioActualizacion = () => {
   const [submitDone, setSubmitDone] = useState(false);
   const [submittedPeriodo, setSubmittedPeriodo] = useState('');
   const [windowInfo, setWindowInfo] = useState(null);
+  const [subsanacionDeadline, setSubsanacionDeadline] = useState(null);
   const [config, setConfig] = useState(null);
   const [profile, setProfile] = useState(null);
   const [previousUpdate, setPreviousUpdate] = useState(null);
@@ -260,15 +261,52 @@ const BeneficiarioActualizacion = () => {
       // Cargar ventana activa y configuración usando Edge Function (bypasses RLS)
       let ventanaData = null;
       let configData = null;
+      let previousUpdateData = null;
+      
+      // PASO 1: Obtener actualización previa del beneficiario (sin filtro de ventana)
+      if (beneficiarioId) {
+        try {
+          console.log('🔍 Buscando actualización anterior del beneficiario...');
+          
+          const { data: result, error: invokeError } = await supabase.functions.invoke('get-beneficiario-actualizacion', {
+            body: {
+              beneficiario_id: beneficiarioId,
+              // No especificamos ventana_id aquí para obtener la actualización más reciente
+            },
+          });
+
+          if (!invokeError && result?.actualizacion) {
+            previousUpdateData = result.actualizacion;
+            console.log('📋 Actualización previa encontrada:', {
+              id: previousUpdateData.id,
+              estado: previousUpdateData.estado,
+              ventana_id: previousUpdateData.ventana_id,
+            });
+          }
+        } catch (err) {
+          console.error('❌ Error buscando actualización previa:', err);
+        }
+      }
+
+      // PASO 2: Buscar ventana apropiada
       try {
-        const { data: result, error } = await supabase.functions.invoke('get-ventana-actualizacion');
+        // Si está en subsanación, buscar la ventana específica de esa actualización
+        // Si NO está en subsanación, buscar la ventana activa por fechas
+        const ventanaRequest = previousUpdateData?.estado === 'subsanacion' && previousUpdateData?.ventana_id
+          ? { ventana_id: previousUpdateData.ventana_id }
+          : {}; // Sin parámetros busca ventana activa por fechas
+          
+        const { data: result, error } = await supabase.functions.invoke('get-ventana-actualizacion', {
+          body: ventanaRequest,
+        });
 
         if (!error && result?.ok) {
           ventanaData = result.ventana || null;
+          setSubsanacionDeadline(result.subsanacionDeadline || null);
           configData = result.config || null;
         }
       } catch (err) {
-        // Error invocando get-ventana-actualizacion
+        console.error('❌ Error invocando get-ventana-actualizacion:', err);
       }
 
       if (!mounted) return;
@@ -276,65 +314,40 @@ const BeneficiarioActualizacion = () => {
       setProfile(profileData);
       setConfig(configData);
       setWindowInfo(ventanaData);
+      
+      // Si ya obtuvo la actualización previa en PASO 1, usarla directamente
+      const prevUpdate = previousUpdateData;
+      
+      if (prevUpdate) {
+        console.log('📋 Actualización previa cargada:', {
+          id: prevUpdate.id,
+          estado: prevUpdate.estado,
+          campos_a_corregir: prevUpdate.campos_a_corregir,
+          documentos_a_corregir: prevUpdate.documentos_a_corregir,
+          marcado_subsanacion_at: prevUpdate.marcado_subsanacion_at,
+        });
+        setPreviousUpdate(prevUpdate);
 
-      // Consultar si existe actualización previa en esta ventana
-      if (beneficiarioId && ventanaData?.id) {
-        try {
-          console.log('🔍 Buscando actualización anterior con:', {
-            beneficiario_id: beneficiarioId,
-            ventana_id: ventanaData.id,
-            ventana_nombre: ventanaData.nombre,
+        if (prevUpdate.estado === 'subsanacion') {
+          console.log('✅ Modo subsanación activado');
+          const payloadPrevio = prevUpdate.payload_formulario || {};
+          setSubsanacionForm({
+            email: prevUpdate.email || '',
+            telefono: prevUpdate.telefono || '',
+            direccion: prevUpdate.direccion || '',
+            semestre_actual: String(prevUpdate.semestre_actual || ''),
+            promedio_semestre_anterior: String(prevUpdate.promedio_semestre_anterior ?? ''),
+            banco: payloadPrevio.banco || '',
+            tipo_cuenta: payloadPrevio.tipo_cuenta || '',
+            cuenta_bancaria: payloadPrevio.cuenta_bancaria || '',
+            fecha_expedicion_cert_bancario: payloadPrevio.fecha_expedicion_cert_bancario || '',
           });
-          
-          // Usar Edge Function para evitar bloqueo de RLS
-          const { data: result, error: invokeError } = await supabase.functions.invoke('get-beneficiario-actualizacion', {
-            body: {
-              beneficiario_id: beneficiarioId,
-              ventana_id: ventanaData.id,
-            },
-          });
 
-          if (invokeError) {
-            console.error('❌ Error invocando Edge Function:', invokeError);
-            throw invokeError;
-          }
-
-          const prevUpdate = result?.actualizacion || null;
-          
-          if (prevUpdate) {
-            console.log('📋 Actualización previa cargada:', {
-              id: prevUpdate.id,
-              estado: prevUpdate.estado,
-              campos_a_corregir: prevUpdate.campos_a_corregir,
-              documentos_a_corregir: prevUpdate.documentos_a_corregir,
-              marcado_subsanacion_at: prevUpdate.marcado_subsanacion_at,
-            });
-            setPreviousUpdate(prevUpdate);
-
-            if (prevUpdate.estado === 'subsanacion') {
-              console.log('✅ Modo subsanación activado');
-              const payloadPrevio = prevUpdate.payload_formulario || {};
-              setSubsanacionForm({
-                email: prevUpdate.email || '',
-                telefono: prevUpdate.telefono || '',
-                direccion: prevUpdate.direccion || '',
-                semestre_actual: String(prevUpdate.semestre_actual || ''),
-                promedio_semestre_anterior: String(prevUpdate.promedio_semestre_anterior ?? ''),
-                banco: payloadPrevio.banco || '',
-                tipo_cuenta: payloadPrevio.tipo_cuenta || '',
-                cuenta_bancaria: payloadPrevio.cuenta_bancaria || '',
-                fecha_expedicion_cert_bancario: payloadPrevio.fecha_expedicion_cert_bancario || '',
-              });
-
-              const { data: docsPrevios } = await supabase
-                .from('portal_actualizacion_documentos')
-                .select('tipo_documento, nombre_original')
-                .eq('actualizacion_id', prevUpdate.id);
-              if (docsPrevios) setSubsanacionDocsActuales(docsPrevios);
-            }
-          }
-        } catch (err) {
-          // Error consultando actualización previa
+          const { data: docsPrevios } = await supabase
+            .from('portal_actualizacion_documentos')
+            .select('tipo_documento, nombre_original')
+            .eq('actualizacion_id', prevUpdate.id);
+          if (docsPrevios) setSubsanacionDocsActuales(docsPrevios);
         }
       }
 
@@ -387,21 +400,44 @@ const BeneficiarioActualizacion = () => {
     };
   }, []);
 
-  const canUpdate = useMemo(() => {
-    if (!profile) return false;
-    if (profile.estado_beneficiario !== 'activo') return false;
-    if (!windowInfo) return false;
-    // No puede enviar una actualización nueva si ya existe una en revisión, aprobada
-    // o pendiente de subsanación (esta última se corrige, no se reenvía desde cero).
-    if (previousUpdate && ['en_revision', 'aprobada', 'subsanacion'].includes(previousUpdate.estado)) {
-      return false;
-    }
-    return true;
-  }, [profile, windowInfo, previousUpdate]);
-
   const isSubsanacionMode = previousUpdate?.estado === 'subsanacion';
   const camposASubsanar = Array.isArray(previousUpdate?.campos_a_corregir) ? previousUpdate.campos_a_corregir : [];
   const documentosASubsanar = Array.isArray(previousUpdate?.documentos_a_corregir) ? previousUpdate.documentos_a_corregir : [];
+
+  const canUpdate = useMemo(() => {
+    if (!profile) return false;
+    if (profile.estado_beneficiario !== 'activo') return false;
+    
+    // Si está en subsanación, no permite nueva actualización (solo correcciones)
+    if (isSubsanacionMode) return false;
+    
+    // Para nueva actualización, requiere ventana activa
+    if (!windowInfo) return false;
+    
+    // No puede enviar una actualización nueva si ya existe una en revisión o aprobada
+    if (previousUpdate && ['en_revision', 'aprobada'].includes(previousUpdate.estado)) {
+      return false;
+    }
+    
+    return true;
+  }, [profile, windowInfo, previousUpdate, isSubsanacionMode]);
+
+  // Validar si puede subsanar: debe estar en modo subsanación y no haber pasado fecha límite
+  // Nota: No validamos estado_beneficiario porque puede ser 'egresado', 'condonado', etc.
+  // pero aún así estar en estado 'subsanacion' de una actualización anterior
+  const canSubsanate = useMemo(() => {
+    if (!profile) return false;
+    if (!isSubsanacionMode) return false;
+    
+    // Si hay deadline de subsanación, validar que no ha pasado
+    if (subsanacionDeadline) {
+      const now = new Date();
+      const deadline = new Date(subsanacionDeadline);
+      if (now > deadline) return false;
+    }
+    
+    return true;
+  }, [profile, isSubsanacionMode, subsanacionDeadline]);
 
   const validateFile = (file, label) => {
     if (!file) {
@@ -420,9 +456,19 @@ const BeneficiarioActualizacion = () => {
   const handleSubmit = async () => {
     if (!profile) return;
     if (!canUpdate) {
+      let mensajeError = 'Tu estado o la ventana de fechas no permite enviar actualización en este momento.';
+      
+      if (isSubsanacionMode && !canSubsanate) {
+        if (subsanacionDeadline && new Date() > new Date(subsanacionDeadline)) {
+          mensajeError = `El plazo para realizar correcciones ha expirado (${new Date(subsanacionDeadline).toLocaleDateString('es-CO')}).`;
+        } else {
+          mensajeError = 'No estás habilitado para realizar correcciones en este momento.';
+        }
+      }
+      
       await showWarningAlert({
         title: 'Actualización no disponible',
-        text: 'Tu estado o la ventana de fechas no permite enviar actualización en este momento.',
+        text: mensajeError,
       });
       return;
     }
@@ -647,6 +693,28 @@ const BeneficiarioActualizacion = () => {
   const handleSubsanar = async () => {
     if (!profile || !previousUpdate || previousUpdate.estado !== 'subsanacion') return;
 
+    // Validar que esté dentro del plazo de subsanación
+    console.log('🔍 Debug canSubsanate:', {
+      canSubsanate,
+      profile: !!profile,
+      profileEstado: profile?.estado_beneficiario,
+      isSubsanacionMode,
+      subsanacionDeadline,
+      previousUpdate: previousUpdate ? { id: previousUpdate.id, estado: previousUpdate.estado } : null,
+    });
+    
+    if (!canSubsanate) {
+      let mensajeError = 'No estás habilitado para realizar correcciones en este momento.';
+      if (subsanacionDeadline && new Date() > new Date(subsanacionDeadline)) {
+        mensajeError = `El plazo para realizar correcciones ha expirado (${new Date(subsanacionDeadline).toLocaleDateString('es-CO')}).`;
+      }
+      await showWarningAlert({
+        title: 'Correcciones no disponibles',
+        text: mensajeError,
+      });
+      return;
+    }
+
     try {
       if (camposASubsanar.includes('email')) {
         const email = String(subsanacionForm.email || '').trim();
@@ -698,6 +766,7 @@ const BeneficiarioActualizacion = () => {
 
       setSubsanacionSaving(true);
 
+      // Convertir archivos a base64
       const fileToBase64 = (file) =>
         new Promise((resolve, reject) => {
           const reader = new FileReader();
@@ -710,7 +779,20 @@ const BeneficiarioActualizacion = () => {
       for (const tipo of documentosASubsanar) {
         const file = subsanacionFiles[tipo];
         // eslint-disable-next-line no-await-in-loop
-        filesBase64[tipo] = { data: await fileToBase64(file), name: file.name };
+        try {
+          // Comprimir PDF
+          let fileToUpload = file;
+          if (file.type === 'application/pdf') {
+            console.log(`🔄 Comprimiendo ${tipo}...`);
+            fileToUpload = await compressPDF(file, { targetSizeKB: 2048 });
+          }
+
+          // eslint-disable-next-line no-await-in-loop
+          filesBase64[tipo] = { data: await fileToBase64(fileToUpload), name: fileToUpload.name };
+          console.log(`✅ ${tipo} comprimido y convertido a base64`);
+        } catch (compressionError) {
+          throw new Error(`No se pudo procesar el documento ${tipo}: ${compressionError.message}`);
+        }
       }
 
       const { data: result, error: invokeError } = await supabase.functions.invoke('subsanar-actualizacion-beneficiario', {

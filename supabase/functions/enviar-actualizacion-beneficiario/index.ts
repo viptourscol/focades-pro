@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { AwsClient } from 'https://esm.sh/aws4fetch@1'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -13,6 +14,50 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     persistSession: false,
   },
 })
+
+// ===== R2 Helper Functions (inline) =====
+function getR2Config() {
+  const accessKeyId = Deno.env.get('R2_ACCESS_KEY_ID')
+  const secretAccessKey = Deno.env.get('R2_SECRET_ACCESS_KEY')
+  const endpoint = Deno.env.get('R2_ENDPOINT')
+  const bucket = Deno.env.get('R2_BUCKET')
+  if (!accessKeyId || !secretAccessKey || !endpoint || !bucket) {
+    throw new Error('Missing R2 environment variables')
+  }
+  return { accessKeyId, secretAccessKey, endpoint, bucket }
+}
+
+async function uploadToR2(fileBuffer: Uint8Array, filePath: string, contentType: string = 'application/pdf'): Promise<string> {
+  const config = getR2Config()
+  const aws = new AwsClient({
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey,
+    region: 'auto',
+    service: 's3',
+  })
+  const r2Url = `${config.endpoint}/${config.bucket}/${filePath}`
+  const uploadRequest = new Request(r2Url, {
+    method: 'PUT',
+    headers: { 'Content-Type': contentType },
+    body: fileBuffer,
+  })
+  const signedRequest = await aws.sign(uploadRequest, { aws4request: true })
+  const uploadResponse = await fetch(signedRequest)
+  if (!uploadResponse.ok) {
+    throw new Error(`Failed to upload to R2: ${uploadResponse.status} ${uploadResponse.statusText}`)
+  }
+  return filePath
+}
+
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binaryString = atob(base64.split(',')[1] || base64)
+  const buffer = new Uint8Array(binaryString.length)
+  for (let i = 0; i < binaryString.length; i++) {
+    buffer[i] = binaryString.charCodeAt(i)
+  }
+  return buffer
+}
+// ===== Fin de R2 Helper Functions =====
 
 Deno.serve(async (req) => {
   // CORS headers
@@ -210,20 +255,15 @@ Deno.serve(async (req) => {
 
     // 2. Subir archivos y registrar documentos
     const uploadDocument = async (key: string, fileData: any) => {
-      const base64Data = fileData.data.split(',')[1] || fileData.data
-      const buffer = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0))
-      const storagePath = `beneficiarios/${beneficiario_id}/${updateId}/${key}-${Date.now()}.pdf`
+      const buffer = base64ToUint8Array(fileData.data)
+      const storagePath = `soportes/beneficiarios/${beneficiario_id}/${updateId}/${key}-${Date.now()}.pdf`
 
-      const { error: uploadError } = await supabase.storage
-        .from('soportes')
-        .upload(storagePath, buffer, {
-          contentType: 'application/pdf',
-          upsert: false,
-        })
-
-      if (uploadError) {
+      try {
+        await uploadToR2(buffer, storagePath, 'application/pdf')
+        console.log(`✓ Documento ${key} subido a R2: ${storagePath}`)
+      } catch (uploadError) {
         console.error(`❌ Error subiendo ${key}:`, uploadError)
-        throw new Error(`No se pudo subir ${key}: ${uploadError.message}`)
+        throw new Error(`No se pudo subir ${key} a R2: ${uploadError.message}`)
       }
 
       const { error: docError } = await supabase
@@ -242,7 +282,7 @@ Deno.serve(async (req) => {
         throw new Error(`No se pudo registrar ${key}: ${docError.message}`)
       }
 
-      console.log(`✅ Documento ${key} subido y registrado`)
+      console.log(`✅ Documento ${key} registrado en BD`)
     }
 
     await uploadDocument('certificado_bancario', files_base64.certificado_bancario)

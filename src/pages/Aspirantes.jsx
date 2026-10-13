@@ -89,6 +89,7 @@ const Aspirantes = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [selectedAspirante, setSelectedAspirante] = useState(null);
+  const [modalRefreshKey, setModalRefreshKey] = useState(0);
   const [assignmentDraft, setAssignmentDraft] = useState({});
   const [assigningId, setAssigningId] = useState('');
   const [reviewedAspirantes, setReviewedAspirantes] = useState(new Set());
@@ -162,6 +163,16 @@ const Aspirantes = () => {
   const openAspiranteModal = (aspirante) => {
     setSelectedAspirante(aspirante);
     setReviewedAspirantes(prev => new Set([...prev, aspirante.id]));
+  };
+
+  const handleDocumentoCorregido = async () => {
+    const id = selectedAspirante?.id;
+    if (id) {
+      const { data } = await supabase.from('inscripciones').select('*, personas (*)').eq('id', id).maybeSingle();
+      if (data) setSelectedAspirante(data);
+      setModalRefreshKey((key) => key + 1);
+    }
+    await fetchAspirantes();
   };
 
   const assignReviewer = async (inscripcionId) => {
@@ -552,11 +563,13 @@ const Aspirantes = () => {
 
       {selectedAspirante && (
         <AspiranteModal
+          key={modalRefreshKey}
           aspirante={selectedAspirante}
           onClose={() => setSelectedAspirante(null)}
           onUpdateStatus={updateStatus}
           onUpdateWorkflow={updateWorkflow}
           onPromote={promoteToBeneficiario}
+          onDocumentoCorregido={handleDocumentoCorregido}
           adminUsers={adminUsers}
           assignReviewer={assignReviewer}
           assignmentDraft={assignmentDraft}

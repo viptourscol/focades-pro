@@ -96,9 +96,14 @@ Deno.serve(async (req) => {
     // 4. Obtener documentos finales
     const { data: documentos, error: docError } = await supabase
       .from('portal_condonacion_final_documentos')
-      .select('id,tipo_documento,storage_path,nombre_original,estado_validacion,created_at')
+      .select('id,tipo_documento,storage_path,nombre_original,estado_validacion,observacion_admin,revisado_at,created_at')
       .eq('beneficiario_id', beneficiario_id)
       .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+
+    if (finalError || docError) {
+      throw new Error('No se pudo cargar la revision de condonacion final')
+    }
 
     // 5. Obtener sugerencias de cobro
     const { data: sugerencias, error: sugerenciasError } = await supabase

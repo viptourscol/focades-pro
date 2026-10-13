@@ -1,10 +1,19 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { AwsClient } from 'https://esm.sh/aws4fetch@1'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+const r2AccessKeyId = Deno.env.get('R2_ACCESS_KEY_ID')
+const r2SecretAccessKey = Deno.env.get('R2_SECRET_ACCESS_KEY')
+const r2Endpoint = Deno.env.get('R2_ENDPOINT')
+const r2Bucket = Deno.env.get('R2_BUCKET')
 
 if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error('Missing Supabase environment variables')
+}
+
+if (!r2AccessKeyId || !r2SecretAccessKey || !r2Endpoint || !r2Bucket) {
+  throw new Error('Missing R2 environment variables')
 }
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
@@ -12,6 +21,13 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     autoRefreshToken: false,
     persistSession: false,
   },
+})
+
+const aws = new AwsClient({
+  accessKeyId: r2AccessKeyId,
+  secretAccessKey: r2SecretAccessKey,
+  region: 'auto',
+  service: 's3',
 })
 
 const CORS_HEADERS = {
@@ -63,10 +79,42 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: false, error: 'Esta actualización no está en estado de subsanación.' }, 409)
     }
 
+    // 2. Validar que no haya pasado la fecha límite de subsanación
+    // Obtener la ventana asociada y verificar fecha_cierre_subsanacion
+    const { data: ventanaData, error: ventanaError } = await supabase
+      .from('portal_actualizaciones')
+      .select('ventana_id')
+      .eq('id', actualizacion_id)
+      .maybeSingle()
+
+    if (ventanaData?.ventana_id) {
+      const { data: ventana, error: ventanaFetchError } = await supabase
+        .from('portal_ventanas_actualizacion')
+        .select('fecha_cierre_subsanacion')
+        .eq('id', ventanaData.ventana_id)
+        .maybeSingle()
+
+      if (ventana?.fecha_cierre_subsanacion) {
+        const now = new Date()
+        const deadline = new Date(ventana.fecha_cierre_subsanacion)
+        if (now > deadline) {
+          const formattedDate = deadline.toLocaleDateString('es-CO', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
+          return jsonResponse({
+            ok: false,
+            error: `El plazo para realizar correcciones ha expirado (${formattedDate}).`,
+          }, 410) // 410 Gone - resource no longer available
+        }
+      }
+    }
+
     const camposACorregir = Array.isArray(actualizacion.campos_a_corregir) ? actualizacion.campos_a_corregir : []
     const documentosACorregir = Array.isArray(actualizacion.documentos_a_corregir) ? actualizacion.documentos_a_corregir : []
 
-    // 2. Validar que solo se intenten corregir documentos solicitados
+    // 3. Validar que solo se intenten corregir documentos solicitados
     const documentosEnviados = Object.keys(files_base64 || {}).filter((k) => DOC_TIPOS.includes(k) && files_base64[k]?.data)
     const documentosNoSolicitados = documentosEnviados.filter((tipo) => !documentosACorregir.includes(tipo))
     if (documentosNoSolicitados.length > 0) {
@@ -84,7 +132,7 @@ Deno.serve(async (req) => {
       }, 400)
     }
 
-    // 3. Construir el update solo con los campos habilitados, validando cada uno
+    // 4. Construir el update solo con los campos habilitados, validando cada uno
     const updatePayload = {}
     const payloadFormularioUpdates = {}
     const datosFormulario = form_data || {}
@@ -166,11 +214,17 @@ Deno.serve(async (req) => {
         .eq('id', beneficiario_id)
     }
 
-    // 4. Reemplazar documentos solicitados: borrar el archivo anterior del storage y registrar el nuevo
+    // 5. Reemplazar documentos solicitados: subir a R2 y registrar los nuevos paths
     for (const tipo of documentosACorregir) {
       const fileData = files_base64[tipo]
       const base64Data = fileData.data.split(',')[1] || fileData.data
-      const buffer = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0))
+      
+      // Convertir base64 a Uint8Array
+      const binaryString = atob(base64Data)
+      const buffer = new Uint8Array(binaryString.length)
+      for (let i = 0; i < binaryString.length; i++) {
+        buffer[i] = binaryString.charCodeAt(i)
+      }
 
       const { data: docAnterior } = await supabase
         .from('portal_actualizacion_documentos')
@@ -179,46 +233,75 @@ Deno.serve(async (req) => {
         .eq('tipo_documento', tipo)
         .maybeSingle()
 
-      const nuevoPath = `beneficiarios/${beneficiario_id}/${actualizacion_id}/${tipo}-${Date.now()}.pdf`
+      const nuevoPath = `soportes/beneficiarios/${beneficiario_id}/${actualizacion_id}/${tipo}-${Date.now()}.pdf`
 
-      const { error: uploadError } = await supabase.storage
-        .from('soportes')
-        .upload(nuevoPath, buffer, { contentType: 'application/pdf', upsert: false })
+      // Subir a R2
+      try {
+        const r2Url = `${r2Endpoint}/${r2Bucket}/${nuevoPath}`
+        const uploadRequest = new Request(r2Url, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/pdf',
+          },
+          body: buffer,
+        })
+        
+        const signedRequest = await aws.sign(uploadRequest, { aws4request: true })
+        const uploadResponse = await fetch(signedRequest)
+        
+        if (!uploadResponse.ok) {
+          return jsonResponse({ 
+            ok: false, 
+            error: `No se pudo subir ${tipo} a R2: ${uploadResponse.status} ${uploadResponse.statusText}` 
+          }, 500)
+        }
 
-      if (uploadError) {
-        return jsonResponse({ ok: false, error: `No se pudo subir ${tipo}: ${uploadError.message}` }, 500)
-      }
+        // Eliminar archivo anterior de R2 si existe
+        if (docAnterior?.storage_path && docAnterior.storage_path.startsWith('soportes/')) {
+          try {
+            const deleteUrl = `${r2Endpoint}/${r2Bucket}/${docAnterior.storage_path}`
+            const deleteRequest = new Request(deleteUrl, { method: 'DELETE' })
+            const signedDeleteRequest = await aws.sign(deleteRequest, { aws4request: true })
+            await fetch(signedDeleteRequest)
+          } catch (deleteError) {
+            console.warn(`⚠️ No se pudo eliminar archivo anterior: ${deleteError.message}`)
+            // No retornamos error si falla la eliminación, solo log
+          }
+        }
 
-      if (docAnterior?.storage_path) {
-        await supabase.storage.from('soportes').remove([docAnterior.storage_path])
-      }
-
-      if (docAnterior?.id) {
-        await supabase
-          .from('portal_actualizacion_documentos')
-          .update({
-            storage_path: nuevoPath,
-            nombre_original: fileData.name || `${tipo}.pdf`,
-            mime_type: 'application/pdf',
-            size_bytes: buffer.length,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', docAnterior.id)
-      } else {
-        await supabase
-          .from('portal_actualizacion_documentos')
-          .insert({
-            actualizacion_id,
-            tipo_documento: tipo,
-            storage_path: nuevoPath,
-            nombre_original: fileData.name || `${tipo}.pdf`,
-            mime_type: 'application/pdf',
-            size_bytes: buffer.length,
-          })
+        // Actualizar BD con nuevo storage_path
+        if (docAnterior?.id) {
+          await supabase
+            .from('portal_actualizacion_documentos')
+            .update({
+              storage_path: nuevoPath,
+              nombre_original: fileData.name || `${tipo}.pdf`,
+              mime_type: 'application/pdf',
+              size_bytes: buffer.length,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', docAnterior.id)
+        } else {
+          await supabase
+            .from('portal_actualizacion_documentos')
+            .insert({
+              actualizacion_id,
+              tipo_documento: tipo,
+              storage_path: nuevoPath,
+              nombre_original: fileData.name || `${tipo}.pdf`,
+              mime_type: 'application/pdf',
+              size_bytes: buffer.length,
+            })
+        }
+      } catch (uploadError) {
+        return jsonResponse({ 
+          ok: false, 
+          error: `Error al procesar ${tipo}: ${uploadError.message}` 
+        }, 500)
       }
     }
 
-    // 5. Actualizar la fila: vuelve a en_revision, se limpian los marcadores de subsanación
+    // 6. Actualizar la fila: vuelve a en_revision, se limpian los marcadores de subsanación
     const mergedPayloadFormulario = {
       ...(actualizacion.payload_formulario || {}),
       ...payloadFormularioUpdates,
@@ -242,7 +325,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: false, error: updateError.message }, 500)
     }
 
-    // 6. Registrar el evento en la bitácora del beneficiario
+    // 7. Registrar el evento en la bitácora del beneficiario
     await supabase.rpc('registrar_evento_bitacora', {
       p_beneficiario_id: beneficiario_id,
       p_actualizacion_id: actualizacion_id,

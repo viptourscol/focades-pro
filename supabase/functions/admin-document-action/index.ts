@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { AwsClient } from 'https://esm.sh/aws4fetch@1'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -19,6 +20,79 @@ const corsHeaders = {
   'Access-Control-Max-Age': '86400',
   'Content-Type': 'application/json',
 }
+
+// ===== R2 Helper Functions (inline para evitar dependencia de módulo) =====
+function getR2Config() {
+  const accessKeyId = Deno.env.get('R2_ACCESS_KEY_ID')
+  const secretAccessKey = Deno.env.get('R2_SECRET_ACCESS_KEY')
+  const endpoint = Deno.env.get('R2_ENDPOINT')
+  const bucket = Deno.env.get('R2_BUCKET')
+
+  if (!accessKeyId || !secretAccessKey || !endpoint || !bucket) {
+    throw new Error('Missing R2 environment variables: R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ENDPOINT, R2_BUCKET')
+  }
+
+  return { accessKeyId, secretAccessKey, endpoint, bucket }
+}
+
+async function uploadToR2(fileBuffer: Uint8Array, filePath: string, contentType: string = 'application/pdf'): Promise<string> {
+  const config = getR2Config()
+  
+  const aws = new AwsClient({
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey,
+    region: 'auto',
+    service: 's3',
+  })
+
+  const r2Url = `${config.endpoint}/${config.bucket}/${filePath}`
+  
+  const uploadRequest = new Request(r2Url, {
+    method: 'PUT',
+    headers: { 'Content-Type': contentType },
+    body: fileBuffer,
+  })
+
+  const signedRequest = await aws.sign(uploadRequest, { aws4request: true })
+  const uploadResponse = await fetch(signedRequest)
+
+  if (!uploadResponse.ok) {
+    throw new Error(`Failed to upload to R2: ${uploadResponse.status} ${uploadResponse.statusText}`)
+  }
+
+  return filePath
+}
+
+async function deleteFromR2(filePath: string): Promise<void> {
+  const config = getR2Config()
+  
+  const aws = new AwsClient({
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey,
+    region: 'auto',
+    service: 's3',
+  })
+
+  const r2Url = `${config.endpoint}/${config.bucket}/${filePath}`
+  
+  const deleteRequest = new Request(r2Url, { method: 'DELETE' })
+  const signedRequest = await aws.sign(deleteRequest, { aws4request: true })
+  const deleteResponse = await fetch(signedRequest)
+
+  if (!deleteResponse.ok && deleteResponse.status !== 404) {
+    throw new Error(`Failed to delete from R2: ${deleteResponse.status} ${deleteResponse.statusText}`)
+  }
+}
+
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binaryString = atob(base64.split(',')[1] || base64)
+  const buffer = new Uint8Array(binaryString.length)
+  for (let i = 0; i < binaryString.length; i++) {
+    buffer[i] = binaryString.charCodeAt(i)
+  }
+  return buffer
+}
+// ===== Fin de R2 Helper Functions =====
 
 interface ReplaceDocumentRequest {
   method: 'replace-document'
@@ -199,43 +273,35 @@ async function handleDocumentAction(req: DocumentActionRequest) {
     if (method === 'replace-document') {
       const typedReq = req as ReplaceDocumentRequest
       
-      // 3a. Eliminar archivo anterior
+      // 3a. Eliminar archivo anterior de R2
       if (oldStoragePath) {
-        const { error: deleteError } = await supabase.storage
-          .from('soportes')
-          .remove([oldStoragePath])
-
-        if (deleteError) {
+        try {
+          await deleteFromR2(oldStoragePath)
+          console.log(`✓ Archivo anterior eliminado de R2: ${oldStoragePath}`)
+        } catch (deleteError) {
           console.warn(`⚠️ No se pudo eliminar archivo anterior: ${deleteError.message}`)
           // Continuar aunque falle (no bloquea)
         }
       }
 
-      // 3b. Subir nuevo archivo
-      const fileBuffer = Uint8Array.from(
-        atob(typedReq.nuevo_archivo_base64),
-        (c) => c.charCodeAt(0)
-      )
+      // 3b. Subir nuevo archivo a R2
+      const fileBuffer = base64ToUint8Array(typedReq.nuevo_archivo_base64)
 
       const newFileName = `${tipo_documento}-${Date.now()}.pdf`
       // Usar ruta diferente según el tipo de documento
       const baseFolder = documentType === 'historico' ? 'beneficiarios_historicos' : 'inscripciones'
-      const newStoragePath = `${baseFolder}/${beneficiario_id}/${newFileName}`
+      const newStoragePath = `soportes/${baseFolder}/${beneficiario_id}/${newFileName}`
 
-      const { error: uploadError } = await supabase.storage
-        .from('soportes')
-        .upload(newStoragePath, fileBuffer, {
-          contentType: 'application/pdf',
-          upsert: false,
-        })
-
-      if (uploadError) {
-        throw new Error(`Error al subir nuevo archivo: ${uploadError.message}`)
+      try {
+        await uploadToR2(fileBuffer, newStoragePath, 'application/pdf')
+        console.log(`✓ Nuevo archivo subido a R2: ${newStoragePath}`)
+      } catch (uploadError) {
+        throw new Error(`Error al subir nuevo archivo a R2: ${uploadError.message}`)
       }
 
       // 3c. Actualizar BD
       const updatePayload = {
-        storage_path: `soportes/${newStoragePath}`,
+        storage_path: newStoragePath,
         titulo: typedReq.nuevo_archivo_nombre,
       };
       
@@ -289,13 +355,12 @@ async function handleDocumentAction(req: DocumentActionRequest) {
         accion: 'reemplazado',
       }
     } else if (method === 'delete-document') {
-      // 3. Eliminar archivo del storage
+      // 3. Eliminar archivo de R2
       if (oldStoragePath) {
-        const { error: deleteError } = await supabase.storage
-          .from('soportes')
-          .remove([oldStoragePath])
-
-        if (deleteError) {
+        try {
+          await deleteFromR2(oldStoragePath)
+          console.log(`✓ Archivo eliminado de R2: ${oldStoragePath}`)
+        } catch (deleteError) {
           console.warn(`⚠️ No se pudo eliminar archivo: ${deleteError.message}`)
           // Continuar aunque falle
         }

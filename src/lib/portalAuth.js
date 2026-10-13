@@ -2,6 +2,46 @@ import { getSafeSession, supabase } from './supabase';
 
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 
+export const getCondonacionUploadIdentity = async (beneficiarioId) => {
+  const documentSession = JSON.parse(localStorage.getItem('focades:beneficiario-session') || 'null');
+  if (documentSession) {
+    if (!documentSession.session_token) {
+      throw new Error('Inicia sesion nuevamente para cargar documentos de condonacion.');
+    }
+    const { data, error } = await supabase.rpc('validar_sesion_documento_condonacion', {
+      p_session_token: documentSession.session_token,
+    });
+    if (error) throw new Error('No se pudo validar tu sesion. Inicia sesion nuevamente antes de cargar documentos.');
+    if (!data || String(data) !== String(beneficiarioId)) {
+      throw new Error('La sesion no corresponde al beneficiario. Inicia sesion nuevamente.');
+    }
+    return {
+      rpc: 'beneficiario_subir_documento_condonacion_por_sesion',
+      params: { p_session_token: documentSession.session_token },
+    };
+  }
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData?.user) throw new Error('Inicia sesion nuevamente.');
+  const { data: profile, error: profileError } = await supabase.from('portal_beneficiarios')
+    .select('id').eq('auth_user_id', userData.user.id).is('deleted_at', null).maybeSingle();
+  if (profileError || !profile || String(profile.id) !== String(beneficiarioId)) {
+    throw new Error('La sesion no corresponde al beneficiario. Inicia sesion nuevamente.');
+  }
+  return { rpc: 'beneficiario_subir_documento_condonacion_final', params: {} };
+};
+
+export const revokeDocumentSession = async () => {
+  try {
+    const session = JSON.parse(localStorage.getItem('focades:beneficiario-session') || 'null');
+    if (session?.session_token) {
+      const { error } = await supabase.rpc('revocar_sesion_documento', { p_session_token: session.session_token });
+      if (error) console.warn('No se pudo revocar la sesion en servidor; caducara automaticamente.');
+    }
+  } catch {
+    console.warn('No se pudo revocar la sesion en servidor; caducara automaticamente.');
+  }
+};
+
 export const PORTAL_AUTH_ERROR_STORAGE_KEY = 'focades:beneficiario-auth-error';
 
 export const setPortalAuthErrorMessage = (message) => {
@@ -151,7 +191,8 @@ export const resolvePortalAccess = async ({ attemptClaim = true } = {}) => {
  * Cierre de sesión de beneficiario por timeout
  * Limpia la sesión guardada en localStorage y redirige al login
  */
-export const logoutBeneficiaryDueToTimeout = () => {
+export const logoutBeneficiaryDueToTimeout = async () => {
+  await revokeDocumentSession();
   try {
     // Limpiar sesión de beneficiario
     localStorage.removeItem('focades:beneficiario-session');

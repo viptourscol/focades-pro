@@ -52,6 +52,8 @@ export const BeneficiarioLoginForm = ({ onSuccess, isLoading, setIsLoading }) =>
         document_number: formData.document,
         login_method: 'document',
         timestamp: new Date().toISOString(),
+        session_token: result.data.session_token,
+        expires_at: result.data.expires_at,
         profile: profile, // Guardar perfil completo
       };
       

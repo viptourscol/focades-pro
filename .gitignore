@@ -24,7 +24,28 @@ dist-ssr
 *.sw?
 
 .vercel
+
+# Environment and secrets
 .env*.local
+.env.production.local
+supabase/.env
+supabase/secrets.json
+scripts/config.local.json
+
+# Supabase local development
+.supabase/
+
+# Temporary files
+tmpclaude-*/
+*~
+*.swp
+*.swo
+
+# OS specific
+Thumbs.db
 
 # Ignorar documentos generados (Plan de Trabajo y anexos)
 docs/plan_trabajo_pago_30/
+
+# Word temp files
+~$*.docx

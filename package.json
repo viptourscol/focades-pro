@@ -8,9 +8,9 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "mock:html-pdf": "node scripts/html-pdf-mock-server.mjs",
-    "activar-beneficiarios": "node scripts/activar-beneficiarios.mjs",
-    "smoke:historicos": "node scripts/smoke-historicos.mjs"
+    "mock:html-pdf": "node scripts/utils/html-pdf-mock-server.mjs",
+    "activar-beneficiarios": "node scripts/admin/activar-beneficiarios.mjs",
+    "smoke:historicos": "node scripts/testing/smoke-historicos.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1143.0",

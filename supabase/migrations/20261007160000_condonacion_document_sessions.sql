@@ -1,18 +1,18 @@
 begin;
 
-create table public.portal_document_sessions (
+create table if not exists public.portal_document_sessions (
   token_hash text primary key check (token_hash ~ '^[a-f0-9]{64}$'),
   beneficiario_id bigint not null references public.portal_beneficiarios(id) on delete cascade,
   created_at timestamptz not null default now(),
   expires_at timestamptz not null check (expires_at > created_at),
   revoked_at timestamptz
 );
-create index on public.portal_document_sessions (beneficiario_id);
+create index if not exists portal_document_sessions_beneficiario_id_idx on public.portal_document_sessions (beneficiario_id);
 alter table public.portal_document_sessions enable row level security;
 revoke all on public.portal_document_sessions from public, anon, authenticated;
 grant select, insert, update, delete on public.portal_document_sessions to service_role;
 
-create function public.revoke_document_sessions_on_password_change()
+create or replace function public.revoke_document_sessions_on_password_change()
 returns trigger language plpgsql security definer set search_path = '' as $$
 begin
   update public.portal_document_sessions set revoked_at = now()
@@ -21,12 +21,13 @@ begin
 end;
 $$;
 revoke all on function public.revoke_document_sessions_on_password_change() from public, anon, authenticated;
+drop trigger if exists revoke_document_sessions_on_password_change on public.portal_auth_credentials;
 create trigger revoke_document_sessions_on_password_change
 after update of password_hash on public.portal_auth_credentials
 for each row when (old.password_hash is distinct from new.password_hash)
 execute function public.revoke_document_sessions_on_password_change();
 
-create function public.validar_sesion_documento_condonacion(p_session_token text)
+create or replace function public.validar_sesion_documento_condonacion(p_session_token text)
 returns bigint language plpgsql security definer set search_path = '' as $$
 declare
   beneficiary_id bigint;
@@ -47,13 +48,13 @@ begin
 end;
 $$;
 
-create function public.revocar_sesion_documento(p_session_token text)
+create or replace function public.revocar_sesion_documento(p_session_token text)
 returns void language sql security definer set search_path = '' as $$
   update public.portal_document_sessions set revoked_at = now()
   where token_hash = encode(sha256(convert_to(p_session_token, 'UTF8')), 'hex') and revoked_at is null;
 $$;
 
-create function public._registrar_documento_condonacion(
+create or replace function public._registrar_documento_condonacion(
   p_beneficiario_id bigint, p_tipo_documento text, p_storage_path text,
   p_nombre_original text, p_mime_type text, p_size_bytes bigint
 )
@@ -110,7 +111,7 @@ begin
 end;
 $$;
 
-create function public.beneficiario_subir_documento_condonacion_por_sesion(
+create or replace function public.beneficiario_subir_documento_condonacion_por_sesion(
   p_session_token text, p_tipo_documento text, p_storage_path text,
   p_nombre_original text, p_mime_type text, p_size_bytes bigint
 )

@@ -32,7 +32,8 @@ serve(async (req: Request) => {
     }
 
     // Solo admin_educacion puede generar terceros
-    const userRole = user.user_metadata?.role;
+    const roles = user.user_metadata?.roles || [];
+    const userRole = Array.isArray(roles) && roles.length > 0 ? roles[0] : null;
     if (userRole !== "admin_educacion") {
       return new Response(
         JSON.stringify({ error: "Only admin_educacion can generate terceros" }),

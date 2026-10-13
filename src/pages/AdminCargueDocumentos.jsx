@@ -7,6 +7,25 @@ import ValidacionesDisplay from '../components/ValidacionesDisplay'
 import DashboardPorRol from '../components/DashboardPorRol'
 import { ArrowLeft, FileText, AlertCircle } from 'lucide-react'
 
+const ROLES_VALIDOS = [
+  'admin_educacion',
+  'admin_presupuesto',
+  'admin_contabilidad',
+  'admin_pagos',
+  'admin_visualizacion'
+]
+
+const obtenerRolActivo = (authUser) => {
+  const candidatos = [
+    authUser?.user_metadata?.roles,
+    authUser?.app_metadata?.roles,
+    authUser?.user_metadata?.role,
+    authUser?.app_metadata?.role
+  ]
+  const lista = candidatos.flatMap((c) => (Array.isArray(c) ? c : c ? [c] : []))
+  return lista.find((r) => ROLES_VALIDOS.includes(r)) || null
+}
+
 const AdminCargueDocumentos = () => {
   const [user, setUser] = useState(null)
   const [userRole, setUserRole] = useState(null)
@@ -39,7 +58,11 @@ const AdminCargueDocumentos = () => {
       } = await supabase.auth.getUser()
 
       setUser(authUser)
-      const role = authUser?.user_metadata?.role || 'admin_visualizacion'
+      const role = obtenerRolActivo(authUser)
+      if (!role) {
+        setError('Tu usuario no tiene un rol asignado. Contacta al administrador.')
+        return
+      }
       setUserRole(role)
 
       // Cargar estadísticas
@@ -65,7 +88,7 @@ const AdminCargueDocumentos = () => {
     )
   }
 
-  if (error && !user) {
+  if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="bg-white p-6 rounded-lg shadow-sm border border-red-200 max-w-md">

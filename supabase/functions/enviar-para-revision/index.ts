@@ -8,7 +8,16 @@ const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
 serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
   try {
     // Obtener usuario autenticado
     const authHeader = req.headers.get("authorization");
@@ -17,7 +26,7 @@ serve(async (req: Request) => {
     if (!token) {
       return new Response(
         JSON.stringify({ error: "No authorization token" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -28,11 +37,12 @@ serve(async (req: Request) => {
     if (userError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
 
-    const rol = user.user_metadata?.role;
+    const roles = user.user_metadata?.roles || [];
+    const rol = Array.isArray(roles) && roles.length > 0 ? roles[0] : null;
 
     // Obtener parámetros
     const { documento_id, comentario } = await req.json();
@@ -40,7 +50,7 @@ serve(async (req: Request) => {
     if (!documento_id) {
       return new Response(
         JSON.stringify({ error: "Missing required parameter: documento_id" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -54,7 +64,7 @@ serve(async (req: Request) => {
     if (errorDoc || !documento) {
       return new Response(JSON.stringify({ error: "Document not found" }), {
         status: 404,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
 
@@ -84,7 +94,7 @@ serve(async (req: Request) => {
         JSON.stringify({
           error: `Role ${rol} cannot send ${documento.tipo_documento} for review`,
         }),
-        { status: 403, headers: { "Content-Type": "application/json" } }
+        { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -96,7 +106,7 @@ serve(async (req: Request) => {
         JSON.stringify({
           error: `Document must be in 'borrador' or 'rechazado' state, current: ${documento.estado}`,
         }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -114,7 +124,7 @@ serve(async (req: Request) => {
       console.error("Error updating document:", errorUpdate);
       return new Response(JSON.stringify({ error: errorUpdate.message }), {
         status: 500,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
 
@@ -146,14 +156,14 @@ serve(async (req: Request) => {
       }),
       {
         status: 200,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...corsHeaders },
       }
     );
   } catch (error) {
     console.error("Error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...corsHeaders },
     });
   }
 });

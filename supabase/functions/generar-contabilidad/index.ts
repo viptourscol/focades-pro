@@ -31,7 +31,8 @@ serve(async (req: Request) => {
       });
     }
 
-    const userRole = user.user_metadata?.role;
+    const roles = user.user_metadata?.roles || [];
+    const userRole = Array.isArray(roles) && roles.length > 0 ? roles[0] : null;
     // Solo admin_contabilidad puede generar CONTABILIDAD
     if (userRole !== "admin_contabilidad") {
       return new Response(

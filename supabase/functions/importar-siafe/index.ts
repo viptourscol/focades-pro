@@ -42,7 +42,8 @@ serve(async (req: Request) => {
       });
     }
 
-    const userRole = user.user_metadata?.role;
+    const roles = user.user_metadata?.roles || [];
+    const userRole = Array.isArray(roles) && roles.length > 0 ? roles[0] : null;
     // Solo admin_pagos puede importar SIAFE
     if (userRole !== "admin_pagos") {
       return new Response(

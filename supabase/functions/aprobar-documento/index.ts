@@ -31,7 +31,8 @@ serve(async (req: Request) => {
       });
     }
 
-    const rol = user.user_metadata?.role;
+    const roles = user.user_metadata?.roles || [];
+    const rol = Array.isArray(roles) && roles.length > 0 ? roles[0] : null;
     const { documento_id, comentario } = await req.json();
 
     if (!documento_id) {

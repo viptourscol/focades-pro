@@ -8,7 +8,16 @@ const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
 serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
   try {
     // Obtener usuario autenticado
     const authHeader = req.headers.get("authorization");
@@ -17,7 +26,7 @@ serve(async (req: Request) => {
     if (!token) {
       return new Response(
         JSON.stringify({ error: "No authorization token" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -28,19 +37,24 @@ serve(async (req: Request) => {
     if (userError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
 
-    const rol = user.user_metadata?.role;
+    const roles = user.user_metadata?.roles || [];
+    const rol = Array.isArray(roles) && roles.length > 0 ? roles[0] : null;
+
+    console.log("User roles:", roles);
+    console.log("Selected rol:", rol);
 
     // Validar que usuario es admin_educacion (el único que crea documentos iniciales)
     if (rol !== "admin_educacion") {
       return new Response(
         JSON.stringify({
           error: "Only admin_educacion can create documents",
+          received_role: rol,
         }),
-        { status: 403, headers: { "Content-Type": "application/json" } }
+        { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -54,7 +68,7 @@ serve(async (req: Request) => {
         JSON.stringify({
           error: "Missing required parameters: convocatoria_id, tipo_documento",
         }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -65,7 +79,7 @@ serve(async (req: Request) => {
         JSON.stringify({
           error: `Invalid tipo_documento. Must be one of: ${tipos_validos.join(", ")}`,
         }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -87,7 +101,7 @@ serve(async (req: Request) => {
       console.error("Error creating document:", errorDoc);
       return new Response(JSON.stringify({ error: errorDoc.message }), {
         status: 500,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
 
@@ -125,14 +139,14 @@ serve(async (req: Request) => {
       }),
       {
         status: 201,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...corsHeaders },
       }
     );
   } catch (error) {
     console.error("Error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...corsHeaders },
     });
   }
 });

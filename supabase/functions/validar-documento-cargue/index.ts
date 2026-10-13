@@ -8,6 +8,12 @@ const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
 interface ValidacionError {
   tipo_error: string;
   mensaje_error: string;
@@ -17,6 +23,9 @@ interface ValidacionError {
 }
 
 serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
   try {
     const authHeader = req.headers.get("authorization");
     const token = authHeader?.replace("Bearer ", "");
@@ -24,7 +33,7 @@ serve(async (req: Request) => {
     if (!token) {
       return new Response(
         JSON.stringify({ error: "No authorization token" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -35,7 +44,7 @@ serve(async (req: Request) => {
     if (userError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
 
@@ -46,7 +55,7 @@ serve(async (req: Request) => {
         JSON.stringify({
           error: "Missing required parameters: documento_id, datos (array of rows)",
         }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -60,7 +69,7 @@ serve(async (req: Request) => {
     if (errorDoc || !documento) {
       return new Response(JSON.stringify({ error: "Document not found" }), {
         status: 404,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
 
@@ -74,7 +83,7 @@ serve(async (req: Request) => {
     if (errorPlantilla || !plantilla) {
       return new Response(
         JSON.stringify({ error: "Template not found for this document type" }),
-        { status: 404, headers: { "Content-Type": "application/json" } }
+        { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -226,14 +235,14 @@ serve(async (req: Request) => {
       }),
       {
         status: 200,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...corsHeaders },
       }
     );
   } catch (error) {
     console.error("Error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...corsHeaders },
     });
   }
 });

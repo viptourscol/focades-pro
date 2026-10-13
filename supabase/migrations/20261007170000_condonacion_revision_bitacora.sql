@@ -1,6 +1,6 @@
 begin;
 
-create function public.auditar_revision_condonacion_final()
+create or replace function public.auditar_revision_condonacion_final()
 returns trigger language plpgsql security definer set search_path = '' as $$
 declare
   previous_row jsonb := to_jsonb(old);
@@ -40,10 +40,12 @@ end;
 $$;
 revoke all on function public.auditar_revision_condonacion_final() from public, anon, authenticated;
 
+drop trigger if exists auditar_revision_condonacion_documento on public.portal_condonacion_final_documentos;
 create trigger auditar_revision_condonacion_documento
 after update on public.portal_condonacion_final_documentos
 for each row execute function public.auditar_revision_condonacion_final();
 
+drop trigger if exists auditar_revision_condonacion_solicitud on public.portal_condonacion_final;
 create trigger auditar_revision_condonacion_solicitud
 after update on public.portal_condonacion_final
 for each row execute function public.auditar_revision_condonacion_final();

@@ -6,7 +6,18 @@ const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
 serve(async (req: Request) => {
+  // Handle CORS preflight requests
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   try {
     // Obtener usuario autenticado
     const authHeader = req.headers.get("authorization");
@@ -15,7 +26,7 @@ serve(async (req: Request) => {
     if (!token) {
       return new Response(
         JSON.stringify({ error: "No authorization token" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -25,24 +36,44 @@ serve(async (req: Request) => {
       error: userError,
     } = await supabase.auth.getUser(token);
     if (userError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      console.error("User auth error:", userError);
+      return new Response(JSON.stringify({ error: "Unauthorized", details: userError?.message }), {
         status: 401,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
 
-    const rol = user.user_metadata?.role;
+    const roles = user.user_metadata?.roles || [];
+    const rol = Array.isArray(roles) && roles.length > 0 ? roles[0] : "admin_visualizacion";
+
+    console.log("✅ User authenticated:", { email: user.email, roles, selected_rol: rol });
 
     // Obtener parámetros
-    const { convocatoria_id, tipo_documento, tipo_filtro } = await req.json();
+    let params: any = {};
+    if (req.headers.get("content-type")?.includes("application/json")) {
+      try {
+        params = await req.json();
+      } catch (e) {
+        console.error("Error parsing JSON:", e);
+        return new Response(
+          JSON.stringify({ error: "Invalid JSON body", details: e.message }),
+          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+    }
 
-    // Validar inputs
-    if (!convocatoria_id || (!tipo_documento && !tipo_filtro)) {
+    const { convocatoria_id, tipo_documento, tipo_filtro } = params;
+
+    console.log("📋 Params received:", { convocatoria_id, tipo_documento, tipo_filtro });
+
+    // Validar inputs - solo convocatoria_id es requerido
+    if (!convocatoria_id) {
       return new Response(
         JSON.stringify({
-          error: "Missing required parameters: convocatoria_id and (tipo_documento or tipo_filtro)",
+          error: "Missing required parameter: convocatoria_id",
+          received: params
         }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -65,11 +96,14 @@ serve(async (req: Request) => {
         tipos_permitidos = ["terceros", "rp", "op", "contabilidad", "siafe"];
         break;
       default:
-        return new Response(JSON.stringify({ error: "Invalid role" }), {
+        console.error("❌ Invalid role:", rol);
+        return new Response(JSON.stringify({ error: "Invalid role", rol }), {
           status: 403,
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...corsHeaders },
         });
     }
+
+    console.log("📂 Tipos permitidos para rol:", { rol, tipos_permitidos });
 
     // Filtrar por tipos permitidos
     let query = supabase
@@ -99,14 +133,22 @@ serve(async (req: Request) => {
       query = query.eq("tipo_documento", tipo_filtro);
     }
 
+    console.log("🔍 Ejecutando consulta...");
     const { data: documentos, error } = await query;
 
     if (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
+      console.error("❌ Query error:", error);
+      return new Response(JSON.stringify({ 
+        error: "Database query failed", 
+        details: error.message,
+        code: error.code 
+      }), {
         status: 500,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
+
+    console.log("✅ Query success:", { count: documentos?.length || 0 });
 
     return new Response(
       JSON.stringify({
@@ -114,18 +156,22 @@ serve(async (req: Request) => {
         rol,
         convocatoria_id,
         documentos_encontrados: documentos?.length || 0,
-        documentos,
+        documentos: documentos || [],
       }),
       {
         status: 200,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...corsHeaders },
       }
     );
-  } catch (error) {
-    console.error("Error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+  } catch (error: any) {
+    console.error("❌ Uncaught error:", error);
+    return new Response(JSON.stringify({ 
+      error: "Internal server error",
+      message: error?.message,
+      stack: error?.stack?.split('\n').slice(0, 3).join('\n')
+    }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...corsHeaders },
     });
   }
 });

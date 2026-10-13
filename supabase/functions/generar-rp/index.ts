@@ -31,7 +31,8 @@ serve(async (req: Request) => {
       });
     }
 
-    const userRole = user.user_metadata?.role;
+    const roles = user.user_metadata?.roles || [];
+    const userRole = Array.isArray(roles) && roles.length > 0 ? roles[0] : null;
     // admin_educacion y admin_presupuesto pueden generar RP
     if (!["admin_educacion", "admin_presupuesto"].includes(userRole)) {
       return new Response(

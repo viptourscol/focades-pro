@@ -246,6 +246,7 @@ const BeneficiarioCondonacion = () => {
   };
 
   const handleUploadFinalDoc = async (docType) => {
+    if (docsByType.get(docType)?.estado_validacion === 'aprobado') return;
     const file = selectedFiles[docType];
     if (!file) {
       setError(`Selecciona un archivo para ${docType}.`);
@@ -639,7 +640,7 @@ const BeneficiarioCondonacion = () => {
                     </div>
                   )}
 
-                  {isFinalEnabled ? (
+                  {approved ? null : isFinalEnabled ? (
                     <div className="mt-3 space-y-2">
                       <label
                         className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed px-3 py-2 text-xs transition-all duration-150 ${

@@ -47,8 +47,8 @@ async function generatePresignedUrl(
 ): Promise<string> {
   const config = getR2Config()
   
-  // Parse URL components
-  const url = new URL(`${config.endpoint}/${filePath}`)
+  // Parse URL components (path-style: endpoint/bucket/key)
+  const url = new URL(`${config.endpoint}/${config.bucket}/${filePath}`)
   const host = url.hostname
   const pathname = url.pathname
   

@@ -4,6 +4,8 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock,
+  Download,
+  Eye,
   FileCheck2,
   FileText,
   GraduationCap,
@@ -14,9 +16,10 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { getCondonacionUploadIdentity } from '../lib/portalAuth';
-import { uploadToR2 } from '../lib/r2-secure';
+import { uploadToR2, getPresignedDownloadUrl } from '../lib/r2-secure';
 import { loadActiveCertificateSignatures, openPazYSalvoPrintView } from '../lib/certificadoPazYSalvo';
 import { showWarningAlert } from '../lib/alerts';
+import { isPdfEncrypted } from '../lib/pdfValidator';
 
 const FINAL_DOC_TYPES = [
   { key: 'diploma', label: 'Diploma' },
@@ -243,6 +246,30 @@ const BeneficiarioCondonacion = () => {
     }
 
     await loadData();
+  };
+
+  const handleDownloadDocument = async (filePath, fileName) => {
+    try {
+      const { presignedUrl } = await getPresignedDownloadUrl(filePath);
+      const link = document.createElement('a');
+      link.href = presignedUrl;
+      link.download = fileName;
+      link.target = '_blank';
+      link.click();
+    } catch (err) {
+      setError('No se pudo descargar el documento.');
+      console.error('Download error:', err);
+    }
+  };
+
+  const handleViewDocument = async (filePath) => {
+    try {
+      const { presignedUrl } = await getPresignedDownloadUrl(filePath);
+      window.open(presignedUrl, '_blank');
+    } catch (err) {
+      setError('No se pudo abrir el documento.');
+      console.error('View error:', err);
+    }
   };
 
   const handleUploadFinalDoc = async (docType) => {
@@ -637,6 +664,26 @@ const BeneficiarioCondonacion = () => {
                       </p>
                       {uploaded.observacion_admin && <p className="mt-1 whitespace-pre-wrap break-words text-slate-700">{uploaded.observacion_admin}</p>}
                       {rejected && <p className="mt-2 text-rose-700">Requiere un documento corregido para una nueva revisión.</p>}
+                      {approved && (
+                        <div className="mt-3 flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleViewDocument(uploaded.storage_path)}
+                            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-secondary px-2 py-1.5 text-xs font-bold text-white transition-all duration-150 hover:bg-secondary/90 active:scale-95"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            Ver
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadDocument(uploaded.storage_path, uploaded.nombre_original)}
+                            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-secondary px-2 py-1.5 text-xs font-bold text-white transition-all duration-150 hover:bg-secondary/90 active:scale-95"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            Descargar
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
 

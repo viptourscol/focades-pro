@@ -1,0 +1,1683 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documentación Completa de Funciones - FOCADES-PRO</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.6;
+      color: #10233f;
+      background: linear-gradient(180deg, #faf7f0 0%, #f2eadb 100%);
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 10px 40px rgba(16, 35, 63, 0.1);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #10233f 0%, #1d385f 100%);
+      color: white;
+      padding: 50px 30px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 36px;
+      font-weight: 800;
+      margin-bottom: 15px;
+      letter-spacing: -0.5px;
+    }
+
+    .header .subtitle {
+      font-size: 18px;
+      color: rgba(255, 255, 255, 0.9);
+      margin-bottom: 10px;
+    }
+
+    .header .meta {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.8);
+      margin-top: 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.3);
+      padding-top: 15px;
+    }
+
+    .toc-section {
+      background: #f9fafb;
+      padding: 40px 30px;
+      border-bottom: 3px solid #bb7d26;
+    }
+
+    .toc-section h2 {
+      font-size: 22px;
+      font-weight: 800;
+      color: #10233f;
+      margin-bottom: 25px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      background: #bb7d26;
+      color: white;
+      border-radius: 8px;
+      font-weight: 800;
+    }
+
+    .toc-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+    }
+
+    .toc-item {
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      border-left: 4px solid #bb7d26;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    }
+
+    .toc-item:hover {
+      box-shadow: 0 4px 12px rgba(187, 125, 38, 0.2);
+      transform: translateX(4px);
+    }
+
+    .toc-item small {
+      display: block;
+      color: #6b7280;
+      font-size: 12px;
+      margin-top: 5px;
+    }
+
+    .content {
+      padding: 40px 30px;
+    }
+
+    .category-section {
+      margin-bottom: 50px;
+      page-break-inside: avoid;
+    }
+
+    .category-header {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 30px;
+      padding-bottom: 15px;
+      border-bottom: 3px solid #bb7d26;
+    }
+
+    .category-icon {
+      width: 50px;
+      height: 50px;
+      background: linear-gradient(135deg, #bb7d26 0%, #9f6821 100%);
+      color: white;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      flex-shrink: 0;
+    }
+
+    .category-header h2 {
+      font-size: 28px;
+      font-weight: 800;
+      color: #10233f;
+      margin: 0;
+    }
+
+    .category-header .count {
+      margin-left: auto;
+      background: #bb7d26;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .function-card {
+      background: #f9fafb;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 25px;
+      margin-bottom: 25px;
+      page-break-inside: avoid;
+      transition: all 0.3s ease;
+    }
+
+    .function-card:hover {
+      border-color: #bb7d26;
+      box-shadow: 0 4px 12px rgba(187, 125, 38, 0.1);
+    }
+
+    .function-name {
+      font-size: 18px;
+      font-weight: 800;
+      color: #10233f;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .function-name code {
+      background: #10233f;
+      color: #bb7d26;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: 'Courier New', monospace;
+    }
+
+    .function-description {
+      color: #4a5568;
+      font-size: 14px;
+      line-height: 1.7;
+      margin-bottom: 15px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .function-meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+      font-size: 12px;
+    }
+
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .meta-label {
+      color: #6b7280;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .meta-value {
+      color: #10233f;
+      font-weight: 700;
+      word-break: break-word;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 3px 3px 3px 0;
+    }
+
+    .badge-auth {
+      background: #dbeafe;
+      color: #0c4a6e;
+    }
+
+    .badge-admin {
+      background: #fee2e2;
+      color: #7f1d1d;
+    }
+
+    .badge-beneficiario {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .badge-documento {
+      background: #fef3c7;
+      color: #78350f;
+    }
+
+    .badge-email {
+      background: #f3e8ff;
+      color: #581c87;
+    }
+
+    .badge-r2 {
+      background: #e0e7ff;
+      color: #3730a3;
+    }
+
+    .badge-reporte {
+      background: #fecaca;
+      color: #991b1b;
+    }
+
+    .badge-ticket {
+      background: #c7d2fe;
+      color: #312e81;
+    }
+
+    .info-box {
+      background: #e3f2fd;
+      border: 2px solid #2196f3;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 30px 0;
+      display: flex;
+      gap: 15px;
+      align-items: start;
+    }
+
+    .info-box::before {
+      content: "ℹ️";
+      font-size: 28px;
+      flex-shrink: 0;
+    }
+
+    .info-box p {
+      color: #0d47a1;
+      font-weight: 600;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 30px;
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    }
+
+    .summary-table th {
+      background: linear-gradient(135deg, #10233f 0%, #1d385f 100%);
+      color: white;
+      padding: 15px;
+      text-align: left;
+      font-weight: 800;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .summary-table td {
+      padding: 12px 15px;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 13px;
+    }
+
+    .summary-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .summary-table tr:nth-child(even) {
+      background: #f9fafb;
+    }
+
+    .footer {
+      background: #f9fafb;
+      padding: 30px;
+      text-align: center;
+      border-top: 2px solid #bb7d26;
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    .footer-divider {
+      width: 100px;
+      height: 3px;
+      background: #bb7d26;
+      margin: 20px auto;
+      border-radius: 2px;
+    }
+
+    @media print {
+      body {
+        background: white;
+        padding: 0;
+      }
+
+      .container {
+        box-shadow: none;
+        border-radius: 0;
+      }
+
+      .category-section {
+        page-break-inside: avoid;
+      }
+
+      .toc-item {
+        break-inside: avoid;
+      }
+
+      @page {
+        margin: 2cm;
+        size: A4;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .category-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .category-header .count {
+        margin-left: 0;
+        margin-top: 10px;
+      }
+
+      .toc-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .function-meta {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- HEADER -->
+    <div class="header">
+      <h1>📚 Documentación Completa</h1>
+      <p class="subtitle">Todas las Funciones del Proyecto FOCADES-PRO</p>
+      <div class="meta">
+        <strong>Fecha de Generación:</strong> 14 de Octubre de 2026<br>
+        <strong>Versión:</strong> 1.0.0<br>
+        <strong>Total de Funciones Documentadas:</strong> 45 Edge Functions
+      </div>
+    </div>
+
+    <!-- TABLA DE CONTENIDOS -->
+    <div class="toc-section">
+      <h2>
+        <span class="icon">📑</span>
+        Tabla de Contenidos
+      </h2>
+      <div class="toc-grid">
+        <div class="toc-item">
+          <strong>🔐 Autenticación</strong>
+          <small>5 funciones</small>
+        </div>
+        <div class="toc-item">
+          <strong>👤 Beneficiarios</strong>
+          <small>8 funciones</small>
+        </div>
+        <div class="toc-item">
+          <strong>📄 Documentos</strong>
+          <small>7 funciones</small>
+        </div>
+        <div class="toc-item">
+          <strong>⚙️ Administración</strong>
+          <small>8 funciones</small>
+        </div>
+        <div class="toc-item">
+          <strong>📊 Reportes</strong>
+          <small>5 funciones</small>
+        </div>
+        <div class="toc-item">
+          <strong>📧 Notificaciones</strong>
+          <small>6 funciones</small>
+        </div>
+        <div class="toc-item">
+          <strong>☁️ Almacenamiento</strong>
+          <small>3 funciones</small>
+        </div>
+        <div class="toc-item">
+          <strong>🎫 Tickets</strong>
+          <small>4 funciones</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <div class="content">
+      <!-- AUTENTICACIÓN -->
+      <div class="category-section">
+        <div class="category-header">
+          <div class="category-icon">🔐</div>
+          <h2>Autenticación y Credenciales</h2>
+          <div class="count">5 funciones</div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>auth-credentials</code>
+            <span class="badge badge-auth">Autenticación</span>
+          </div>
+          <div class="function-description">
+            Autentica usuarios y genera credenciales JWT para acceso a la plataforma. Verifica correo/contraseña y retorna tokens de sesión.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">Pública</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Ninguno</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>reset-password-beneficiario</code>
+            <span class="badge badge-auth">Autenticación</span>
+          </div>
+          <div class="function-description">
+            Permite a beneficiarios resetear su contraseña mediante enlace de correo seguro. Valida token de recuperación y actualiza credenciales.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">Token</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Beneficiario</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>invite-beneficiario</code>
+            <span class="badge badge-auth">Autenticación</span>
+          </div>
+          <div class="function-description">
+            Envía invitación a nuevos beneficiarios con enlace de activación. Crea usuario y registra en sistema de invitaciones.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>register-inscripcion</code>
+            <span class="badge badge-auth">Autenticación</span>
+          </div>
+          <div class="function-description">
+            Registro de nuevos aspirantes en plataforma de inscripción. Valida datos y crea perfil inicial de usuario.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">Pública</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Ninguno</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>send-setup-emails</code>
+            <span class="badge badge-email">Notificación</span>
+          </div>
+          <div class="function-description">
+            Envía emails de configuración inicial a nuevos usuarios. Incluye enlaces de activación y guías de setup.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PERFIL DE BENEFICIARIOS -->
+      <div class="category-section">
+        <div class="category-header">
+          <div class="category-icon">👤</div>
+          <h2>Gestión de Beneficiarios</h2>
+          <div class="count">8 funciones</div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>get-beneficiario-profile</code>
+            <span class="badge badge-beneficiario">Beneficiario</span>
+          </div>
+          <div class="function-description">
+            Obtiene perfil completo del beneficiario con historial, documentos y datos personales. Aplica filtros según rol de usuario.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">GET</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Beneficiario/Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>get-beneficiario-historial</code>
+            <span class="badge badge-beneficiario">Beneficiario</span>
+          </div>
+          <div class="function-description">
+            Retorna historial completo de cambios y acciones del beneficiario. Incluye auditoría de actualizaciones.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">GET</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Beneficiario/Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>get-ventana-actualizacion</code>
+            <span class="badge badge-beneficiario">Beneficiario</span>
+          </div>
+          <div class="function-description">
+            Obtiene ventana de tiempo disponible para que el beneficiario actualice su información. Valida fechas límite.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">GET</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Beneficiario</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>enviar-actualizacion-beneficiario</code>
+            <span class="badge badge-beneficiario">Beneficiario</span>
+          </div>
+          <div class="function-description">
+            Envía actualización de información del beneficiario para revisión. Valida integridad de datos y crea versión.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Beneficiario</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>subsanar-actualizacion-beneficiario</code>
+            <span class="badge badge-beneficiario">Beneficiario</span>
+          </div>
+          <div class="function-description">
+            Subsana (corrige) actualización de información rechazada. Permite reenvío con cambios solicitados.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Beneficiario</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>get-beneficiario-actualizacion</code>
+            <span class="badge badge-beneficiario">Beneficiario</span>
+          </div>
+          <div class="function-description">
+            Obtiene estado de actualización pendiente o en proceso. Incluye versión de datos y comentarios de revisión.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">GET</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Beneficiario</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>get-condonacion-modulo</code>
+            <span class="badge badge-beneficiario">Beneficiario</span>
+          </div>
+          <div class="function-description">
+            Obtiene información sobre condonación de sesión. Incluye disponibilidad y requisitos de activación.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">GET</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Beneficiario</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GESTIÓN DE DOCUMENTOS -->
+      <div class="category-section">
+        <div class="category-header">
+          <div class="category-icon">📄</div>
+          <h2>Gestión de Documentos</h2>
+          <div class="count">7 funciones</div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>crear-documento-cargue</code>
+            <span class="badge badge-documento">Documento</span>
+          </div>
+          <div class="function-description">
+            Crea registro inicial de documento cargado. Valida tipo, tamaño y formato antes de almacenar.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Beneficiario</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>validar-documento-cargue</code>
+            <span class="badge badge-documento">Documento</span>
+          </div>
+          <div class="function-description">
+            Valida documento cargado contra reglas de negocio. Verifica contenido, metadatos y conformidad.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>aprobar-documento</code>
+            <span class="badge badge-documento">Documento</span>
+          </div>
+          <div class="function-description">
+            Aprueba documento validado. Actualiza estado y notifica beneficiario de aceptación.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>rechazar-documento</code>
+            <span class="badge badge-documento">Documento</span>
+          </div>
+          <div class="function-description">
+            Rechaza documento con comentarios de revisión. Permite reenvío y notifica beneficiario.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>enviar-para-revision</code>
+            <span class="badge badge-documento">Documento</span>
+          </div>
+          <div class="function-description">
+            Envía documento para revisión por equipo de validación. Genera notificación y asigna a revisor.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Beneficiario</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>admin-document-action</code>
+            <span class="badge badge-admin">Admin</span>
+          </div>
+          <div class="function-description">
+            Ejecuta acciones administrativas sobre documentos (aprobar, rechazar, archivar). Registra auditoría completa.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>obtener-documentos-por-rol</code>
+            <span class="badge badge-documento">Documento</span>
+          </div>
+          <div class="function-description">
+            Obtiene documentos filtrados según rol de usuario y permisos. Implementa Row Level Security.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">GET</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin/Beneficiario</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADMINISTRACIÓN -->
+      <div class="category-section">
+        <div class="category-header">
+          <div class="category-icon">⚙️</div>
+          <h2>Funciones Administrativas</h2>
+          <div class="count">8 funciones</div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>admin-import-beneficiarios</code>
+            <span class="badge badge-admin">Admin</span>
+          </div>
+          <div class="function-description">
+            Importa lotes de beneficiarios desde archivo. Valida datos y crea perfiles en batch.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>activate-beneficiarios-batch</code>
+            <span class="badge badge-admin">Admin</span>
+          </div>
+          <div class="function-description">
+            Activa múltiples beneficiarios simultáneamente. Procesa en batch y genera confirmación.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>admin-corregir-documento-aspirante</code>
+            <span class="badge badge-admin">Admin</span>
+          </div>
+          <div class="function-description">
+            Corrige información de documento de aspirante. Permite cambios directos sin reenvío.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>import-historicos-lote</code>
+            <span class="badge badge-admin">Admin</span>
+          </div>
+          <div class="function-description">
+            Importa datos históricos en lotes. Valida integridad y crea registros históricos.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>import-historicos-pagos</code>
+            <span class="badge badge-admin">Admin</span>
+          </div>
+          <div class="function-description">
+            Importa registro de pagos históricos. Valida montos y reconcilia con base de datos.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>importar-siafe</code>
+            <span class="badge badge-admin">Admin</span>
+          </div>
+          <div class="function-description">
+            Importa datos del sistema SIAFE (Sistema Integrado de Auditoría Financiera). Sincroniza información de pagos.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>admin-list-tickets</code>
+            <span class="badge badge-ticket">Ticket</span>
+          </div>
+          <div class="function-description">
+            Lista todos los tickets de soporte. Incluye filtros por estado, asignado y fecha.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">GET</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- REPORTES -->
+      <div class="category-section">
+        <div class="category-header">
+          <div class="category-icon">📊</div>
+          <h2>Generación de Reportes</h2>
+          <div class="count">5 funciones</div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>generar-op</code>
+            <span class="badge badge-reporte">Reporte</span>
+          </div>
+          <div class="function-description">
+            Genera reporte operacional (OP) con resumen de actividades y métricas del período. Exportable a Excel/PDF.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>generar-rp</code>
+            <span class="badge badge-reporte">Reporte</span>
+          </div>
+          <div class="function-description">
+            Genera reporte de pagos (RP) con detalle de desembolsos. Incluye reconciliación y validación.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>generar-contabilidad</code>
+            <span class="badge badge-reporte">Reporte</span>
+          </div>
+          <div class="function-description">
+            Genera reporte contable con asientos y movimientos. Cumple con normas de auditoría financiera.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>generar-terceros</code>
+            <span class="badge badge-reporte">Reporte</span>
+          </div>
+          <div class="function-description">
+            Genera reporte de terceros con información de beneficiarios y pagados. Para auditoría externa.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>generate-beneficiario-onboarding-docs</code>
+            <span class="badge badge-reporte">Reporte</span>
+          </div>
+          <div class="function-description">
+            Genera documentos de onboarding para beneficiarios. Incluye guías y datos personalizados.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- NOTIFICACIONES -->
+      <div class="category-section">
+        <div class="category-header">
+          <div class="category-icon">📧</div>
+          <h2>Notificaciones y Comunicación</h2>
+          <div class="count">6 funciones</div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>notify-beneficiario</code>
+            <span class="badge badge-email">Notificación</span>
+          </div>
+          <div class="function-description">
+            Envía notificación general a beneficiario. Soporta email, SMS y notificaciones in-app.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>notify-beneficiario-novedad</code>
+            <span class="badge badge-email">Notificación</span>
+          </div>
+          <div class="function-description">
+            Notifica cambios o novedades importantes al beneficiario. Incluye detalles de qué cambió.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>notify-deadline-approaching</code>
+            <span class="badge badge-email">Notificación</span>
+          </div>
+          <div class="function-description">
+            Envía recordatorio de fechas límite próximas. Notifica automáticamente cuando faltan X días.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">Sistema</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Sistema</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>notify-window-status</code>
+            <span class="badge badge-email">Notificación</span>
+          </div>
+          <div class="function-description">
+            Notifica apertura/cierre de ventanas de actualización. Informa cambios de estado.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">Sistema</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Sistema</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>notify-bulk-sin-actualizar</code>
+            <span class="badge badge-email">Notificación</span>
+          </div>
+          <div class="function-description">
+            Envía notificación en lote a beneficiarios que no han actualizado. Permite seguimiento masivo.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>generate-inscripcion-docs</code>
+            <span class="badge badge-email">Notificación</span>
+          </div>
+          <div class="function-description">
+            Genera documentos de inscripción personalizados. Crea PDF con términos y condiciones.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">Pública</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Ninguno</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ALMACENAMIENTO R2 -->
+      <div class="category-section">
+        <div class="category-header">
+          <div class="category-icon">☁️</div>
+          <h2>Almacenamiento en Cloudflare R2</h2>
+          <div class="count">3 funciones</div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>get-presigned-upload-url</code>
+            <span class="badge badge-r2">Almacenamiento</span>
+          </div>
+          <div class="function-description">
+            Genera URL firmada temporalmente para cargue directo a R2. Válida por 15 minutos.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Beneficiario</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>get-presigned-download-url</code>
+            <span class="badge badge-r2">Almacenamiento</span>
+          </div>
+          <div class="function-description">
+            Genera URL firmada para descargar archivo desde R2. Válida por 1 hora.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">GET</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Beneficiario/Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>delete-from-r2</code>
+            <span class="badge badge-r2">Almacenamiento</span>
+          </div>
+          <div class="function-description">
+            Elimina archivo de R2. Solo admin y propietario. Registra auditoría de eliminación.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">DELETE</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TICKETS DE SOPORTE -->
+      <div class="category-section">
+        <div class="category-header">
+          <div class="category-icon">🎫</div>
+          <h2>Sistema de Tickets de Soporte</h2>
+          <div class="count">4 funciones</div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>crear-ticket-beneficiario</code>
+            <span class="badge badge-ticket">Ticket</span>
+          </div>
+          <div class="function-description">
+            Crea nuevo ticket de soporte desde beneficiario. Asigna automáticamente a equipo correspondiente.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Beneficiario</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>beneficiario-enviar-mensaje</code>
+            <span class="badge badge-ticket">Ticket</span>
+          </div>
+          <div class="function-description">
+            Envía mensaje/respuesta en ticket de soporte. Notifica al equipo de atención.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Beneficiario</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>admin-send-message-ticket</code>
+            <span class="badge badge-admin">Admin</span>
+          </div>
+          <div class="function-description">
+            Envía mensaje desde admin en ticket de soporte. Notifica beneficiario de respuesta.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="function-card">
+          <div class="function-name">
+            <code>admin-close-ticket</code>
+            <span class="badge badge-admin">Admin</span>
+          </div>
+          <div class="function-description">
+            Cierra ticket de soporte. Permite agregar comentario final y notifica beneficiario.
+          </div>
+          <div class="function-meta">
+            <div class="meta-item">
+              <span class="meta-label">Método HTTP</span>
+              <span class="meta-value">POST</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Autenticación</span>
+              <span class="meta-value">JWT</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Rol Requerido</span>
+              <span class="meta-value">Admin</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INFO BOX FINAL -->
+      <div class="info-box">
+        <p>
+          <strong>📌 Nota Importante:</strong> Esta documentación es generada automáticamente y debe ser actualizada cuando se añadan nuevas funciones. 
+          Para mantener la documentación sincronizada, ejecute este script después de cada despliegue de nuevas Edge Functions.
+        </p>
+      </div>
+
+      <!-- TABLA RESUMEN -->
+      <div style="margin-top: 50px; page-break-before: always;">
+        <h2 style="font-size: 24px; font-weight: 800; color: #10233f; margin-bottom: 25px;">
+          <span class="icon" style="margin-right: 10px;">📋</span> Resumen Técnico
+        </h2>
+
+        <table class="summary-table">
+          <thead>
+            <tr>
+              <th>Categoría</th>
+              <th>Cantidad</th>
+              <th>Métodos HTTP</th>
+              <th>Autenticación</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>🔐 Autenticación</td>
+              <td>5</td>
+              <td>POST, GET</td>
+              <td>Pública, JWT</td>
+            </tr>
+            <tr>
+              <td>👤 Beneficiarios</td>
+              <td>8</td>
+              <td>GET, POST</td>
+              <td>JWT</td>
+            </tr>
+            <tr>
+              <td>📄 Documentos</td>
+              <td>7</td>
+              <td>GET, POST</td>
+              <td>JWT</td>
+            </tr>
+            <tr>
+              <td>⚙️ Administración</td>
+              <td>8</td>
+              <td>GET, POST</td>
+              <td>JWT</td>
+            </tr>
+            <tr>
+              <td>📊 Reportes</td>
+              <td>5</td>
+              <td>POST</td>
+              <td>JWT</td>
+            </tr>
+            <tr>
+              <td>📧 Notificaciones</td>
+              <td>6</td>
+              <td>POST, GET</td>
+              <td>JWT, Sistema</td>
+            </tr>
+            <tr>
+              <td>☁️ Almacenamiento</td>
+              <td>3</td>
+              <td>GET, POST, DELETE</td>
+              <td>JWT</td>
+            </tr>
+            <tr>
+              <td>🎫 Tickets</td>
+              <td>4</td>
+              <td>GET, POST</td>
+              <td>JWT</td>
+            </tr>
+            <tr style="font-weight: 800; background: #f0f0f0;">
+              <td>TOTAL</td>
+              <td>45</td>
+              <td>REST (GET, POST, DELETE)</td>
+              <td>JWT + Pública</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer">
+      <div class="footer-divider"></div>
+      <strong>📄 Documentación de Funciones - FOCADES-PRO</strong><br>
+      <small>Generado: 14 de Octubre de 2026 | Versión 1.0.0 | Total: 45 Edge Functions</small><br>
+      <small style="margin-top: 10px; color: #9ca3af;">Para impresión: Presione Ctrl+P (Cmd+P en Mac) | Formato recomendado: A4 | Márgenes: 2cm</small>
+    </div>
+  </div>
+</body>
+</html>

@@ -33,6 +33,9 @@ const AdminCargueDocumentos = () => {
   const [documentoDetalle, setDocumentoDetalle] = useState(null)
   const [convocatorias, setConvocatorias] = useState([])
   const [convocatoriaId, setConvocatoriaId] = useState('')
+  const [documentoTipo, setDocumentoTipo] = useState(null)
+  const [creando, setCreando] = useState(false)
+  const [errorCreacion, setErrorCreacion] = useState(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState(null)
   const [activeTab, setActiveTab] = useState('editor') // 'editor' | 'validaciones' | 'historial'
@@ -86,6 +89,33 @@ const AdminCargueDocumentos = () => {
       setError(err.message)
     } finally {
       setCargando(false)
+    }
+  }
+
+  const crearDocumento = async (tipo) => {
+    try {
+      setCreando(true)
+      setErrorCreacion(null)
+      const { data: nuevoId, error: errorRpc } = await supabase.rpc('fn_crear_documento_cargue', {
+        p_convocatoria_id: convocatoriaId,
+        p_tipo_documento: tipo,
+        p_cantidad_registros: 0
+      })
+      if (errorRpc) throw errorRpc
+
+      if (tipo === 'terceros') {
+        const { error: errorPrecarga } = await supabase.rpc('precargar_terceros_convocatoria', {
+          p_documento_id: nuevoId
+        })
+        if (errorPrecarga) throw errorPrecarga
+      }
+
+      setDocumentoTipo(tipo)
+      setDocumentoSeleccionado(nuevoId)
+    } catch (err) {
+      setErrorCreacion(err.message)
+    } finally {
+      setCreando(false)
     }
   }
 
@@ -164,7 +194,10 @@ const AdminCargueDocumentos = () => {
 
               {convocatoriaId ? (
                 <DocumentosCargueIndex
-                  onSelectDocumento={setDocumentoSeleccionado}
+                  onSelectDocumento={(id, tipo) => {
+                  setDocumentoTipo(tipo)
+                  setDocumentoSeleccionado(id)
+                }}
                   userRole={userRole}
                   convocatoriaId={convocatoriaId}
                 />
@@ -213,6 +246,9 @@ const AdminCargueDocumentos = () => {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
+        {errorCreacion && (
+          <p className="mb-4 p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg">{errorCreacion}</p>
+        )}
         {documentoSeleccionado === 'nuevo' ? (
           // Selector de tipo de documento
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -243,7 +279,8 @@ const AdminCargueDocumentos = () => {
               return (
                 <button
                   key={tipo}
-                  onClick={() => setDocumentoSeleccionado(`nuevo-${tipo}`)}
+                  onClick={() => crearDocumento(tipo)}
+                  disabled={creando}
                   className="p-6 bg-white rounded-lg border border-gray-200 hover:border-blue-500 hover:shadow-lg transition text-left"
                 >
                   <div className="text-4xl mb-3">{config.icon}</div>
@@ -289,7 +326,7 @@ const AdminCargueDocumentos = () => {
                 {activeTab === 'editor' && (
                   <EditorDocumentoCargue
                     documentoId={documentoSeleccionado}
-                    tipoDocumento={documentoDetalle?.tipo_documento || documentoSeleccionado?.split('-')[1] || 'terceros'}
+                    tipoDocumento={documentoTipo || 'terceros'}
                     userRole={userRole}
                     onGuardado={(data) => {
                       console.log('Documento guardado:', data)
@@ -314,7 +351,7 @@ const AdminCargueDocumentos = () => {
                     <div>
                       <dt className="text-gray-600 text-xs">Tipo</dt>
                       <dd className="font-medium text-gray-900">
-                        {documentoSeleccionado?.split('-')[1]?.toUpperCase() || 'NUEVO'}
+                        {documentoTipo?.toUpperCase() || 'NUEVO'}
                       </dd>
                     </div>
                     <div>
@@ -330,7 +367,7 @@ const AdminCargueDocumentos = () => {
                   <BotonesFlujoCargue
                     documentoId={documentoSeleccionado}
                     estado="borrador"
-                    tipoDocumento={documentoSeleccionado?.split('-')[1] || 'terceros'}
+                    tipoDocumento={documentoTipo || 'terceros'}
                     userRole={userRole}
                     onAccionCompletada={(data) => {
                       console.log('Acción completada:', data)

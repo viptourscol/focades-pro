@@ -232,7 +232,7 @@ const DocumentosCargueIndex = ({ onSelectDocumento, userRole, convocatoriaId }) 
                     <td className="px-6 py-4">
                       <div className="flex gap-2">
                         <button
-                          onClick={() => onSelectDocumento(doc.id)}
+                          onClick={() => onSelectDocumento(doc.id, doc.tipo_documento)}
                           className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
                           title="Ver detalles"
                         >

@@ -19,7 +19,6 @@ import { getCondonacionUploadIdentity } from '../lib/portalAuth';
 import { uploadToR2, getPresignedDownloadUrl } from '../lib/r2-secure';
 import { loadActiveCertificateSignatures, openPazYSalvoPrintView } from '../lib/certificadoPazYSalvo';
 import { showWarningAlert } from '../lib/alerts';
-import { isPdfEncrypted } from '../lib/pdfValidator';
 
 const FINAL_DOC_TYPES = [
   { key: 'diploma', label: 'Diploma' },

@@ -274,7 +274,7 @@ export const uploadToR2 = async (file, filePath) => {
         body: errorData,
       })
       
-      throw new Error(`Proxy upload failed (${proxyResponse.status}): ${errorData.error || proxyResponse.statusText}`)
+      throw new Error(`Proxy upload failed (${proxyResponse.status}): ${errorData.error || proxyResponse.statusText} ${errorData.details || ''}`.trim())
     }
 
     const result = await proxyResponse.json()

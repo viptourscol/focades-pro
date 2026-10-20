@@ -1687,7 +1687,13 @@ const AdminActualizaciones = () => {
       const c = b?.convocatoria_id ? convocatoriasMap[b.convocatoria_id] : null;
       const flat = {};
       Object.entries(item).forEach(([k, val]) => {
+        if (k === 'payload_formulario') return;
         flat[k] = val !== null && typeof val === 'object' ? JSON.stringify(val) : val ?? '';
+      });
+      const formPayload = item.payload_formulario && typeof item.payload_formulario === 'object' ? item.payload_formulario : {};
+      Object.entries(formPayload).forEach(([k, val]) => {
+        const columna = k in flat ? `formulario_${k}` : k;
+        flat[columna] = val !== null && typeof val === 'object' ? JSON.stringify(val) : val ?? '';
       });
       return {
         ...flat,

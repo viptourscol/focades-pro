@@ -1431,6 +1431,7 @@ const AdminActualizaciones = () => {
   const [batchLoading, setBatchLoading] = useState(false);
   // Mostrar duplicados históricos
   const [showDuplicates, setShowDuplicates] = useState(false);
+  const [exportEstado, setExportEstado] = useState('aprobada');
 
   const loadData = async () => {
     setLoading(true);
@@ -1674,6 +1675,34 @@ const AdminActualizaciones = () => {
     }
   };
 
+  const exportActualizacionesXlsx = async () => {
+    const data = exportEstado === 'todas' ? rows : rows.filter((r) => r.estado === exportEstado);
+    if (data.length === 0) {
+      await showErrorAlert({ title: 'Sin datos', text: 'No hay actualizaciones para exportar con ese criterio.' });
+      return;
+    }
+    const sheetRows = data.map((item) => {
+      const b = beneficiariosMap[item.beneficiario_id];
+      const v = item.ventana_id ? ventanasMap[item.ventana_id] : null;
+      const c = b?.convocatoria_id ? convocatoriasMap[b.convocatoria_id] : null;
+      const flat = {};
+      Object.entries(item).forEach(([k, val]) => {
+        flat[k] = val !== null && typeof val === 'object' ? JSON.stringify(val) : val ?? '';
+      });
+      return {
+        ...flat,
+        beneficiario_nombre: b?.nombre_completo || '',
+        beneficiario_documento: b?.n_documento || '',
+        beneficiario_estado: b?.estado_beneficiario || '',
+        periodo_nombre: v?.nombre || '',
+        convocatoria: c ? `${c.nombre} (${c.anio})` : '',
+      };
+    });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetRows), 'Actualizaciones');
+    XLSX.writeFile(wb, `actualizaciones_${exportEstado}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -1793,6 +1822,25 @@ const AdminActualizaciones = () => {
           <Download size={14} />
           Reporte sin actualizar
         </button>
+        <div className="flex items-center gap-2">
+          <select
+            value={exportEstado}
+            onChange={(e) => setExportEstado(e.target.value)}
+            className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
+          >
+            <option value="aprobada">Aprobadas</option>
+            <option value="en_revision">En revisión</option>
+            <option value="rechazada">Rechazadas</option>
+            <option value="todas">Todas</option>
+          </select>
+          <button
+            onClick={exportActualizacionesXlsx}
+            className="flex items-center gap-2 bg-emerald-600 text-white rounded-xl px-3 py-2 text-sm font-semibold hover:bg-emerald-700"
+          >
+            <FileSpreadsheet size={14} />
+            Exportar XLSX
+          </button>
+        </div>
       </div>
 
       {/* Table */}

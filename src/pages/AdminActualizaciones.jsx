@@ -1912,6 +1912,7 @@ const AdminActualizaciones = () => {
                   >
                     <span className="inline-flex items-center gap-1">Periodo <SortIcon field="periodo" /></span>
                   </th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Convocatoria</th>
                   <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Semestre</th>
                   <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Promedio</th>
                   <th
@@ -1986,6 +1987,12 @@ const AdminActualizaciones = () => {
                             {ventanaEstado.label}
                           </span>
                         </div>
+                      </td>
+                      <td className="px-4 py-3 text-center text-slate-700">
+                        {(() => {
+                          const conv = b?.convocatoria_id ? convocatoriasMap[b.convocatoria_id] : null;
+                          return conv ? `${conv.nombre} (${conv.anio})` : '—';
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-center text-slate-700">{item.semestre_actual ?? '—'}</td>
                       <td className="px-4 py-3 text-center text-slate-700">

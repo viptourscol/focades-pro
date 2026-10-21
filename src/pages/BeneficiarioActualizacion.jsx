@@ -414,8 +414,12 @@ const BeneficiarioActualizacion = () => {
     // Para nueva actualización, requiere ventana activa
     if (!windowInfo) return false;
     
-    // No puede enviar una actualización nueva si ya existe una en revisión o aprobada
-    if (previousUpdate && ['en_revision', 'aprobada'].includes(previousUpdate.estado)) {
+    // No puede enviar otra actualización para la MISMA ventana si ya existe una en revisión o aprobada
+    if (
+      previousUpdate &&
+      ['en_revision', 'aprobada'].includes(previousUpdate.estado) &&
+      String(previousUpdate.ventana_id) === String(windowInfo.id)
+    ) {
       return false;
     }
     

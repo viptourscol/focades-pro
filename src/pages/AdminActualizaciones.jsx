@@ -1419,6 +1419,7 @@ const AdminActualizaciones = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [estadoFilter, setEstadoFilter] = useState('all');
   const [ventanaFilter, setVentanaFilter] = useState('all');
+  const [convocatoriaFilter, setConvocatoriaFilter] = useState('all');
   const [selectedRow, setSelectedRow] = useState(null);
   const [showReporteModal, setShowReporteModal] = useState(false);
   // Sort
@@ -1521,12 +1522,13 @@ const AdminActualizaciones = () => {
       
       if (estadoFilter !== 'all' && item.estado !== estadoFilter) return false;
       if (ventanaFilter !== 'all' && String(item.ventana_id || '') !== ventanaFilter) return false;
+      if (convocatoriaFilter !== 'all' && String(b?.convocatoria_id || '') !== convocatoriaFilter) return false;
       if (!query) return true;
       return [b?.nombre_completo, b?.n_documento, b?.email]
         .map((v) => String(v || '').toLowerCase())
         .some((v) => v.includes(query));
     });
-  }, [rows, searchTerm, estadoFilter, ventanaFilter, beneficiariosMap, showDuplicates, activeUpdateIds]);
+  }, [rows, searchTerm, estadoFilter, ventanaFilter, convocatoriaFilter, beneficiariosMap, showDuplicates, activeUpdateIds]);
 
   const sortedRows = useMemo(() => {
     const sorted = [...filteredRows].sort((a, b) => {
@@ -1785,6 +1787,18 @@ const AdminActualizaciones = () => {
           <option value="en_revision">En revisión</option>
           <option value="aprobada">Aprobada</option>
           <option value="rechazada">Rechazada</option>
+        </select>
+        <select
+          value={convocatoriaFilter}
+          onChange={(e) => setConvocatoriaFilter(e.target.value)}
+          className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-secondary"
+        >
+          <option value="all">Todas las convocatorias</option>
+          {convocatorias.map((c) => (
+            <option key={c.id} value={String(c.id)}>
+              {`${c.nombre} (${c.anio})`}
+            </option>
+          ))}
         </select>
         <select
           value={ventanaFilter}

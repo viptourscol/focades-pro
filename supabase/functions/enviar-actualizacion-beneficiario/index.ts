@@ -184,7 +184,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    if (!Number.isFinite(promedio) || promedio < 0 || promedio > 5) {
+    if (String(form_data.promedio_semestre_anterior ?? '').trim() === '' || !Number.isFinite(promedio) || promedio < 0 || promedio > 5) {
       return new Response(
         JSON.stringify({ ok: false, error: 'El promedio debe ser un número entre 0 y 5.' }),
         {

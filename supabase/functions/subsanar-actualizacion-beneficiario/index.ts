@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
 
     if (camposACorregir.includes('promedio_semestre_anterior')) {
       const promedio = Number(String(datosFormulario.promedio_semestre_anterior || '').replace(',', '.'))
-      if (!Number.isFinite(promedio) || promedio < 0 || promedio > 5) {
+      if (String(datosFormulario.promedio_semestre_anterior ?? '').trim() === '' || !Number.isFinite(promedio) || promedio < 0 || promedio > 5) {
         return jsonResponse({ ok: false, error: 'El promedio debe ser un número entre 0 y 5.' }, 400)
       }
       updatePayload.promedio_semestre_anterior = promedio

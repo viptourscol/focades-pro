@@ -519,7 +519,7 @@ const BeneficiarioActualizacion = () => {
 
       const promedio = Number(String(form.promedio_semestre_anterior || '').replace(',', '.'));
 
-      if (!Number.isFinite(promedio)) {
+      if (String(form.promedio_semestre_anterior ?? '').trim() === '' || !Number.isFinite(promedio)) {
         throw new Error('Ingresa un promedio válido para el semestre anterior.');
       }
 
@@ -740,7 +740,7 @@ const BeneficiarioActualizacion = () => {
       }
       if (camposASubsanar.includes('promedio_semestre_anterior')) {
         const promedio = Number(String(subsanacionForm.promedio_semestre_anterior || '').replace(',', '.'));
-        if (!Number.isFinite(promedio) || promedio < 0 || promedio > 5) {
+        if (String(subsanacionForm.promedio_semestre_anterior ?? '').trim() === '' || !Number.isFinite(promedio) || promedio < 0 || promedio > 5) {
           throw new Error('El promedio debe ser un número entre 0 y 5.');
         }
       }

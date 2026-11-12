@@ -65,7 +65,6 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
   }, [documentoId, tipoDocumento])
 
   const esDocumentoExistente = Boolean(documentoId) && !String(documentoId).startsWith('nuevo')
-  const puedePrecargar = tipoDocumento === 'terceros' && userRole === 'admin_educacion' && esDocumentoExistente
 
   const filaVacia = () => ({ id: `temp-${Date.now()}`, ...campos.reduce((acc, c) => ({ ...acc, [c.name]: '' }), {}) })
 

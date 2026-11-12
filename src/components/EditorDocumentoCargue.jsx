@@ -12,8 +12,9 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
   // Estados para modal de filtros de precarga
   const [mostrarModalFiltros, setMostrarModalFiltros] = useState(false)
   const [convocatoriaFiltro, setConvocatoriaFiltro] = useState('')
-  const [estadoFiltro, setEstadoFiltro] = useState('admitido')
+  const [estadoFiltro, setEstadoFiltro] = useState('')
   const [convocatorias, setConvocatorias] = useState([])
+  const [estadosDisponibles, setEstadosDisponibles] = useState(['admitido', 'rechazado', 'aspirante', 'pendiente'])
 
   const camposporTipo = {
     terceros: [
@@ -130,13 +131,53 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
 
   const cargarConvocatorias = async () => {
     try {
-      const { data, error: err } = await supabase
-        .from('convocatorias')
-        .select('id, nombre, anio')
-        .order('anio', { ascending: false })
-      if (err) throw err
-      setConvocatorias(data || [])
-      if (data?.[0]) setConvocatoriaFiltro(data[0].id)
+      // Obtener estados disponibles en inscripciones
+      const { data: estadosData, error: estadosErr } = await supabase.rpc('debug_precargar_rp')
+      if (!estadosErr && estadosData) {
+        const estadosUnicos = new Set()
+        estadosData
+          .filter(row => row.info_tipo === 'ESTADO')
+          .forEach(row => {
+            if (row.valor && row.valor !== 'NULL') {
+              estadosUnicos.add(row.valor.toLowerCase().trim())
+            }
+          })
+        if (estadosUnicos.size > 0) {
+          setEstadosDisponibles(Array.from(estadosUnicos))
+          setEstadoFiltro(Array.from(estadosUnicos)[0])
+        }
+      }
+
+      // Obtener convocatorias con inscritos por estado
+      const { data, error: err } = await supabase.rpc('obtener_convocatorias_con_inscritos')
+      if (err) {
+        console.error('Error en RPC:', err)
+        // Fallback a consulta directa si RPC falla
+        const { data: convData, error: convErr } = await supabase
+          .from('convocatorias')
+          .select('id, nombre, anio')
+          .order('anio', { ascending: false })
+        if (convErr) throw convErr
+        setConvocatorias(convData || [])
+        if (convData?.[0]) setConvocatoriaFiltro(convData[0].id)
+        return
+      }
+      
+      // Procesar resultados: agrupar por convocatoria única
+      const convocatoriasMap = new Map()
+      data?.forEach(row => {
+        if (!convocatoriasMap.has(row.convocatoria_id)) {
+          convocatoriasMap.set(row.convocatoria_id, {
+            id: row.convocatoria_id,
+            nombre: row.convocatoria_nombre,
+            anio: row.convocatoria_anio
+          })
+        }
+      })
+      
+      const convocatoriasList = Array.from(convocatoriasMap.values())
+      setConvocatorias(convocatoriasList)
+      if (convocatoriasList?.[0]) setConvocatoriaFiltro(convocatoriasList[0].id)
     } catch (err) {
       console.error('Error cargando convocatorias:', err)
     }
@@ -460,13 +501,15 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
                   disabled={precargando}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="aspirante">Aspirante</option>
-                  <option value="admitido">Admitido</option>
-                  <option value="rechazado">Rechazado</option>
-                  <option value="pendiente">Pendiente</option>
+                  <option value="">-- Selecciona un estado --</option>
+                  {estadosDisponibles.map(estado => (
+                    <option key={estado} value={estado}>
+                      {estado.charAt(0).toUpperCase() + estado.slice(1)}
+                    </option>
+                  ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
-                  Se precargará aspirantes de la convocatoria con este estado
+                  Selecciona el estado de los aspirantes a precargar ({estadosDisponibles.length} disponible{estadosDisponibles.length !== 1 ? 's' : ''})
                 </p>
               </div>
 

@@ -132,26 +132,31 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
   const cargarConvocatorias = async () => {
     try {
       // Obtener estados disponibles en inscripciones
-      const { data: estadosData, error: estadosErr } = await supabase.rpc('debug_precargar_rp')
-      if (!estadosErr && estadosData) {
-        const estadosUnicos = new Set()
-        estadosData
-          .filter(row => row.info_tipo === 'ESTADO')
-          .forEach(row => {
-            if (row.valor && row.valor !== 'NULL') {
-              estadosUnicos.add(row.valor.toLowerCase().trim())
-            }
-          })
-        if (estadosUnicos.size > 0) {
-          setEstadosDisponibles(Array.from(estadosUnicos))
-          setEstadoFiltro(Array.from(estadosUnicos)[0])
+      try {
+        const { data: estadosData, error: estadosErr } = await supabase.rpc('debug_precargar_rp')
+        if (estadosData && !estadosErr) {
+          const estadosUnicos = new Set()
+          estadosData
+            .filter(row => row.info_tipo === 'ESTADO')
+            .forEach(row => {
+              if (row.valor && row.valor !== 'NULL') {
+                estadosUnicos.add(row.valor.toLowerCase().trim())
+              }
+            })
+          if (estadosUnicos.size > 0) {
+            const estadosList = Array.from(estadosUnicos).sort()
+            setEstadosDisponibles(estadosList)
+            setEstadoFiltro(estadosList[0])
+          }
         }
+      } catch (err) {
+        console.warn('No se pudieron cargar estados dinámicos, usando valores por defecto:', err)
       }
 
       // Obtener convocatorias con inscritos por estado
       const { data, error: err } = await supabase.rpc('obtener_convocatorias_con_inscritos')
-      if (err) {
-        console.error('Error en RPC:', err)
+      if (err || !data) {
+        console.warn('RPC fallido, usando consulta directa:', err)
         // Fallback a consulta directa si RPC falla
         const { data: convData, error: convErr } = await supabase
           .from('convocatorias')
@@ -175,11 +180,22 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
         }
       })
       
-      const convocatoriasList = Array.from(convocatoriasMap.values())
+      const convocatoriasList = Array.from(convocatoriasMap.values()).sort((a, b) => b.anio - a.anio)
       setConvocatorias(convocatoriasList)
       if (convocatoriasList?.[0]) setConvocatoriaFiltro(convocatoriasList[0].id)
     } catch (err) {
       console.error('Error cargando convocatorias:', err)
+      // Último fallback: cargar convocatorias sin inscritos
+      try {
+        const { data: convData } = await supabase
+          .from('convocatorias')
+          .select('id, nombre, anio')
+          .order('anio', { ascending: false })
+        setConvocatorias(convData || [])
+        if (convData?.[0]) setConvocatoriaFiltro(convData[0].id)
+      } catch (fallbackErr) {
+        console.error('Fallback también falló:', fallbackErr)
+      }
     }
   }
 

@@ -5,7 +5,7 @@ import EditorDocumentoCargue from '../components/EditorDocumentoCargue'
 import BotonesFlujoCargue from '../components/BotonesFlujoCargue'
 import ValidacionesDisplay from '../components/ValidacionesDisplay'
 import DashboardPorRol from '../components/DashboardPorRol'
-import { ArrowLeft, FileText, AlertCircle } from 'lucide-react'
+import { ArrowLeft, FileText, AlertCircle, X } from 'lucide-react'
 
 const ROLES_VALIDOS = [
   'admin_educacion',
@@ -40,6 +40,11 @@ const AdminCargueDocumentos = () => {
   const [error, setError] = useState(null)
   const [activeTab, setActiveTab] = useState('editor') // 'editor' | 'validaciones' | 'historial'
   const [estadisticas, setEstadisticas] = useState(null)
+  // Nuevos estados para el modal de filtros
+  const [mostrarModalFiltros, setMostrarModalFiltros] = useState(false)
+  const [estadoBeneficiario, setEstadoBeneficiario] = useState('activo')
+  const [modalidadBeca, setModalidadBeca] = useState('')
+  const [tipoDocumentoEnCreacion, setTipoDocumentoEnCreacion] = useState(null)
 
   useEffect(() => {
     cargarUsuario()
@@ -93,6 +98,18 @@ const AdminCargueDocumentos = () => {
   }
 
   const crearDocumento = async (tipo) => {
+    // Si es terceros, mostrar modal de filtros
+    if (tipo === 'terceros') {
+      setTipoDocumentoEnCreacion(tipo)
+      setMostrarModalFiltros(true)
+      return
+    }
+
+    // Para otros tipos, crear directamente
+    await realizarCreacionDocumento(tipo, null, null)
+  }
+
+  const realizarCreacionDocumento = async (tipo, estado = null, modalidad = null) => {
     try {
       setCreando(true)
       setErrorCreacion(null)
@@ -104,14 +121,27 @@ const AdminCargueDocumentos = () => {
       if (errorRpc) throw errorRpc
 
       if (tipo === 'terceros') {
-        const { error: errorPrecarga } = await supabase.rpc('precargar_terceros_convocatoria', {
-          p_documento_id: nuevoId
-        })
+        const estadoFiltro = estado || 'activo'
+        const modalidadFiltro = modalidad || null
+        const { data: resultadoPrecarga, error: errorPrecarga } = await supabase.rpc(
+          'precargar_terceros_convocatoria',
+          {
+            p_documento_id: nuevoId,
+            p_estado_beneficiario: estadoFiltro,
+            p_modalidad_beca: modalidadFiltro
+          }
+        )
         if (errorPrecarga) throw errorPrecarga
+        
+        // Mostrar resultado de precarga
+        if (resultadoPrecarga && resultadoPrecarga.length > 0) {
+          console.log('Precarga completada:', resultadoPrecarga[0].mensaje)
+        }
       }
 
       setDocumentoTipo(tipo)
       setDocumentoSeleccionado(nuevoId)
+      setMostrarModalFiltros(false)
     } catch (err) {
       setErrorCreacion(err.message)
     } finally {
@@ -209,6 +239,100 @@ const AdminCargueDocumentos = () => {
             </div>
           </div>
         </div>
+
+        {/* Modal de filtros para crear terceros */}
+        {mostrarModalFiltros && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
+              <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                <h2 className="text-lg font-bold text-gray-900">Crear Documento: Terceros</h2>
+                <button
+                  onClick={() => setMostrarModalFiltros(false)}
+                  className="p-1 hover:bg-gray-100 rounded-lg transition"
+                  disabled={creando}
+                >
+                  <X size={20} className="text-gray-600" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Estado del Beneficiario
+                  </label>
+                  <select
+                    value={estadoBeneficiario}
+                    onChange={(e) => setEstadoBeneficiario(e.target.value)}
+                    disabled={creando}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="activo">Activo</option>
+                    <option value="suspendido">Suspendido</option>
+                    <option value="retirado">Retirado</option>
+                    <option value="condonado">Condonado</option>
+                    <option value="egresado">Egresado</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Se precargará beneficiarios con este estado
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Modalidad de Beca (Opcional)
+                  </label>
+                  <select
+                    value={modalidadBeca}
+                    onChange={(e) => setModalidadBeca(e.target.value)}
+                    disabled={creando}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Todas las modalidades</option>
+                    <option value="SUEÑOS">Sueños Educativos</option>
+                    <option value="MÉRITO">Mérito Educativo</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Dejar vacío para incluir todas las modalidades
+                  </p>
+                </div>
+
+                {errorCreacion && (
+                  <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg">
+                    {errorCreacion}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 justify-end p-6 border-t border-gray-200">
+                <button
+                  onClick={() => setMostrarModalFiltros(false)}
+                  disabled={creando}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50 transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => realizarCreacionDocumento(
+                    'terceros',
+                    estadoBeneficiario,
+                    modalidadBeca || null
+                  )}
+                  disabled={creando}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
+                >
+                  {creando ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      Creando...
+                    </>
+                  ) : (
+                    'Crear Documento'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }

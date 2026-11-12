@@ -42,7 +42,6 @@ const AdminCargueDocumentos = () => {
   const [estadisticas, setEstadisticas] = useState(null)
   // Nuevos estados para el modal de filtros
   const [mostrarModalFiltros, setMostrarModalFiltros] = useState(false)
-  const [estadoBeneficiario, setEstadoBeneficiario] = useState('activo')
   const [modalidadBeca, setModalidadBeca] = useState('')
   const [tipoDocumentoEnCreacion, setTipoDocumentoEnCreacion] = useState(null)
 
@@ -98,18 +97,18 @@ const AdminCargueDocumentos = () => {
   }
 
   const crearDocumento = async (tipo) => {
-    // Si es terceros, mostrar modal de filtros
-    if (tipo === 'terceros') {
+    // Si es RP (Resolución y Promoción), mostrar modal de filtros por modalidad
+    if (tipo === 'rp') {
       setTipoDocumentoEnCreacion(tipo)
       setMostrarModalFiltros(true)
       return
     }
 
     // Para otros tipos, crear directamente
-    await realizarCreacionDocumento(tipo, null, null)
+    await realizarCreacionDocumento(tipo, null)
   }
 
-  const realizarCreacionDocumento = async (tipo, estado = null, modalidad = null) => {
+  const realizarCreacionDocumento = async (tipo, modalidad = null) => {
     try {
       setCreando(true)
       setErrorCreacion(null)
@@ -120,14 +119,12 @@ const AdminCargueDocumentos = () => {
       })
       if (errorRpc) throw errorRpc
 
-      if (tipo === 'terceros') {
-        const estadoFiltro = estado || 'activo'
+      if (tipo === 'rp') {
         const modalidadFiltro = modalidad || null
         const { data: resultadoPrecarga, error: errorPrecarga } = await supabase.rpc(
-          'precargar_terceros_convocatoria',
+          'precargar_rp_convocatoria',
           {
             p_documento_id: nuevoId,
-            p_estado_beneficiario: estadoFiltro,
             p_modalidad_beca: modalidadFiltro
           }
         )
@@ -142,6 +139,7 @@ const AdminCargueDocumentos = () => {
       setDocumentoTipo(tipo)
       setDocumentoSeleccionado(nuevoId)
       setMostrarModalFiltros(false)
+      setModalidadBeca('')  // Resetear modalidad para próximo uso
     } catch (err) {
       setErrorCreacion(err.message)
     } finally {
@@ -240,12 +238,12 @@ const AdminCargueDocumentos = () => {
           </div>
         </div>
 
-        {/* Modal de filtros para crear terceros */}
+        {/* Modal de filtros para crear RP */}
         {mostrarModalFiltros && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 pointer-events-none">
+            <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4 pointer-events-auto">
               <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                <h2 className="text-lg font-bold text-gray-900">Crear Documento: Terceros</h2>
+                <h2 className="text-lg font-bold text-gray-900">Crear Documento: RP (Resolución y Promoción)</h2>
                 <button
                   onClick={() => setMostrarModalFiltros(false)}
                   className="p-1 hover:bg-gray-100 rounded-lg transition"
@@ -256,27 +254,6 @@ const AdminCargueDocumentos = () => {
               </div>
 
               <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Estado del Beneficiario
-                  </label>
-                  <select
-                    value={estadoBeneficiario}
-                    onChange={(e) => setEstadoBeneficiario(e.target.value)}
-                    disabled={creando}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="activo">Activo</option>
-                    <option value="suspendido">Suspendido</option>
-                    <option value="retirado">Retirado</option>
-                    <option value="condonado">Condonado</option>
-                    <option value="egresado">Egresado</option>
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Se precargará beneficiarios con este estado
-                  </p>
-                </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Modalidad de Beca (Opcional)
@@ -292,7 +269,7 @@ const AdminCargueDocumentos = () => {
                     <option value="MÉRITO">Mérito Educativo</option>
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
-                    Dejar vacío para incluir todas las modalidades
+                    Se precargará aspirantes ADMITIDOS de la convocatoria seleccionada
                   </p>
                 </div>
 
@@ -313,8 +290,7 @@ const AdminCargueDocumentos = () => {
                 </button>
                 <button
                   onClick={() => realizarCreacionDocumento(
-                    'terceros',
-                    estadoBeneficiario,
+                    'rp',
                     modalidadBeca || null
                   )}
                   disabled={creando}

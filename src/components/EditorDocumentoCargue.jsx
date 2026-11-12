@@ -9,6 +9,11 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState(null)
   const [exito, setExito] = useState(null)
+  // Estados para modal de filtros de precarga
+  const [mostrarModalFiltros, setMostrarModalFiltros] = useState(false)
+  const [convocatoriaFiltro, setConvocatoriaFiltro] = useState('')
+  const [estadoFiltro, setEstadoFiltro] = useState('admitido')
+  const [convocatorias, setConvocatorias] = useState([])
 
   const camposporTipo = {
     terceros: [
@@ -21,12 +26,13 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
       { name: 'ciudad', label: 'Ciudad', type: 'text', required: false }
     ],
     rp: [
-      { name: 'tercero_presupuestal', label: 'Tercero Presupuestal', type: 'text', required: true },
-      { name: 'rubro_presupuestal', label: 'Rubro Presupuestal', type: 'text', required: true },
-      { name: 'fuente_financiamiento', label: 'Fuente Financiamiento', type: 'text', required: false },
-      { name: 'valor_bruto', label: 'Valor Bruto', type: 'number', required: true },
-      { name: 'valor_deducciones', label: 'Deducciones', type: 'number', required: false },
-      { name: 'valor_neto', label: 'Valor Neto', type: 'number', required: true }
+      { name: 'identificacion', label: 'Identificación', type: 'text', required: true },
+      { name: 'nombre_beneficiario', label: 'Nombre', type: 'text', required: true },
+      { name: 'tipo_identificacion', label: 'Tipo Identificación', type: 'text', required: false },
+      { name: 'email', label: 'Email', type: 'email', required: false },
+      { name: 'telefono', label: 'Teléfono', type: 'tel', required: false },
+      { name: 'direccion', label: 'Dirección', type: 'text', required: false },
+      { name: 'ciudad', label: 'Ciudad', type: 'text', required: false }
     ],
     op: [
       { name: 'no_op', label: 'No. OP', type: 'text', required: true, readonly: true },
@@ -73,7 +79,7 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
       setCargando(true)
       const { data, error: errorCarga } = await supabase
         .from('portal_valores_cargue')
-        .select('id, identificacion, nombre_beneficiario')
+        .select('id, identificacion, nombre_beneficiario, tipo_identificacion, email, telefono, direccion, ciudad')
         .eq('documento_id', documentoId)
         .order('nombre_beneficiario')
       if (errorCarga) throw errorCarga
@@ -84,7 +90,26 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
             ...filaVacia(),
             id: String(r.id),
             cc_nit: r.identificacion,
-            nombre_razon_social: r.nombre_beneficiario
+            nombre_razon_social: r.nombre_beneficiario,
+            tipo_identificacion: r.tipo_identificacion || '',
+            email: r.email || '',
+            telefono: r.telefono || '',
+            direccion: r.direccion || '',
+            ciudad: r.ciudad || ''
+          }))
+        )
+      } else if (tipoDocumento === 'rp' && data.length > 0) {
+        setFilas(
+          data.map((r) => ({
+            ...filaVacia(),
+            id: String(r.id),
+            identificacion: r.identificacion,
+            nombre_beneficiario: r.nombre_beneficiario,
+            tipo_identificacion: r.tipo_identificacion || '',
+            email: r.email || '',
+            telefono: r.telefono || '',
+            direccion: r.direccion || '',
+            ciudad: r.ciudad || ''
           }))
         )
       } else {
@@ -97,15 +122,54 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
     }
   }
 
+  const puedePrecargar = (tipoDocumento === 'terceros' || tipoDocumento === 'rp') && userRole === 'admin_educacion' && esDocumentoExistente
+
+  // Cargar convocatorias al montar el componente
+  useEffect(() => {
+    cargarConvocatorias()
+  }, [])
+
+  const cargarConvocatorias = async () => {
+    try {
+      const { data, error: err } = await supabase
+        .from('convocatorias')
+        .select('id, nombre, anio')
+        .order('anio', { ascending: false })
+      if (err) throw err
+      setConvocatorias(data || [])
+      if (data?.[0]) setConvocatoriaFiltro(data[0].id)
+    } catch (err) {
+      console.error('Error cargando convocatorias:', err)
+    }
+  }
+
   const precargarDesdeAspirantes = async () => {
+    // Mostrar modal de filtros para RP/Terceros
+    if (tipoDocumento === 'rp' || tipoDocumento === 'terceros') {
+      setMostrarModalFiltros(true)
+      return
+    }
+  }
+
+  const realizarPrecarga = async (convId, estado) => {
     try {
       setPrecargando(true)
       setError(null)
-      const { data, error: errorRpc } = await supabase.rpc('precargar_terceros_convocatoria', {
-        p_documento_id: documentoId
-      })
+      
+      let rpcName = 'precargar_rp_convocatoria'
+      let params = {
+        p_documento_id: documentoId,
+        p_modalidad_beca: null
+      }
+
+      const { data, error: errorRpc } = await supabase.rpc(rpcName, params)
+      
       if (errorRpc) throw errorRpc
-      setExito(`Precarga completada: ${data} tercero(s) nuevo(s) agregado(s)`)
+      
+      setExito(`Precarga completada: ${data?.[0]?.cantidad_precargada || 0} registro(s) precargado(s)`)
+      setMostrarModalFiltros(false)
+      setConvocatoriaFiltro('')
+      setEstadoFiltro('admitido')
       await cargarDatos()
     } catch (err) {
       setError(err.message)
@@ -351,6 +415,95 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
           <p className="text-2xl font-bold text-indigo-900">{campos.length}</p>
         </div>
       </div>
+
+      {/* Modal de filtros para precarga desde aspirantes */}
+      {mostrarModalFiltros && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 pointer-events-none">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4 pointer-events-auto">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h2 className="text-lg font-bold text-gray-900">Seleccionar Filtros de Precarga</h2>
+              <button
+                onClick={() => setMostrarModalFiltros(false)}
+                className="p-1 hover:bg-gray-100 rounded-lg transition"
+                disabled={precargando}
+              >
+                <X size={20} className="text-gray-600" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Convocatoria
+                </label>
+                <select
+                  value={convocatoriaFiltro}
+                  onChange={(e) => setConvocatoriaFiltro(e.target.value)}
+                  disabled={precargando}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- Seleccionar --</option>
+                  {convocatorias.map((conv) => (
+                    <option key={conv.id} value={conv.id}>
+                      {conv.nombre} ({conv.anio})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Estado del Aspirante
+                </label>
+                <select
+                  value={estadoFiltro}
+                  onChange={(e) => setEstadoFiltro(e.target.value)}
+                  disabled={precargando}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="aspirante">Aspirante</option>
+                  <option value="admitido">Admitido</option>
+                  <option value="rechazado">Rechazado</option>
+                  <option value="pendiente">Pendiente</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Se precargará aspirantes de la convocatoria con este estado
+                </p>
+              </div>
+
+              {error && (
+                <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg">
+                  {error}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 justify-end p-6 border-t border-gray-200">
+              <button
+                onClick={() => setMostrarModalFiltros(false)}
+                disabled={precargando}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => realizarPrecarga(convocatoriaFiltro, estadoFiltro)}
+                disabled={precargando || !convocatoriaFiltro}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
+              >
+                {precargando ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    Precargando...
+                  </>
+                ) : (
+                  'Precargar'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

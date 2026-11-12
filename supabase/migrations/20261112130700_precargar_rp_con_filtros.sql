@@ -46,7 +46,12 @@ BEGIN
     inscripcion_id BIGINT PRIMARY KEY,
     identificacion VARCHAR(15) NOT NULL,
     nombre VARCHAR(200),
-    modalidad_beca VARCHAR(50)
+    modalidad_beca VARCHAR(50),
+    tipo_identificacion VARCHAR(10),
+    email VARCHAR(100),
+    telefono VARCHAR(20),
+    direccion VARCHAR(255),
+    ciudad VARCHAR(100)
   ) ON COMMIT DROP;
   TRUNCATE tmp_precarga_rp;
 
@@ -55,7 +60,10 @@ BEGIN
   -- 1. Convocatoria seleccionada
   -- 2. Estado = 'admitido'
   -- 3. Modalidad de beca (opcional)
-  INSERT INTO tmp_precarga_rp (inscripcion_id, identificacion, nombre, modalidad_beca)
+  INSERT INTO tmp_precarga_rp (
+    inscripcion_id, identificacion, nombre, modalidad_beca,
+    tipo_identificacion, email, telefono, direccion, ciudad
+  )
   SELECT DISTINCT ON (i.id)
          i.id,
          COALESCE(
@@ -68,7 +76,12 @@ BEGIN
            (i.datos_formulario->>'primer_apellido')::VARCHAR(200),
            'Sin nombre'
          ),
-         (i.datos_formulario->>'modalidad_beca')::VARCHAR(50)
+         (i.datos_formulario->>'modalidad_beca')::VARCHAR(50),
+         COALESCE((i.datos_formulario->>'tipo_documento')::VARCHAR(10), 'CC'),
+         COALESCE((i.datos_formulario->>'email')::VARCHAR(100), ''),
+         COALESCE((i.datos_formulario->>'telefono')::VARCHAR(20), ''),
+         COALESCE((i.datos_formulario->>'direccion')::VARCHAR(255), ''),
+         COALESCE((i.datos_formulario->>'ciudad')::VARCHAR(100), '')
     FROM public.inscripciones i
    WHERE i.convocatoria_id = v_doc.convocatoria_id
      AND LOWER(TRANSLATE(COALESCE(i.estado, ''), 'ÁÉÍÓÚáéíóú', 'AEIOUaeiou')) = 'admitido'
@@ -96,9 +109,14 @@ BEGIN
     NULL;
   END;
 
-  -- Insertar en tabla de valores a cargar
-  INSERT INTO public.portal_valores_cargue (documento_id, identificacion, nombre_beneficiario)
-  SELECT p_documento_id, t.identificacion, t.nombre
+  -- Insertar en tabla de valores a cargar (incluyendo nuevos campos)
+  INSERT INTO public.portal_valores_cargue (
+    documento_id, identificacion, nombre_beneficiario, 
+    tipo_identificacion, email, telefono, direccion, ciudad
+  )
+  SELECT 
+    p_documento_id, t.identificacion, t.nombre,
+    t.tipo_identificacion, t.email, t.telefono, t.direccion, t.ciudad
     FROM tmp_precarga_rp t
    WHERE NOT EXISTS (
      SELECT 1 FROM public.portal_valores_cargue v

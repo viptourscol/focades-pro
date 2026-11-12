@@ -1,8 +1,8 @@
 # 🎯 PRECARGA DE ASPIRANTES CON CAMPOS COMPLETOS
 
 **Fecha:** 2026-11-12  
-**Status:** ✅ COMPLETADO Y PUSHEADO  
-**Commits:** a054428, 1451592  
+**Status:** ✅ COMPLETADO, PUSHEADO Y MIGRACIONES EJECUTADAS EN SUPABASE  
+**Commits:** a054428, 1451592, 8672d53, fb06539  
 
 ---
 
@@ -110,53 +110,35 @@ rp: [
 
 ## 🚀 DEPLOYMENT
 
-### Paso 1: Agregar columnas a tabla (si no existen)
+### Status: ✅ MIGRACIONES EJECUTADAS EN SUPABASE
 
-```sql
-ALTER TABLE portal_valores_cargue
-ADD COLUMN IF NOT EXISTS tipo_identificacion VARCHAR(10),
-ADD COLUMN IF NOT EXISTS email VARCHAR(100),
-ADD COLUMN IF NOT EXISTS telefono VARCHAR(20),
-ADD COLUMN IF NOT EXISTS direccion VARCHAR(255),
-ADD COLUMN IF NOT EXISTS ciudad VARCHAR(100);
-```
-
-### Paso 2: Crear función RPC
-
-Copiar contenido completo de:
-```
-supabase/migrations/20261112130700_precargar_rp_con_filtros.sql
-```
-
-Ejecutar en Supabase Console → SQL Editor
-
-### Paso 3: Verificar
-
-```sql
-SELECT proname FROM pg_proc WHERE proname LIKE 'precargar_rp%';
-```
-
-Resultado esperado: 2 funciones (con y sin parámetros)
-
-### Paso 4: Probar en navegador
-
-1. Ir a `/admin/cargue-documentos`
-2. Crear documento RP
-3. Click "Precargar desde aspirantes"
-4. Seleccionar convocatoria y estado
-5. Verificar que se llenen todos los 7 campos
-
-### Paso 5: Validar en BD
-
-```sql
-SELECT COUNT(*) as total_con_email
-FROM portal_valores_cargue
-WHERE email IS NOT NULL;
-```
+Todas las migraciones se han ejecutado exitosamente en Supabase remoto via CLI.
 
 ---
 
-## ✅ VALIDACIONES INCLUIDAS
+## ✅ MIGRACIONES EJECUTADAS
+
+### 1. Migración 20261112130700_precargar_rp_con_filtros.sql
+- **Status:** ✅ Ejecutada en Supabase
+- **Contenido:** Función RPC `precargar_rp_convocatoria()` con filtros
+- **Fecha ejecución:** 2026-11-12 13:30:30
+
+### 2. Migración 20261112131000_agregar_columnas_precargar.sql
+- **Status:** ✅ Ejecutada en Supabase
+- **Contenido:** Agregar 5 columnas + índices + comentarios
+- **Fecha ejecución:** 2026-11-12 13:32:45
+- **Columnas creadas:**
+  - tipo_identificacion VARCHAR(10)
+  - email VARCHAR(100)
+  - telefono VARCHAR(20)
+  - direccion VARCHAR(255)
+  - ciudad VARCHAR(100)
+
+**Índices creados:**
+- idx_portal_valores_cargue_email
+- idx_portal_valores_cargue_identificacion_tipo
+
+---
 
 - ✓ Solo `admin_educacion` puede precargar
 - ✓ Solo documentos tipo 'rp' en estado 'borrador'

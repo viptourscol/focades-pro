@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { AlertCircle, CheckCircle, Clock, FileText, Eye, Trash2, Plus, Download, Upload } from 'lucide-react'
 
@@ -43,46 +43,44 @@ const DocumentosCargueIndex = ({ onSelectDocumento, userRole, convocatoriaId }) 
   const [filtroEstado, setFiltroEstado] = useState('')
   const [paginaActual, setPaginaActual] = useState(1)
   const itemsPorPagina = 10
+  const solicitudActual = useRef(0)
 
-  useEffect(() => {
-    cargarDocumentos()
-  }, [userRole, convocatoriaId])
-
-  const cargarDocumentos = async () => {
-    try {
+  const cargarDocumentos = useCallback(() => {
+    const solicitud = ++solicitudActual.current
+    return supabase.auth.getSession().then(async ({ data: { session }, error: authError }) => {
+      if (solicitud !== solicitudActual.current) return
       setCargando(true)
       setError(null)
-
-      const {
-        data: { session },
-        error: authError
-      } = await supabase.auth.getSession()
-      if (authError || !session) {
-        setError('No autorizado')
-        return
-      }
+      if (authError || !session) throw new Error('No autorizado')
 
       const { data, error: queryError } = await supabase.functions.invoke('obtener-documentos-por-rol', {
         headers: {
           Authorization: `Bearer ${session.access_token}`
         },
         body: {
-          convocatoria_id: convocatoriaId,
-          tipo_filtro: filtroTipo || undefined
+          convocatoria_id: convocatoriaId
         }
       })
 
-      if (queryError) {
-        setError(queryError.message)
-      } else if (data.documentos) {
-        setDocumentos(data.documentos)
+      if (solicitud !== solicitudActual.current) return
+      if (queryError) throw queryError
+      if (!data?.success || !Array.isArray(data.documentos)) throw new Error(data?.error || 'No se recibió una lista válida de documentos')
+      setDocumentos(data.documentos)
+      setPaginaActual(1)
+    }).catch((err) => {
+      if (solicitud === solicitudActual.current) {
+        setDocumentos([])
+        setError(err.message)
       }
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setCargando(false)
-    }
-  }
+    }).finally(() => {
+      if (solicitud === solicitudActual.current) setCargando(false)
+    })
+  }, [convocatoriaId])
+
+  useEffect(() => {
+    cargarDocumentos()
+    return () => { solicitudActual.current += 1 }
+  }, [cargarDocumentos, userRole])
 
   const documentosFiltrados = documentos.filter((doc) => {
     if (filtroEstado && doc.estado !== filtroEstado) return false
@@ -130,6 +128,7 @@ const DocumentosCargueIndex = ({ onSelectDocumento, userRole, convocatoriaId }) 
         {/* Filtros */}
         <div className="flex flex-col md:flex-row gap-3">
           <select
+            aria-label="Filtrar por tipo de documento"
             value={filtroTipo}
             onChange={(e) => {
               setFiltroTipo(e.target.value)
@@ -146,6 +145,7 @@ const DocumentosCargueIndex = ({ onSelectDocumento, userRole, convocatoriaId }) 
           </select>
 
           <select
+            aria-label="Filtrar por estado del documento"
             value={filtroEstado}
             onChange={(e) => {
               setFiltroEstado(e.target.value)
@@ -163,16 +163,17 @@ const DocumentosCargueIndex = ({ onSelectDocumento, userRole, convocatoriaId }) 
 
           <button
             onClick={cargarDocumentos}
+            disabled={cargando}
             className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
           >
-            Actualizar
+            {cargando ? 'Actualizando…' : 'Actualizar'}
           </button>
         </div>
       </div>
 
       {/* Error */}
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
+        <div role="alert" className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
           <AlertCircle size={20} className="text-red-600 flex-shrink-0" />
           <div>
             <p className="text-sm font-medium text-red-800">{error}</p>
@@ -185,10 +186,10 @@ const DocumentosCargueIndex = ({ onSelectDocumento, userRole, convocatoriaId }) 
         <div className="flex justify-center items-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
-      ) : documentosPaginados.length === 0 ? (
+      ) : error ? null : documentosPaginados.length === 0 ? (
         <div className="text-center py-12">
           <FileText size={48} className="mx-auto text-gray-400 mb-4" />
-          <p className="text-gray-600 text-sm">No hay documentos para mostrar</p>
+          <p className="text-gray-600 text-sm">{documentos.length ? 'No hay documentos que coincidan con los filtros seleccionados' : 'No hay documentos para esta convocatoria'}</p>
         </div>
       ) : (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">

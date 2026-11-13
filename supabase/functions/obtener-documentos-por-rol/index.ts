@@ -4,8 +4,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
 const supabaseUrl = Deno.env.get("SUPABASE_URL");
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
@@ -30,6 +28,13 @@ serve(async (req: Request) => {
       );
     }
 
+    // La misma sesion debe autenticar tanto getUser como la consulta bajo RLS.
+    // Crear el cliente por peticion evita compartir sesiones entre usuarios.
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader! } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
     // Verificar usuario
     const {
       data: { user },
@@ -43,10 +48,17 @@ serve(async (req: Request) => {
       });
     }
 
-    const roles = user.user_metadata?.roles || [];
-    const rol = Array.isArray(roles) && roles.length > 0 ? roles[0] : "admin_visualizacion";
-
-    console.log("✅ User authenticated:", { email: user.email, roles, selected_rol: rol });
+    const rolesValidos = ["admin_educacion", "admin_presupuesto", "admin_contabilidad", "admin_pagos", "admin_visualizacion"];
+    const roles = [
+      user.user_metadata?.roles, user.app_metadata?.roles,
+      user.user_metadata?.role, user.app_metadata?.role,
+    ].flatMap((valor) => Array.isArray(valor) ? valor : valor ? [valor] : []);
+    const rol = roles.find((valor) => rolesValidos.includes(valor));
+    if (!rol) {
+      return new Response(JSON.stringify({ error: "El usuario no tiene un rol de cargue de documentos" }), {
+        status: 403, headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
 
     // Obtener parámetros
     let params: any = {};

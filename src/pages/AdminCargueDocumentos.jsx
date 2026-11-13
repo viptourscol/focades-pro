@@ -31,6 +31,7 @@ const AdminCargueDocumentos = () => {
   const [userRole, setUserRole] = useState(null)
   const [documentoSeleccionado, setDocumentoSeleccionado] = useState(null)
   const [documentoDetalle, setDocumentoDetalle] = useState(null)
+  const [errorDetalle, setErrorDetalle] = useState(null)
   const [convocatorias, setConvocatorias] = useState([])
   const [convocatoriaId, setConvocatoriaId] = useState('')
   const [documentoTipo, setDocumentoTipo] = useState(null)
@@ -49,6 +50,28 @@ const AdminCargueDocumentos = () => {
   useEffect(() => {
     cargarUsuario()
   }, [])
+
+  useEffect(() => {
+    let activo = true
+    if (!documentoSeleccionado || documentoSeleccionado === 'nuevo') return
+    const cargarDetalle = async () => {
+      const { data, error: errorConsulta } = await supabase
+        .from('portal_documentos_cargue')
+        .select('id, tipo_documento, estado')
+        .eq('id', documentoSeleccionado)
+        .single()
+      if (!activo) return
+      if (errorConsulta) setErrorDetalle(`No se pudo consultar el estado del documento: ${errorConsulta.message}`)
+      else {
+        setErrorDetalle(null)
+        setDocumentoDetalle(data)
+      }
+    }
+    cargarDetalle().catch((err) => {
+      if (activo) setErrorDetalle(`No se pudo consultar el estado del documento: ${err.message}`)
+    })
+    return () => { activo = false }
+  }, [documentoSeleccionado])
 
   const cargarUsuario = async () => {
     try {
@@ -289,9 +312,11 @@ const AdminCargueDocumentos = () => {
               {convocatoriaId ? (
                 <DocumentosCargueIndex
                   onSelectDocumento={(id, tipo) => {
-                  setDocumentoTipo(tipo)
-                  setDocumentoSeleccionado(id)
-                }}
+                    setDocumentoDetalle(null)
+                    setErrorDetalle(null)
+                    setDocumentoTipo(tipo)
+                    setDocumentoSeleccionado(id)
+                  }}
                   userRole={userRole}
                   convocatoriaId={convocatoriaId}
                 />
@@ -343,6 +368,7 @@ const AdminCargueDocumentos = () => {
 
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
+        {errorDetalle && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{errorDetalle}</p>}
         {errorCreacion && (
           <p className="mb-4 p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg">{errorCreacion}</p>
         )}
@@ -423,8 +449,9 @@ const AdminCargueDocumentos = () => {
 
               {/* Tab content */}
               <div className="bg-white p-6 rounded-lg border border-gray-200">
-                {activeTab === 'editor' && (
+                {activeTab === 'editor' && (documentoDetalle?.id === documentoSeleccionado ? (
                   <EditorDocumentoCargue
+                    key={`${documentoSeleccionado}-${documentoDetalle?.estado || 'cargando'}`}
                     documentoId={documentoSeleccionado}
                     tipoDocumento={documentoTipo || 'terceros'}
                     userRole={userRole}
@@ -434,7 +461,7 @@ const AdminCargueDocumentos = () => {
                     }}
                     onCancelado={() => setDocumentoSeleccionado(null)}
                   />
-                )}
+                ) : <p className="text-sm text-gray-500">{errorDetalle ? 'Editor no disponible hasta consultar el documento.' : 'Consultando estado del documento…'}</p>)}
 
                 {activeTab === 'validaciones' && (
                   <ValidacionesDisplay documentoId={documentoSeleccionado} />
@@ -469,17 +496,18 @@ const AdminCargueDocumentos = () => {
                     <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
                       Guarda los cambios del editor antes de enviar este documento a revisión.
                     </p>
-                  ) : (
-                  <BotonesFlujoCargue
-                    documentoId={documentoSeleccionado}
-                    estado="borrador"
-                    tipoDocumento={documentoTipo || 'terceros'}
-                    userRole={userRole}
-                    onAccionCompletada={(data) => {
-                      console.log('Acción completada:', data)
-                    }}
-                  />
-                  )}
+                  ) : documentoDetalle?.id === documentoSeleccionado ? (
+                    <BotonesFlujoCargue
+                      key={`${documentoSeleccionado}-${documentoDetalle.estado}`}
+                      documentoId={documentoSeleccionado}
+                      estado={documentoDetalle.estado}
+                      tipoDocumento={documentoTipo || 'terceros'}
+                      userRole={userRole}
+                      onAccionCompletada={(data) => {
+                        setDocumentoDetalle((actual) => ({ ...actual, estado: data.nuevo_estado }))
+                      }}
+                    />
+                  ) : <p className="text-sm text-gray-500">{errorDetalle ? 'Acciones no disponibles hasta consultar el estado.' : 'Consultando estado del documento…'}</p>}
                 </div>
 
                 {/* Ayuda */}

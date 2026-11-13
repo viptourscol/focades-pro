@@ -79,6 +79,46 @@ y revierte toda la transaccion. Las pruebas de navegador deben usar datos
 sinteticos y cubrir busqueda, filtros, edicion, alta, eliminacion confirmada,
 errores de guardado y lectura en escritorio y movil.
 
+## Bandeja de revision de Presupuesto
+
+`obtener-documentos-por-rol` crea un cliente por peticion y transmite la cabecera
+`Authorization` tanto a la verificacion de usuario como a la consulta. Verificar
+el JWT con `getUser(token)` no autentica por si solo las consultas posteriores:
+sin esa cabecera, RLS las ejecutaba como anonimas y devolvia una bandeja vacia.
+No se utiliza la clave de servicio ni se amplian las politicas RLS.
+
+El rol se resuelve igual que en la pagina, considerando los roles reconocidos
+en los metadatos de usuario y aplicacion. Presupuesto puede listar TERCEROS y RP
+de la convocatoria seleccionada. Los filtros de tipo y estado de la interfaz
+se aplican sobre el listado autorizado completo, incluso despues de actualizar.
+Las respuestas atrasadas de otra convocatoria se descartan y los errores se
+muestran explicitamente.
+
+Las acciones del documento utilizan su estado real, no un borrador fijo.
+Un TERCEROS enviado se abre en lectura y ofrece Aprobar/Rechazar a Presupuesto.
+Al completar una accion se actualizan las acciones y se recarga el editor.
+
+Pruebas:
+
+```sh
+node --test scripts/testing/test-listado-documentos-por-rol.mjs scripts/testing/test-editor-terceros.mjs
+supabase db query --linked --file scripts/testing/test-presupuesto-documento-enviado.sql
+npm run build
+```
+
+La prueba del endpoint ejecuta su codigo real con autenticacion y transporte
+simulados. La prueba SQL comprueba, bajo el rol autenticado de Presupuesto, la
+lectura del documento reportado en revision y sus tres terceros, con `ROLLBACK`.
+Es una comprobacion puntual del incidente: presupone que ese documento sigue
+en revision. Las pruebas de navegador usan datos sinteticos y no aprueban
+documentos reales.
+
+Desplegar solamente la funcion modificada, manteniendo la verificacion de JWT:
+
+```sh
+supabase functions deploy obtener-documentos-por-rol --use-api
+```
+
 ## Historial anterior (no vigente)
 
 Las notas siguientes describen intentos previos; las firmas, fuentes y

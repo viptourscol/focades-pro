@@ -78,7 +78,7 @@ export const validarTercero = (fila, { completo = false } = {}) => {
     else if (campo.type === 'select' && valor && !campo.options.includes(valor)) errores[campo.name] = 'Selecciona un valor admitido por Presupuesto.'
     else if (campo.type === 'email' && valor && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valor)) errores[campo.name] = 'Ingresa un correo válido.'
   })
-  if (completo && fila.nombres_confirmados !== true) errores.nombres_confirmados = 'Educación debe confirmar los nombres y apellidos.'
+  if (completo && fila.nombres_confirmados !== true) errores.nombres_confirmados = 'Debes confirmar los nombres y apellidos.'
   return errores
 }
 

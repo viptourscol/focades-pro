@@ -508,7 +508,7 @@ const AdminCargueDocumentos = () => {
                   <p className="text-xs font-semibold text-gray-600 mb-3">ACCIONES</p>
                   {cambiosTerceros ? (
                     <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-                      Guarda los cambios del editor antes de enviar este documento a revisión.
+                      Guarda o cancela los cambios del editor antes de continuar con las acciones del documento.
                     </p>
                   ) : documentoDetalle?.id === documentoSeleccionado ? (
                     <BotonesFlujoCargue
@@ -529,6 +529,8 @@ const AdminCargueDocumentos = () => {
                   <p className="text-xs text-blue-800 font-semibold mb-2">💡 Ayuda</p>
                   {documentoTipo === 'terceros' && userRole === 'admin_presupuesto' ? <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
                     <li>Revisa las 22 columnas del listado.</li>
+                    <li>En revisión, corrige celdas con motivo e historial.</li>
+                    <li>Agregar o eliminar personas corresponde a Educación.</li>
                     <li>Descarga el Excel para importar en tu programa.</li>
                     <li>Descargar no aprueba: usa Aprobar o Rechazar.</li>
                     <li>La aprobación habilita RP de esta convocatoria.</li>

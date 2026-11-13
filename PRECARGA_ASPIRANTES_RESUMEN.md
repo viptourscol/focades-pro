@@ -67,7 +67,8 @@ en las opciones frecuentes.
 
 `Guardar cambios` utiliza `guardar_terceros_cargue` para persistir altas,
 ediciones y eliminaciones de forma atomica. Solo admite TERCEROS en borrador y
-el rol `admin_educacion`; Presupuesto tiene una lista de solo lectura. Compara `editado_en` para
+el rol `admin_educacion`; Presupuesto utiliza la correccion auditada descrita
+mas abajo, sin altas ni bajas. Compara `editado_en` para
 rechazar ediciones desactualizadas; conserva los identificadores y datos
 financieros de las filas existentes. Nunca modifica `personas` ni `inscripciones`.
 El documento puede guardarse vacio despues de confirmar las eliminaciones.
@@ -148,6 +149,40 @@ el estado. El Excel incluye todas las filas guardadas, no solo el filtro o pagin
 La descarga exige una instantanea autorizada y valida del documento enviado,
 aprobado o finalizado. No se publica ningun archivo en Storage.
 
+### Correcciones controladas de Presupuesto
+
+Migracion: `supabase/migrations/20261113190000_correcciones_presupuesto_terceros.sql`.
+
+- Solo `admin_presupuesto`, sobre TERCEROS en `enviado_para_revision`.
+  Cada celda editable tiene un lapiz que abre la ficha de la persona.
+  Los campos fijos y deliberadamente vacios del formato no son editables.
+- Se exige motivo, ficha completa y formatos validos antes de guardar.
+  Cambiar nombres/apellidos exige confirmarlos expresamente otra vez.
+  En documentos antiguos incompletos, completar toda la ficha antes de guardar.
+- `corregir_tercero_presupuesto` bloquea el documento y compara `editado_en`:
+  no sobrescribe otra edicion ni permite editar despues de aprobar/rechazar.
+  La fila debe pertenecer al documento; no admite altas, bajas, duplicados,
+  cambios de municipio original, nombre fuente ni valores financieros.
+- Guarda solo la copia documental. `personas`, `inscripciones` y perfiles de
+  beneficiarios no cambian. Educacion conserva su guardado anterior en borrador.
+- El trigger registra cada celda modificada en `portal_correcciones_terceros`
+  con fila, identificacion, usuario, fecha, motivo y valores anterior/nuevo.
+  La lectura usa RLS del documento y una RPC agregada para evitar truncamientos;
+  el cliente no tiene permisos de insertar, alterar ni borrar esta bitacora.
+  `Ver historial de correcciones` muestra los cambios y el identificador de usuario.
+- Guardar no aprueba. Mientras la ficha esta abierta se bloquean descarga y
+  acciones de flujo; al guardar o cancelar vuelven a habilitarse.
+  El Excel siempre usa los valores guardados actuales.
+- Aprobados/finalizados, rechazados y borradores son de solo lectura para
+  Presupuesto. Agregar o eliminar personas corresponde a Educacion mediante
+  rechazo, reapertura y reenvio.
+
+Regresion transaccional:
+
+```sh
+supabase db query --linked --file scripts/testing/test-correcciones-presupuesto.sql
+```
+
 `generar-terceros` ahora devuelve el binario XLSX con las mismas reglas, en vez
 del CSV antiguo basado en la tabla auxiliar historica. Usa el mismo contrato
 JS y generador Excel que la interfaz.
@@ -159,11 +194,14 @@ existentes delegan en esa RPC con la sesion del solicitante.
 
 Los triggers aplican las restricciones tambien a las escrituras directas:
 solo Educacion edita terceros en borrador; solo Presupuesto aprueba TERCEROS.
+Presupuesto puede corregir celdas existentes en revision mediante la RPC
+auditada; no se habilitan escrituras directas desde el cliente.
 RP requiere un TERCEROS aprobado/finalizado con aprobador registrado de la
 misma convocatoria para crearse, precargarse, enviarse, aprobarse o exportarse.
 Los documentos ya aprobados/finalizados no se convierten ni se reabren.
-Los TERCEROS anteriores enviados e incompletos deben rechazarse para completar
-los datos y confirmar nombres; no se aprueban automaticamente.
+Los TERCEROS anteriores enviados e incompletos pueden completarse mediante
+correccion auditada de Presupuesto o rechazarse para Educacion. La ficha debe
+quedar completa y con nombres confirmados; no se aprueban automaticamente.
 
 **Compatibilidad externa pendiente:** Banco se exporta por nombre y Tipo Cuenta
 como `AHORROS`/`CORRIENTE`, segun lo acordado. Se debe validar una importacion
@@ -176,6 +214,7 @@ Pruebas actualizadas:
 node --test scripts/testing/test-editor-terceros.mjs scripts/testing/test-listado-documentos-por-rol.mjs scripts/testing/test-flujo-presupuesto-edge.mjs
 supabase db query --linked --file scripts/testing/test-guardar-editor-terceros.sql
 supabase db query --linked --file scripts/testing/test-precarga-aspirantes.sql
+supabase db query --linked --file scripts/testing/test-correcciones-presupuesto.sql
 npm run build
 ```
 

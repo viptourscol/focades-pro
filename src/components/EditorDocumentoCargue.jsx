@@ -15,7 +15,8 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
   const [filasGuardadas, setFilasGuardadas] = useState('[]')
   const [edicionDocumento, setEdicionDocumento] = useState(null)
   const [estadoDocumento, setEstadoDocumento] = useState(null)
-  const hayCambios = tipoDocumento === 'terceros' && JSON.stringify(filas) !== filasGuardadas
+  const [correccionPendiente, setCorreccionPendiente] = useState(false)
+  const hayCambios = tipoDocumento === 'terceros' && (JSON.stringify(filas) !== filasGuardadas || correccionPendiente)
   const puedeEditarTerceros = userRole === 'admin_educacion' && estadoDocumento === 'borrador'
   // Estados para modal de filtros de precarga
   const [mostrarModalFiltros, setMostrarModalFiltros] = useState(false)
@@ -402,7 +403,14 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
       )}
 
       {tipoDocumento === 'terceros' ? (
-        userRole === 'admin_presupuesto' ? <ListaTercerosPresupuesto filas={filas} documentoId={documentoId} estado={estadoDocumento} /> :
+        userRole === 'admin_presupuesto' ? <ListaTercerosPresupuesto filas={filas} documentoId={documentoId} estado={estadoDocumento} editadoEn={edicionDocumento}
+          onEdicionPendiente={setCorreccionPendiente} onGuardado={(data) => {
+            const terceros = data.filas.map(terceroDesdeRegistro)
+            setFilas(terceros)
+            setFilasGuardadas(JSON.stringify(terceros))
+            setEdicionDocumento(data.editado_en)
+            onGuardado?.(data)
+          }} /> :
         <EditorTerceros
           filas={filas}
           campos={campos}

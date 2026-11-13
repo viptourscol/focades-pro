@@ -8,6 +8,9 @@
 > `portal_valores_cargue.datos_tercero` conserva nombres separados, confirmacion
 > y datos bancarios de la copia del documento. La tabla auxiliar de beneficiarios
 > descrita mas abajo no es la fuente de exportacion del editor actual.
+> `portal_correcciones_terceros` registra los ajustes de Presupuesto a las celdas
+> de documentos en revision (usuario, fecha, motivo, valor anterior y nuevo).
+> Es de solo lectura para clientes autorizados; no modifica los perfiles fuente.
 
 ## 1. VALORES DEL CAMPO `etapa` EN TABLA `inscripciones`
 

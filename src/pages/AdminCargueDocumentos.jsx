@@ -5,7 +5,7 @@ import EditorDocumentoCargue from '../components/EditorDocumentoCargue'
 import BotonesFlujoCargue from '../components/BotonesFlujoCargue'
 import ValidacionesDisplay from '../components/ValidacionesDisplay'
 import DashboardPorRol from '../components/DashboardPorRol'
-import { ArrowLeft, FileText, AlertCircle, X } from 'lucide-react'
+import { ArrowLeft, FileText, AlertCircle, CalendarDays, ClipboardList, FolderOpen, HelpCircle, Landmark, Users, Wallet, X } from 'lucide-react'
 
 const ROLES_VALIDOS = [
   'admin_educacion',
@@ -41,7 +41,6 @@ const AdminCargueDocumentos = () => {
   const [error, setError] = useState(null)
   const [activeTab, setActiveTab] = useState('editor') // 'editor' | 'validaciones' | 'historial'
   const [cambiosTerceros, setCambiosTerceros] = useState(false)
-  const [estadisticas, setEstadisticas] = useState(null)
   // Nuevos estados para el modal de filtros
   const [mostrarModalFiltros, setMostrarModalFiltros] = useState(false)
   const [modalidadBeca, setModalidadBeca] = useState('')
@@ -105,14 +104,6 @@ const AdminCargueDocumentos = () => {
       setConvocatorias(listaConvocatorias || [])
       if (listaConvocatorias?.[0]) setConvocatoriaId(listaConvocatorias[0].id)
 
-      // Cargar estadísticas
-      // En caso real, esto vendría de una función SQL o Edge Function
-      setEstadisticas({
-        total_documentos: 0,
-        documentos_borrador: 0,
-        documentos_revision: 0,
-        documentos_aprobados: 0
-      })
     } catch (err) {
       setError(err.message)
     } finally {
@@ -274,72 +265,46 @@ const AdminCargueDocumentos = () => {
   // Vista de dashboard de rol
   if (!documentoSeleccionado) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        {/* Header */}
-        <div className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40">
-          <div className="max-w-7xl mx-auto px-4 py-4 md:py-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Sistema de Cargue de Documentos</h1>
-                <p className="text-sm text-gray-600 mt-1">
-                  Bienvenido, <span className="font-semibold">{userRole?.replace(/_/g, ' ').toUpperCase()}</span>
-                </p>
-              </div>
+      <div className="min-h-screen bg-[#f5f6f4] text-slate-800">
+        <header className="border-b border-slate-200 bg-white">
+          <div className="mx-auto flex max-w-[1440px] flex-wrap items-end justify-between gap-6 px-4 py-7 sm:px-8 sm:py-8">
+            <div className="min-w-0">
+              <p className="mb-3 inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-800"><FolderOpen size={14} aria-hidden="true" />Gestión documental · FOCADES</p>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Cargue de documentos</h1>
+              <p className="mt-2 text-sm leading-6 text-slate-500">Información organizada, revisión trazable y continuidad del proceso.</p>
+            </div>
+            <div className="w-full sm:w-72">
+              <label htmlFor="select-convocatoria" className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500"><CalendarDays size={13} aria-hidden="true" />Convocatoria activa en la vista</label>
+              <select id="select-convocatoria" value={convocatoriaId} onChange={(e) => setConvocatoriaId(e.target.value)}
+                className="min-h-12 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none transition focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-100">
+                <option value="">Seleccionar convocatoria…</option>
+                {convocatorias.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              </select>
             </div>
           </div>
-        </div>
-
-        {/* Content */}
-        <div className="max-w-7xl mx-auto px-4 py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Sidebar - Dashboard por rol */}
-            <div className="lg:col-span-1">
-              <div className="sticky top-20">
-                <DashboardPorRol userRole={userRole} estadisticas={estadisticas} />
-              </div>
+        </header>
+        <main className="mx-auto max-w-[1440px] space-y-6 px-4 py-6 sm:px-8 sm:py-8">
+          <DashboardPorRol userRole={userRole} />
+          {convocatoriaId ? (
+            <DocumentosCargueIndex
+              key={convocatoriaId}
+              onSelectDocumento={(id, tipo) => {
+                setDocumentoDetalle(null)
+                setErrorDetalle(null)
+                setDocumentoTipo(tipo)
+                setDocumentoSeleccionado(id)
+              }}
+              userRole={userRole}
+              convocatoriaId={convocatoriaId}
+            />
+          ) : (
+            <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+              <CalendarDays size={28} className="text-slate-400" aria-hidden="true" />
+              <h2 className="font-bold text-slate-800">Selecciona una convocatoria</h2>
+              <p className="text-sm text-slate-500">Usa el selector superior para consultar sus documentos y estados.</p>
             </div>
-
-            {/* Main content - Lista de documentos */}
-            <div className="lg:col-span-2 space-y-4">
-              <div className="bg-white p-4 rounded-lg border border-gray-200">
-                <label htmlFor="select-convocatoria" className="block text-xs font-semibold text-gray-600 mb-2">
-                  CONVOCATORIA
-                </label>
-                <select
-                  id="select-convocatoria"
-                  value={convocatoriaId}
-                  onChange={(e) => setConvocatoriaId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Seleccionar convocatoria...</option>
-                  {convocatorias.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {convocatoriaId ? (
-                <DocumentosCargueIndex
-                  onSelectDocumento={(id, tipo) => {
-                    setDocumentoDetalle(null)
-                    setErrorDetalle(null)
-                    setDocumentoTipo(tipo)
-                    setDocumentoSeleccionado(id)
-                  }}
-                  userRole={userRole}
-                  convocatoriaId={convocatoriaId}
-                />
-              ) : (
-                <p className="text-sm text-gray-600 bg-white p-4 rounded-lg border border-gray-200">
-                  Selecciona una convocatoria para ver sus documentos.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
+          )}
+        </main>
         {modalCreacion}
       </div>
     )
@@ -404,23 +369,24 @@ const AdminCargueDocumentos = () => {
               }
 
               const tipoConfig = {
-                terceros: { icon: '👥', label: 'TERCEROS', desc: 'Beneficiarios y terceros' },
-                rp: { icon: '💰', label: 'RP', desc: 'Registros presupuestales' },
-                op: { icon: '📋', label: 'OP', desc: 'Órdenes de pago' },
-                contabilidad: { icon: '📊', label: 'CONTABILIDAD', desc: 'Asientos contables' },
-                siafe: { icon: '🏦', label: 'SIAFE', desc: 'Datos bancarios' }
+                terceros: { icon: Users, label: 'TERCEROS', desc: 'Datos de aspirantes y terceros' },
+                rp: { icon: Wallet, label: 'RP', desc: 'Registros presupuestales' },
+                op: { icon: ClipboardList, label: 'OP', desc: 'Órdenes de pago' },
+                contabilidad: { icon: FileText, label: 'CONTABILIDAD', desc: 'Asientos contables' },
+                siafe: { icon: Landmark, label: 'SIAFE', desc: 'Datos bancarios' }
               }
 
               const config = tipoConfig[tipo]
+              const Icono = config.icon
 
               return (
                 <button
                   key={tipo}
                   onClick={() => crearDocumento(tipo)}
                   disabled={creando}
-                  className="p-6 bg-white rounded-lg border border-gray-200 hover:border-blue-500 hover:shadow-lg transition text-left"
+                  className="rounded-2xl border border-slate-200 bg-white p-6 text-left transition hover:border-emerald-700 hover:shadow-sm focus-visible:outline-emerald-700 disabled:opacity-50"
                 >
-                  <div className="text-4xl mb-3">{config.icon}</div>
+                  <span className="mb-4 inline-flex rounded-xl bg-emerald-50 p-3 text-emerald-800"><Icono size={26} aria-hidden="true" /></span>
                   <h3 className="font-bold text-lg text-gray-900">{config.label}</h3>
                   <p className="text-sm text-gray-600 mt-1">{config.desc}</p>
                 </button>
@@ -526,7 +492,7 @@ const AdminCargueDocumentos = () => {
 
                 {/* Ayuda */}
                 <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                  <p className="text-xs text-blue-800 font-semibold mb-2">💡 Ayuda</p>
+                  <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-blue-800"><HelpCircle size={15} aria-hidden="true" />Guía de trabajo</p>
                   {documentoTipo === 'terceros' && userRole === 'admin_presupuesto' ? <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
                     <li>Revisa las 22 columnas del listado.</li>
                     <li>En revisión, corrige celdas con motivo e historial.</li>

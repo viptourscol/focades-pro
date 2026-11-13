@@ -1,39 +1,29 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { createElement, useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import { AlertCircle, CheckCircle, Clock, FileText, Eye, Trash2, Plus, Download, Upload } from 'lucide-react'
+import { AlertCircle, ArrowRight, CheckCircle, ChevronLeft, ChevronRight, Clock, Download, FileCheck2, FileText, FolderOpen, Landmark, ListFilter, Plus, RefreshCw, Users, Wallet } from 'lucide-react'
 
-const EstadoaBadge = ({ estado }) => {
-  const estadoConfig = {
-    borrador: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Borrador' },
-    enviado_para_revision: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'En Revisión' },
-    aprobado: { bg: 'bg-green-100', text: 'text-green-800', label: 'Aprobado' },
-    rechazado: { bg: 'bg-red-100', text: 'text-red-800', label: 'Rechazado' },
-    finalizado: { bg: 'bg-indigo-100', text: 'text-indigo-800', label: 'Finalizado' }
-  }
-  const config = estadoConfig[estado] || estadoConfig.borrador
-  return (
-    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
-      {config.label}
-    </span>
-  )
+const ESTADOS = {
+  borrador: { label: 'Borrador', estilo: 'bg-slate-100 text-slate-600', punto: 'bg-slate-400' },
+  enviado_para_revision: { label: 'En revisión', estilo: 'bg-amber-50 text-amber-800', punto: 'bg-amber-500' },
+  aprobado: { label: 'Aprobado', estilo: 'bg-emerald-50 text-emerald-800', punto: 'bg-emerald-600' },
+  rechazado: { label: 'Rechazado', estilo: 'bg-rose-50 text-rose-800', punto: 'bg-rose-500' },
+  finalizado: { label: 'Finalizado', estilo: 'bg-sky-50 text-sky-800', punto: 'bg-sky-600' }
 }
-
-const TipoDocumentoBadge = ({ tipo }) => {
-  const tipoConfig = {
-    terceros: { bg: 'bg-purple-100', text: 'text-purple-800', icon: '👥' },
-    rp: { bg: 'bg-blue-100', text: 'text-blue-800', icon: '💰' },
-    op: { bg: 'bg-orange-100', text: 'text-orange-800', icon: '📋' },
-    contabilidad: { bg: 'bg-green-100', text: 'text-green-800', icon: '📊' },
-    siafe: { bg: 'bg-indigo-100', text: 'text-indigo-800', icon: '🏦' }
-  }
-  const config = tipoConfig[tipo] || {}
-  return (
-    <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-md text-xs font-medium ${config.bg} ${config.text}`}>
-      <span>{config.icon}</span>
-      {tipo.toUpperCase()}
-    </span>
-  )
+const TIPOS = {
+  terceros: { label: 'TERCEROS', detalle: 'Creación de terceros', icono: Users, estilo: 'bg-emerald-50 text-emerald-800' },
+  rp: { label: 'RP', detalle: 'Registro presupuestal', icono: Wallet, estilo: 'bg-sky-50 text-sky-800' },
+  op: { label: 'OP', detalle: 'Orden de pago', icono: FileCheck2, estilo: 'bg-amber-50 text-amber-800' },
+  contabilidad: { label: 'CONTABILIDAD', detalle: 'Asiento contable', icono: FileText, estilo: 'bg-slate-100 text-slate-700' },
+  siafe: { label: 'SIAFE', detalle: 'Información de pagos', icono: Landmark, estilo: 'bg-teal-50 text-teal-800' }
 }
+const TIPOS_POR_ROL = {
+  admin_educacion: ['terceros', 'rp'],
+  admin_presupuesto: ['terceros', 'rp'],
+  admin_contabilidad: ['op', 'contabilidad'],
+  admin_pagos: ['siafe'],
+  admin_visualizacion: []
+}
+const control = 'min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-100'
 
 const DocumentosCargueIndex = ({ onSelectDocumento, userRole, convocatoriaId }) => {
   const [documentos, setDocumentos] = useState([])
@@ -52,16 +42,10 @@ const DocumentosCargueIndex = ({ onSelectDocumento, userRole, convocatoriaId }) 
       setCargando(true)
       setError(null)
       if (authError || !session) throw new Error('No autorizado')
-
       const { data, error: queryError } = await supabase.functions.invoke('obtener-documentos-por-rol', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        },
-        body: {
-          convocatoria_id: convocatoriaId
-        }
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: { convocatoria_id: convocatoriaId }
       })
-
       if (solicitud !== solicitudActual.current) return
       if (queryError) throw queryError
       if (!data?.success || !Array.isArray(data.documentos)) throw new Error(data?.error || 'No se recibió una lista válida de documentos')
@@ -82,226 +66,116 @@ const DocumentosCargueIndex = ({ onSelectDocumento, userRole, convocatoriaId }) 
     return () => { solicitudActual.current += 1 }
   }, [cargarDocumentos, userRole])
 
-  const documentosFiltrados = documentos.filter((doc) => {
-    if (filtroEstado && doc.estado !== filtroEstado) return false
-    if (filtroTipo && doc.tipo_documento !== filtroTipo) return false
-    return true
-  })
-
-  const documentosPaginados = documentosFiltrados.slice(
-    (paginaActual - 1) * itemsPorPagina,
-    paginaActual * itemsPorPagina
-  )
-  const totalPaginas = Math.ceil(documentosFiltrados.length / itemsPorPagina)
-
-  const puedeCrear = ['admin_educacion'].includes(userRole)
-  const tiposDisponibles = {
-    admin_educacion: ['terceros', 'rp'],
-    admin_presupuesto: ['terceros', 'rp'],
-    admin_contabilidad: ['op', 'contabilidad'],
-    admin_pagos: ['siafe'],
-    admin_visualizacion: []
+  const documentosFiltrados = documentos.filter((doc) =>
+    (!filtroEstado || doc.estado === filtroEstado) && (!filtroTipo || doc.tipo_documento === filtroTipo))
+  const documentosPaginados = documentosFiltrados.slice((paginaActual - 1) * itemsPorPagina, paginaActual * itemsPorPagina)
+  const totalPaginas = Math.max(1, Math.ceil(documentosFiltrados.length / itemsPorPagina))
+  const tiposParaRol = TIPOS_POR_ROL[userRole] || []
+  const metricas = [
+    { estado: '', label: 'Documentos totales', icono: FolderOpen, color: 'text-slate-700' },
+    { estado: 'enviado_para_revision', label: 'En revisión', icono: Clock, color: 'text-amber-700' },
+    { estado: 'aprobado', label: 'Aprobados', icono: CheckCircle, color: 'text-emerald-700' },
+    { estado: 'borrador', label: 'Borradores', icono: FileText, color: 'text-slate-500' }
+  ]
+  const cambiarEstado = (estado) => {
+    setFiltroEstado(estado)
+    setPaginaActual(1)
   }
-
-  const tiposParaRol = tiposDisponibles[userRole] || []
-
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 py-6">
-      {/* Encabezado */}
-      <div className="flex flex-col gap-4 mb-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <section aria-label="Bandeja de documentos" className="min-w-0 space-y-6">
+      <div aria-label="Resumen de documentos de la convocatoria" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {metricas.map((metrica) => (
+          <button key={metrica.label} type="button" onClick={() => cambiarEstado(metrica.estado)} disabled={cargando || Boolean(error)}
+            aria-pressed={filtroEstado === metrica.estado} aria-label={`Filtrar: ${metrica.label}`}
+            className={`min-w-0 rounded-2xl border p-4 text-left transition focus-visible:outline-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed sm:p-5 ${filtroEstado === metrica.estado ? 'border-emerald-700 bg-emerald-50/60 ring-1 ring-emerald-700' : 'border-slate-200 bg-white hover:border-slate-400'}`}>
+            <span className="flex items-center justify-between gap-2 text-[11px] font-semibold text-slate-500">{metrica.label}{createElement(metrica.icono, { size: 17, className: metrica.color, 'aria-hidden': true })}</span>
+            <span className={`mt-3 block text-3xl font-bold tabular-nums tracking-tight ${metrica.color}`}>{cargando || error ? '—' : metrica.estado ? documentos.filter((doc) => doc.estado === metrica.estado).length : documentos.length}</span>
+            <span className="mt-1 block text-[10px] text-slate-500">En esta convocatoria</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <header className="flex flex-wrap items-center justify-between gap-4 px-5 py-5 sm:px-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Cargue de Documentos</h1>
-            <p className="text-gray-600 text-sm mt-1">Gestiona documentos de terceros, presupuesto y contabilidad</p>
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl font-bold tracking-tight text-slate-900">Bandeja de documentos</h2>
+              {!cargando && !error && <span className="rounded-lg bg-slate-100 px-2 py-1 text-xs font-bold tabular-nums text-slate-600">{documentosFiltrados.length}</span>}
+            </div>
+            <p className="mt-1 text-xs leading-5 text-slate-500">Consulta el estado y abre un documento para continuar su gestión.</p>
           </div>
-          {puedeCrear && (
-            <button
-              onClick={() => onSelectDocumento('nuevo')}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition"
-            >
-              <Plus size={18} />
-              Nuevo Documento
-            </button>
-          )}
-        </div>
+          {userRole === 'admin_educacion' && <button type="button" onClick={() => onSelectDocumento('nuevo')}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-800 px-4 text-sm font-semibold text-white transition hover:bg-emerald-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+            <Plus size={17} aria-hidden="true" />Nuevo Documento
+          </button>}
+        </header>
 
-        {/* Filtros */}
-        <div className="flex flex-col md:flex-row gap-3">
-          <select
-            aria-label="Filtrar por tipo de documento"
-            value={filtroTipo}
-            onChange={(e) => {
-              setFiltroTipo(e.target.value)
-              setPaginaActual(1)
-            }}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">Todos los tipos</option>
-            {tiposParaRol.map((tipo) => (
-              <option key={tipo} value={tipo}>
-                {tipo.charAt(0).toUpperCase() + tipo.slice(1)}
-              </option>
-            ))}
-          </select>
-
-          <select
-            aria-label="Filtrar por estado del documento"
-            value={filtroEstado}
-            onChange={(e) => {
-              setFiltroEstado(e.target.value)
-              setPaginaActual(1)
-            }}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">Todos los estados</option>
-            <option value="borrador">Borrador</option>
-            <option value="enviado_para_revision">En Revisión</option>
-            <option value="aprobado">Aprobado</option>
-            <option value="rechazado">Rechazado</option>
-            <option value="finalizado">Finalizado</option>
-          </select>
-
-          <button
-            onClick={cargarDocumentos}
-            disabled={cargando}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
-          >
-            {cargando ? 'Actualizando…' : 'Actualizar'}
+        <div className="grid gap-3 border-y border-slate-100 bg-slate-50/70 px-5 py-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end sm:px-6">
+          <label className="space-y-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            <span className="flex items-center gap-1.5"><ListFilter size={12} aria-hidden="true" />Tipo de documento</span>
+            <select aria-label="Filtrar por tipo de documento" value={filtroTipo} onChange={(e) => { setFiltroTipo(e.target.value); setPaginaActual(1) }} className={control}>
+              <option value="">Todos los tipos</option>
+              {tiposParaRol.map((tipo) => <option key={tipo} value={tipo}>{TIPOS[tipo].label}</option>)}
+            </select>
+          </label>
+          <label className="space-y-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            <span>Estado del documento</span>
+            <select aria-label="Filtrar por estado del documento" value={filtroEstado} onChange={(e) => cambiarEstado(e.target.value)} className={control}>
+              <option value="">Todos los estados</option>
+              {Object.entries(ESTADOS).map(([estado, config]) => <option key={estado} value={estado}>{config.label}</option>)}
+            </select>
+          </label>
+          <button type="button" onClick={cargarDocumentos} disabled={cargando} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 focus-visible:outline-emerald-700 disabled:opacity-50">
+            <RefreshCw size={15} aria-hidden="true" className={cargando ? 'animate-spin' : ''} />{cargando ? 'Actualizando…' : 'Actualizar'}
           </button>
         </div>
+
+        {error ? <div role="alert" className="m-5 flex gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"><AlertCircle size={19} className="shrink-0" aria-hidden="true" /><p>{error}</p></div> :
+          cargando ? <div role="status" className="flex min-h-64 flex-col items-center justify-center gap-3 text-sm text-slate-500"><RefreshCw size={24} className="animate-spin text-emerald-700" aria-hidden="true" />Consultando documentos…</div> :
+            !documentosPaginados.length ? <div className="flex min-h-64 flex-col items-center justify-center px-6 py-10 text-center">
+              <span className="mb-4 rounded-2xl bg-slate-50 p-4"><FolderOpen size={30} className="text-slate-400" aria-hidden="true" /></span>
+              <h3 className="text-sm font-bold text-slate-800">{documentos.length ? 'Sin coincidencias' : 'Esta convocatoria aún no tiene documentos'}</h3>
+              <p className="mt-2 max-w-sm text-xs leading-6 text-slate-500">{documentos.length ? 'Prueba otro tipo o estado para encontrar el documento que necesitas.' : userRole === 'admin_educacion' ? 'Crea el primer documento para comenzar el proceso.' : 'Aquí aparecerán los documentos disponibles para tu rol.'}</p>
+              {(filtroTipo || filtroEstado) && <button type="button" onClick={() => { setFiltroTipo(''); cambiarEstado('') }} className="mt-4 min-h-10 rounded-lg border border-slate-200 px-4 text-xs font-semibold text-emerald-800">Limpiar filtros</button>}
+            </div> : <div role="region" aria-label="Listado de documentos" tabIndex={0} className="overflow-x-auto focus-visible:outline-emerald-700">
+              <table className="w-full min-w-[720px] text-left">
+                <caption className="sr-only">Documentos de la convocatoria seleccionada. Usa Abrir documento para ver su información y acciones.</caption>
+                <thead className="border-b border-slate-100 bg-slate-50/40 text-[10px] uppercase tracking-[0.12em] text-slate-500">
+                  <tr>{['Documento', 'Estado', 'Registros', 'Versión', 'Creado', 'Acciones'].map((titulo) => <th key={titulo} scope="col" className="px-5 py-3.5 font-semibold sm:px-6">{titulo}</th>)}</tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {documentosPaginados.map((doc) => {
+                    const tipo = TIPOS[doc.tipo_documento] || { label: doc.tipo_documento, detalle: 'Documento', icono: FileText, estilo: 'bg-slate-100 text-slate-700' }
+                    const estado = ESTADOS[doc.estado] || { label: doc.estado, estilo: 'bg-slate-100 text-slate-600', punto: 'bg-slate-400' }
+                    return <tr key={doc.id} className="transition-colors hover:bg-slate-50/70">
+                      <td className="px-5 py-4 sm:px-6"><div className="flex items-center gap-3">
+                        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tipo.estilo}`}>{createElement(tipo.icono, { size: 19, 'aria-hidden': true })}</span>
+                        <div><p className="text-xs font-bold tracking-wide text-slate-800">{tipo.label}</p><p className="mt-1 whitespace-nowrap text-[10px] text-slate-500">{tipo.detalle}</p></div>
+                      </div></td>
+                      <td className="px-5 py-4 sm:px-6"><span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold ${estado.estilo}`}><span className={`h-1.5 w-1.5 rounded-full ${estado.punto}`} />{estado.label}</span></td>
+                      <td className="px-5 py-4 text-sm font-semibold tabular-nums text-slate-700 sm:px-6">{doc.cantidad_registros ?? 0}</td>
+                      <td className="px-5 py-4 text-xs tabular-nums text-slate-500 sm:px-6">v{doc.version}</td>
+                      <td className="px-5 py-4 sm:px-6"><time dateTime={doc.creado_en} className="whitespace-nowrap text-xs text-slate-600">{new Date(doc.creado_en).toLocaleDateString('es-CO', { month: 'short', day: 'numeric', year: 'numeric' })}<span className="mt-1 block text-[10px] text-slate-400">{new Date(doc.creado_en).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</span></time></td>
+                      <td className="px-5 py-4 sm:px-6"><div className="flex items-center gap-2">
+                        <button type="button" onClick={() => onSelectDocumento(doc.id, doc.tipo_documento)} title="Ver detalles" aria-label={`Abrir documento ${tipo.label} ${String(doc.id).slice(0, 8)}`}
+                          className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-emerald-700 hover:text-emerald-800 focus-visible:outline-emerald-700">Abrir<ArrowRight size={14} aria-hidden="true" /></button>
+                        {doc.archivo_url && <a href={doc.archivo_url} download title="Descargar archivo" aria-label={`Descargar archivo ${tipo.label} ${String(doc.id).slice(0, 8)}`} className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-xl border border-slate-200 text-emerald-800 hover:bg-emerald-50"><Download size={16} aria-hidden="true" /></a>}
+                      </div></td>
+                    </tr>
+                  })}
+                </tbody>
+              </table>
+            </div>}
+        {!cargando && !error && <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-4 text-xs text-slate-500 sm:px-6">
+          <p aria-live="polite">{documentosFiltrados.length ? `${(paginaActual - 1) * itemsPorPagina + 1}–${Math.min(paginaActual * itemsPorPagina, documentosFiltrados.length)} de ${documentosFiltrados.length}` : '0 resultados'}<span className="hidden sm:inline"> · {documentos.length} en la convocatoria</span></p>
+          {totalPaginas > 1 && <div className="flex items-center gap-3">
+            <button type="button" onClick={() => setPaginaActual((p) => Math.max(1, p - 1))} disabled={paginaActual === 1} className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-slate-200 px-3 text-slate-700 disabled:opacity-40"><ChevronLeft size={14} aria-hidden="true" />Anterior</button>
+            <span className="tabular-nums">{paginaActual} / {totalPaginas}</span>
+            <button type="button" onClick={() => setPaginaActual((p) => Math.min(totalPaginas, p + 1))} disabled={paginaActual === totalPaginas} className="inline-flex min-h-10 items-center gap-1 rounded-lg border border-slate-200 px-3 text-slate-700 disabled:opacity-40">Siguiente<ChevronRight size={14} aria-hidden="true" /></button>
+          </div>}
+        </footer>}
       </div>
-
-      {/* Error */}
-      {error && (
-        <div role="alert" className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
-          <AlertCircle size={20} className="text-red-600 flex-shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-red-800">{error}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Tabla */}
-      {cargando ? (
-        <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
-      ) : error ? null : documentosPaginados.length === 0 ? (
-        <div className="text-center py-12">
-          <FileText size={48} className="mx-auto text-gray-400 mb-4" />
-          <p className="text-gray-600 text-sm">{documentos.length ? 'No hay documentos que coincidan con los filtros seleccionados' : 'No hay documentos para esta convocatoria'}</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Tipo</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Estado</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Registros</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Versión</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Creado</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {documentosPaginados.map((doc) => (
-                  <tr key={doc.id} className="border-b border-gray-200 hover:bg-gray-50 transition">
-                    <td className="px-6 py-4">
-                      <TipoDocumentoBadge tipo={doc.tipo_documento} />
-                    </td>
-                    <td className="px-6 py-4">
-                      <EstadoaBadge estado={doc.estado} />
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm font-medium text-gray-900">{doc.cantidad_registros || 0}</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm text-gray-600">v{doc.version}</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm text-gray-600">
-                        {new Date(doc.creado_en).toLocaleDateString('es-CO', {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => onSelectDocumento(doc.id, doc.tipo_documento)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                          title="Ver detalles"
-                        >
-                          <Eye size={18} />
-                        </button>
-                        {doc.archivo_url && (
-                          <a
-                            href={doc.archivo_url}
-                            download
-                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
-                            title="Descargar archivo"
-                          >
-                            <Download size={18} />
-                          </a>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Paginación */}
-          {totalPaginas > 1 && (
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
-              <button
-                onClick={() => setPaginaActual((p) => Math.max(1, p - 1))}
-                disabled={paginaActual === 1}
-                className="px-3 py-1 text-sm border border-gray-300 rounded-md disabled:opacity-50 hover:bg-gray-100"
-              >
-                Anterior
-              </button>
-              <span className="text-sm text-gray-600">
-                Página {paginaActual} de {totalPaginas}
-              </span>
-              <button
-                onClick={() => setPaginaActual((p) => Math.min(totalPaginas, p + 1))}
-                disabled={paginaActual === totalPaginas}
-                className="px-3 py-1 text-sm border border-gray-300 rounded-md disabled:opacity-50 hover:bg-gray-100"
-              >
-                Siguiente
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Estadísticas */}
-      <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <p className="text-xs font-medium text-gray-600 mb-1">Total Documentos</p>
-          <p className="text-2xl font-bold text-gray-900">{documentos.length}</p>
-        </div>
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <p className="text-xs font-medium text-gray-600 mb-1">Borradores</p>
-          <p className="text-2xl font-bold text-gray-500">{documentos.filter((d) => d.estado === 'borrador').length}</p>
-        </div>
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <p className="text-xs font-medium text-gray-600 mb-1">En Revisión</p>
-          <p className="text-2xl font-bold text-blue-600">{documentos.filter((d) => d.estado === 'enviado_para_revision').length}</p>
-        </div>
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <p className="text-xs font-medium text-gray-600 mb-1">Aprobados</p>
-          <p className="text-2xl font-bold text-green-600">{documentos.filter((d) => d.estado === 'aprobado').length}</p>
-        </div>
-      </div>
-    </div>
+    </section>
   )
 }
 

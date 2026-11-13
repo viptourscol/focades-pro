@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { createElement, useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { AlertCircle, CheckCircle, Trash2, Filter } from 'lucide-react'
+import { AlertCircle, AlertTriangle, CheckCircle, Copy, Filter, Link, Table2, Trash2, XCircle, Zap } from 'lucide-react'
 import { terceroDesdeRegistro, validacionesDocumentoTerceros } from '../lib/tercerosCargue'
 
 const ValidacionesDisplay = ({ documentoId, tipoDocumento }) => {
@@ -93,12 +93,12 @@ const ValidacionesDisplay = ({ documentoId, tipoDocumento }) => {
   })
 
   const tipoErrorConfig = {
-    validacion_formato: { icon: '❌', color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
-    validacion_rango: { icon: '⚠️', color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200' },
-    validacion_referencia: { icon: '🔗', color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' },
-    duplicado: { icon: '📋', color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200' },
-    tipo_dato: { icon: '📊', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
-    error_sistema: { icon: '⚡', color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' }
+    validacion_formato: { icon: XCircle, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
+    validacion_rango: { icon: AlertTriangle, color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200' },
+    validacion_referencia: { icon: Link, color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' },
+    duplicado: { icon: Copy, color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200' },
+    tipo_dato: { icon: Table2, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
+    error_sistema: { icon: Zap, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' }
   }
 
   if (cargando) {
@@ -186,7 +186,7 @@ const ValidacionesDisplay = ({ documentoId, tipoDocumento }) => {
           return (
             <div key={validacion.id} className={`p-4 rounded-lg border ${config.bg} ${config.border} ${validacion.resuelta ? 'opacity-60' : ''}`}>
               <div className="flex gap-3">
-                <div className="text-2xl flex-shrink-0">{config.icon}</div>
+                <div className={`shrink-0 ${config.color}`}>{createElement(config.icon, { size: 22, 'aria-hidden': true })}</div>
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                     <div>

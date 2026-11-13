@@ -2,6 +2,27 @@
 
 Actualizado: 2026-11-13.
 
+## Bandeja de trabajo
+
+La pantalla `/admin/cargue-documentos` organiza la convocatoria en el encabezado,
+una guia compacta del rol y la bandeja a todo el ancho disponible. Todos sus
+indicadores graficos (incluidos selector de creacion y validaciones) usan iconos
+SVG de Lucide, no emojis.
+
+- Un unico resumen muestra documentos totales, en revision, aprobados y
+  borradores de la convocatoria, segun la lista autorizada del usuario.
+  Pulsar una tarjeta filtra por estado; los contadores no dependen del filtro.
+- No se muestran estadisticas ficticias ni tarjetas que aparenten acciones sin
+  ejecutarlas. Durante la consulta o ante un error los contadores muestran una
+  raya, no un cero que pueda confundirse con un resultado.
+- Los filtros de tipo/estado, Actualizar y la paginacion se concentran en la
+  bandeja. Actualizar conserva los filtros; cambiar convocatoria los reinicia.
+- Abrir conserva el flujo de edicion/revision y sus permisos. Solo Educacion
+  ve Nuevo Documento. La tabla permite desplazamiento horizontal en movil sin
+  desbordar la pagina.
+
+## Precarga y exportacion
+
 La exportacion XLSX carga ExcelJS junto con la aplicacion, no mediante un
 `import()` al descargar. Asi una pestaña abierta no depende de un fragmento
 ExcelJS de un despliegue anterior que Vercel ya no publica. Tras actualizar

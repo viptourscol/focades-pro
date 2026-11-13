@@ -21,6 +21,29 @@ SVG de Lucide, no emojis.
   ve Nuevo Documento. La tabla permite desplazamiento horizontal en movil sin
   desbordar la pagina.
 
+### Eliminar documentos TERCEROS
+
+Educacion dispone del icono de papelera en la bandeja para TERCEROS en
+`borrador` o `enviado_para_revision`. No se ofrece para RP, rechazados,
+aprobados ni finalizados; los demas roles no pueden eliminar.
+
+- La confirmacion muestra documento, estado y cantidad de filas. Exige escribir
+  `ELIMINAR` y explica que el borrado permanente incluye filas, validaciones,
+  historial de revision y correcciones. En revision, desaparece tambien de
+  la bandeja de Presupuesto. No modifica aspirantes ni beneficiarios.
+- `eliminar_terceros_educacion` bloquea el documento y comprueba rol, tipo,
+  estado y `editado_en`. Si otro usuario corrige o aprueba mientras el modal
+  esta abierto, se rechaza el borrado y se debe actualizar/revisar otra vez.
+- El borrado es atomico mediante las relaciones `ON DELETE CASCADE`.
+  La proteccion de documentos aprobados/finalizados se conserva.
+- La bandeja vuelve a consultar sus documentos despues de confirmar el borrado,
+  actualiza contadores y conserva los filtros.
+
+Migracion: `supabase/migrations/20261113200000_eliminar_terceros_educacion.sql`.
+Prueba transaccional: `supabase db query --linked --file scripts/testing/test-eliminar-terceros.sql`.
+Esta migracion no elimina documentos existentes; el usuario debe confirmar
+cada documento individualmente desde la interfaz.
+
 ## Precarga y exportacion
 
 La exportacion XLSX carga ExcelJS junto con la aplicacion, no mediante un

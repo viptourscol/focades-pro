@@ -212,23 +212,39 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
       setPrecargando(true)
       setError(null)
       
-      let rpcName = 'precargar_rp_convocatoria'
-      let params = {
-        p_documento_id: documentoId,
-        p_modalidad_beca: null
+      if (!convId) {
+        setError('Debes seleccionar una convocatoria')
+        return
       }
-
-      const { data, error: errorRpc } = await supabase.rpc(rpcName, params)
+      if (!estado) {
+        setError('Debes seleccionar un estado')
+        return
+      }
+      
+      // Llamar RPC con 4 parámetros: documento_id, convocatoria_id, estado, modalidad
+      const { data, error: errorRpc } = await supabase.rpc('precargar_rp_convocatoria', {
+        p_documento_id: documentoId,
+        p_convocatoria_id: convId,
+        p_estado: estado,
+        p_modalidad_beca: null
+      })
       
       if (errorRpc) throw errorRpc
       
-      setExito(`Precarga completada: ${data?.[0]?.cantidad_precargada || 0} registro(s) precargado(s)`)
+      if (data && data.length > 0) {
+        const { cantidad_precargada, mensaje } = data[0]
+        setExito(`Precarga completada: ${cantidad_precargada} registro(s) precargado(s). ${mensaje}`)
+      } else {
+        setError('Sin respuesta de la precarga')
+      }
+      
       setMostrarModalFiltros(false)
       setConvocatoriaFiltro('')
       setEstadoFiltro('admitido')
       await cargarDatos()
     } catch (err) {
-      setError(err.message)
+      console.error('Error en realizarPrecarga:', err)
+      setError(err.message || 'Error desconocido en la precarga')
     } finally {
       setPrecargando(false)
     }

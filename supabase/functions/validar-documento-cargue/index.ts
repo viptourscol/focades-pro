@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import { terceroDesdeRegistro, validacionesDocumentoTerceros } from "../../../src/lib/tercerosCargue.js";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL");
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
@@ -73,6 +74,22 @@ serve(async (req: Request) => {
       });
     }
 
+    if (documento.tipo_documento === "terceros") {
+      const cliente = createClient(supabaseUrl!, supabaseAnonKey!, {
+        global: { headers: { Authorization: authHeader! } },
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const { data: guardado, error: errorLectura } = await cliente.rpc("leer_terceros_cargue", { p_documento_id: documento_id });
+      if (errorLectura || !guardado || !Array.isArray(guardado.filas)) return new Response(
+        JSON.stringify({ error: errorLectura?.message || "Documento no accesible" }), { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } },
+      );
+      const errores = validacionesDocumentoTerceros(guardado.filas.map(terceroDesdeRegistro));
+      return new Response(JSON.stringify({
+        success: true, documento_id, filas_validadas: guardado.filas.length,
+        errores_encontrados: errores.length, es_valido: errores.length === 0, errores,
+      }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+    }
+
     // Obtener plantilla
     const { data: plantilla, error: errorPlantilla } = await supabaseAdmin
       .from("portal_plantillas_cargue")
@@ -95,45 +112,6 @@ serve(async (req: Request) => {
       const numeroFila = indice + 2; // +2 porque fila 1 es encabezado y comienza en 0
 
       // Validaciones por tipo de documento
-      if (documento.tipo_documento === "terceros") {
-        // Validar CC/NIT
-        if (
-          !fila.cc_nit ||
-          typeof fila.cc_nit !== "string" ||
-          fila.cc_nit.length > 15
-        ) {
-          errores.push({
-            tipo_error: "validacion_formato",
-            mensaje_error: "C.C/NIT inválido o vacío (máx 15 caracteres)",
-            fila_numero: numeroFila,
-            columna_nombre: "cc_nit",
-            valor_problematico: String(fila.cc_nit),
-          });
-        }
-
-        // Validar email
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (fila.email && !emailRegex.test(String(fila.email))) {
-          errores.push({
-            tipo_error: "validacion_formato",
-            mensaje_error: "Email con formato inválido",
-            fila_numero: numeroFila,
-            columna_nombre: "email",
-            valor_problematico: String(fila.email),
-          });
-        }
-
-        // Validar nombre
-        if (!fila.nombre_razon_social || fila.nombre_razon_social.toString().length > 120) {
-          errores.push({
-            tipo_error: "validacion_formato",
-            mensaje_error: "Nombre/Razón Social inválida (máx 120 caracteres)",
-            fila_numero: numeroFila,
-            columna_nombre: "nombre_razon_social",
-          });
-        }
-      }
-
       if (documento.tipo_documento === "rp") {
         // Validar Valor
         const valor = parseFloat(fila.valor as string);

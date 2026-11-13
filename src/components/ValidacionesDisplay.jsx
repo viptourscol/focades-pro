@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { AlertCircle, CheckCircle, Trash2, Filter } from 'lucide-react'
+import { terceroDesdeRegistro, validacionesDocumentoTerceros } from '../lib/tercerosCargue'
 
-const ValidacionesDisplay = ({ documentoId }) => {
+const ValidacionesDisplay = ({ documentoId, tipoDocumento }) => {
   const [validaciones, setValidaciones] = useState([])
   const [cargando, setCargando] = useState(true)
   const [filtroResueltas, setFiltroResueltas] = useState('sin-resolver')
@@ -10,17 +11,26 @@ const ValidacionesDisplay = ({ documentoId }) => {
 
   useEffect(() => {
     cargarValidaciones()
-  }, [documentoId])
+  }, [documentoId, tipoDocumento])
 
   const cargarValidaciones = async () => {
     try {
       setCargando(true)
+      setError(null)
       const {
         data: { session },
         error: authError
       } = await supabase.auth.getSession()
       if (authError || !session) {
         setError('No autorizado')
+        return
+      }
+
+      if (tipoDocumento === 'terceros') {
+        const { data, error: errorLectura } = await supabase.rpc('leer_terceros_cargue', { p_documento_id: documentoId })
+        if (errorLectura) throw errorLectura
+        if (!data || !Array.isArray(data.filas)) throw new Error('No se pudieron consultar los terceros para validar.')
+        setValidaciones(validacionesDocumentoTerceros(data.filas.map(terceroDesdeRegistro)).map((validacion, i) => ({ ...validacion, id: `actual-${i}`, resuelta: false })))
         return
       }
 
@@ -98,6 +108,8 @@ const ValidacionesDisplay = ({ documentoId }) => {
       </div>
     )
   }
+
+  if (error) return <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</p>
 
   if (validaciones.length === 0) {
     return (
@@ -203,7 +215,7 @@ const ValidacionesDisplay = ({ documentoId }) => {
                 </div>
 
                 {/* Acciones */}
-                <div className="flex gap-2 flex-shrink-0">
+                {tipoDocumento !== 'terceros' && <div className="flex gap-2 flex-shrink-0">
                   {!validacion.resuelta && (
                     <button
                       onClick={() => marcarResuelta(validacion.id)}
@@ -220,7 +232,7 @@ const ValidacionesDisplay = ({ documentoId }) => {
                   >
                     <Trash2 size={18} />
                   </button>
-                </div>
+                </div>}
               </div>
             </div>
           )

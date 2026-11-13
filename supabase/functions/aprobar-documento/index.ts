@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import { corsPresupuesto, transicionarPresupuesto } from "../_shared/transicion-presupuesto.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL");
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
@@ -9,6 +10,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsPresupuesto });
   try {
     const authHeader = req.headers.get("authorization");
     const token = authHeader?.replace("Bearer ", "");
@@ -54,6 +56,10 @@ serve(async (req: Request) => {
         status: 404,
         headers: { "Content-Type": "application/json" },
       });
+    }
+
+    if (["terceros", "rp"].includes(documento.tipo_documento)) {
+      return transicionarPresupuesto(supabaseUrl!, supabaseAnonKey!, authHeader!, documento_id, "aprobar", comentario);
     }
 
     // Validar permisos según rol y tipo de documento

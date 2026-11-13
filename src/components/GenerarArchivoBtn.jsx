@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { Download, Upload, Loader, AlertCircle, CheckCircle } from 'lucide-react'
+import { terceroDesdeRegistro } from '../lib/tercerosCargue'
+import { descargarExcelTerceros } from '../lib/exportarTerceros'
 
 const GenerarArchivoBtn = ({ documentoId, tipoDocumento, userRole, onGenerado }) => {
   const [cargando, setCargando] = useState(false)
@@ -11,7 +13,7 @@ const GenerarArchivoBtn = ({ documentoId, tipoDocumento, userRole, onGenerado })
 
   // Validar permisos por tipo
   const puedGenerar = {
-    terceros: ['admin_educacion'],
+    terceros: ['admin_educacion', 'admin_presupuesto'],
     rp: ['admin_educacion', 'admin_presupuesto'],
     op: ['admin_contabilidad'],
     contabilidad: ['admin_contabilidad'],
@@ -40,6 +42,15 @@ const GenerarArchivoBtn = ({ documentoId, tipoDocumento, userRole, onGenerado })
         return
       }
 
+      if (accion === 'generar-terceros') {
+        const { data: filas, error: errorExportacion } = await supabase.rpc('obtener_terceros_exportacion', { p_documento_id: documentoId })
+        if (errorExportacion) throw errorExportacion
+        if (!Array.isArray(filas)) throw new Error('No se recibió una lista válida para exportar.')
+        await descargarExcelTerceros(filas.map(terceroDesdeRegistro), `terceros-${documentoId}.xlsx`)
+        setExito('Excel descargado. La descarga no aprueba el documento.')
+        return
+      }
+
       let endpoint = ''
       let body = { documento_id: documentoId }
 
@@ -60,7 +71,7 @@ const GenerarArchivoBtn = ({ documentoId, tipoDocumento, userRole, onGenerado })
 
       if (funcError) {
         setError(funcError.message)
-      } else if (data.success && data.archivo_url) {
+      } else if (data?.success && data.archivo_url) {
         setArchivoUrl(data.archivo_url)
         setExito(`Archivo generado exitosamente. Filas: ${data.filas_generadas}`)
         if (onGenerado) onGenerado(data)
@@ -122,7 +133,7 @@ const GenerarArchivoBtn = ({ documentoId, tipoDocumento, userRole, onGenerado })
       accion: 'generar-terceros',
       label: 'Generar TERCEROS',
       icon: Download,
-      descripcion: 'Exportar beneficiarios a CSV'
+      descripcion: 'Descargar las 22 columnas en Excel (.xlsx). No aprueba el documento.'
     },
     rp: {
       accion: 'generar-rp',

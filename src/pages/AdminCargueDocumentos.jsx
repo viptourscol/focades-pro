@@ -57,7 +57,7 @@ const AdminCargueDocumentos = () => {
     const cargarDetalle = async () => {
       const { data, error: errorConsulta } = await supabase
         .from('portal_documentos_cargue')
-        .select('id, tipo_documento, estado')
+        .select('id, tipo_documento, estado, comentarios_rechazo')
         .eq('id', documentoSeleccionado)
         .single()
       if (!activo) return
@@ -121,8 +121,19 @@ const AdminCargueDocumentos = () => {
   }
 
   const crearDocumento = async (tipo) => {
-    // Si es RP (Resolución y Promoción), mostrar modal de filtros por modalidad
+    // RP es Registro Presupuestal y requiere la aprobación previa de TERCEROS.
     if (tipo === 'rp') {
+      try {
+        setErrorCreacion(null)
+        const { data, error: errorRequisito } = await supabase.from('portal_documentos_cargue')
+          .select('id').eq('convocatoria_id', convocatoriaId).eq('tipo_documento', 'terceros')
+          .in('estado', ['aprobado', 'finalizado']).not('aprobado_por', 'is', null).limit(1)
+        if (errorRequisito) throw errorRequisito
+        if (!data?.length) throw new Error('Presupuesto debe aprobar un documento TERCEROS de esta convocatoria antes de crear RP.')
+      } catch (err) {
+        setErrorCreacion(err.message)
+        return
+      }
       setTipoDocumentoEnCreacion(tipo)
       setMostrarModalFiltros(true)
       return
@@ -354,7 +365,7 @@ const AdminCargueDocumentos = () => {
             </button>
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-                {documentoSeleccionado === 'nuevo' ? 'Nuevo Documento' : 'Editar Documento'}
+                {documentoSeleccionado === 'nuevo' ? 'Nuevo Documento' : userRole === 'admin_presupuesto' ? 'Revisar Documento' : 'Editar Documento'}
               </h1>
               <p className="text-sm text-gray-600 mt-1">
                 {documentoSeleccionado === 'nuevo'
@@ -369,6 +380,9 @@ const AdminCargueDocumentos = () => {
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
         {errorDetalle && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{errorDetalle}</p>}
+        {documentoDetalle?.id === documentoSeleccionado && documentoDetalle.comentarios_rechazo && ['rechazado', 'borrador'].includes(documentoDetalle.estado) && (
+          <p role="status" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><strong>Motivo de devolución: </strong>{documentoDetalle.comentarios_rechazo}</p>
+        )}
         {errorCreacion && (
           <p className="mb-4 p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg">{errorCreacion}</p>
         )}
@@ -429,7 +443,7 @@ const AdminCargueDocumentos = () => {
                   }`}
                 >
                   <FileText size={18} className="inline mr-2" />
-                  Editor de Datos
+                  {documentoTipo === 'terceros' && userRole === 'admin_presupuesto' ? 'Lista de Terceros' : 'Editor de Datos'}
                 </button>
                 <button
                   onClick={() => {
@@ -464,7 +478,7 @@ const AdminCargueDocumentos = () => {
                 ) : <p className="text-sm text-gray-500">{errorDetalle ? 'Editor no disponible hasta consultar el documento.' : 'Consultando estado del documento…'}</p>)}
 
                 {activeTab === 'validaciones' && (
-                  <ValidacionesDisplay documentoId={documentoSeleccionado} />
+                  <ValidacionesDisplay key={documentoSeleccionado} documentoId={documentoSeleccionado} tipoDocumento={documentoTipo} />
                 )}
               </div>
             </div>
@@ -513,12 +527,17 @@ const AdminCargueDocumentos = () => {
                 {/* Ayuda */}
                 <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                   <p className="text-xs text-blue-800 font-semibold mb-2">💡 Ayuda</p>
-                  <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
+                  {documentoTipo === 'terceros' && userRole === 'admin_presupuesto' ? <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
+                    <li>Revisa las 22 columnas del listado.</li>
+                    <li>Descarga el Excel para importar en tu programa.</li>
+                    <li>Descargar no aprueba: usa Aprobar o Rechazar.</li>
+                    <li>La aprobación habilita RP de esta convocatoria.</li>
+                  </ul> : <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
                     <li>Completa todos los campos requeridos (*)</li>
                     <li>Valida antes de enviar</li>
                     <li>Resuelve los errores reportados</li>
                     <li>Envía para revisión cuando esté listo</li>
-                  </ul>
+                  </ul>}
                 </div>
               </div>
             </div>

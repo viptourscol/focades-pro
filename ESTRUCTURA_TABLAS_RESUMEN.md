@@ -1,5 +1,14 @@
 # RESUMEN: ESTRUCTURA DE TABLAS - FOCADES PRO
 
+> Actualizacion del cargue: la fuente de TERCEROS/RP es `inscripciones` y sus
+> relaciones; el documento guarda sus filas en `portal_valores_cargue`.
+> Los 22 campos de Presupuesto y sus reglas vigentes se documentan en
+> [PRECARGA_ASPIRANTES_RESUMEN.md](./PRECARGA_ASPIRANTES_RESUMEN.md).
+> `inscripciones.datos_bancarios` contiene banco, tipo y numero de cuenta.
+> `portal_valores_cargue.datos_tercero` conserva nombres separados, confirmacion
+> y datos bancarios de la copia del documento. La tabla auxiliar de beneficiarios
+> descrita mas abajo no es la fuente de exportacion del editor actual.
+
 ## 1. VALORES DEL CAMPO `etapa` EN TABLA `inscripciones`
 
 **Ubicación:** `inscripciones.etapa` (VARCHAR)
@@ -105,8 +114,8 @@ CHECK (modalidad IS NULL OR modalidad IN ('PRESENCIAL', 'VIRTUAL', 'DISTANCIA', 
 ┌─────────────────────────────────────────────────────────────────┐
 │                        inscripciones                             │
 ├─────────────────────────────────────────────────────────────────┤
-│ id (bigint, PK)                                                 │
-│ persona_id (bigint)                                             │
+│ id (uuid, PK)                                                   │
+│ persona_id (uuid)                                               │
 │ convocatoria_id (uuid)                                          │
 │ etapa (text) ──────────────────────┐                            │
 │ datos_formulario (jsonb)           │                            │
@@ -125,9 +134,9 @@ CHECK (modalidad IS NULL OR modalidad IN ('PRESENCIAL', 'VIRTUAL', 'DISTANCIA', 
 ├─────────────────────────────────────────────────────────────────┤
 │ id (bigint, PK) ◄──────────────────────────────────────────────│
 │ auth_user_id (uuid)                                             │
-│ persona_id (bigint)                                             │
+│ persona_id (uuid)                                               │
 │ inscripcion_id (uuid)                                           │
-│ inscripcion_pk (bigint) ──────┐                                 │
+│ inscripcion_pk (uuid) ────────┐                                 │
 │ estado_beneficiario (text)    │                                 │
 │ modalidad_beca (text)         │ (Mérito, Sueños)               │
 │ modalidad (text)              │ (Presencial, Virtual, etc.)    │

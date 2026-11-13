@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { AlertCircle, CheckCircle, X, Plus, Trash2 } from 'lucide-react'
 import EditorTerceros from './EditorTerceros'
-import { CAMPOS_TERCEROS, terceroDesdeRegistro, validarTercero } from '../lib/tercerosCargue'
+import ListaTercerosPresupuesto from './ListaTercerosPresupuesto'
+import { CAMPOS_TERCEROS, FIJOS_TERCERO, terceroDesdeRegistro, validarTercero } from '../lib/tercerosCargue'
 
 const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardado, onCancelado, onCambiosPendientes }) => {
   const [filas, setFilas] = useState([])
@@ -15,7 +16,7 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
   const [edicionDocumento, setEdicionDocumento] = useState(null)
   const [estadoDocumento, setEstadoDocumento] = useState(null)
   const hayCambios = tipoDocumento === 'terceros' && JSON.stringify(filas) !== filasGuardadas
-  const puedeEditarTerceros = ['admin_educacion', 'admin_presupuesto'].includes(userRole) && estadoDocumento === 'borrador'
+  const puedeEditarTerceros = userRole === 'admin_educacion' && estadoDocumento === 'borrador'
   // Estados para modal de filtros de precarga
   const [mostrarModalFiltros, setMostrarModalFiltros] = useState(false)
   const [convocatoriaFiltro, setConvocatoriaFiltro] = useState('')
@@ -94,15 +95,20 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
       setEstadoDocumento(null)
       let documentoTerceros = null
       if (tipoDocumento === 'terceros') {
-        const { data: documento, error: errorDocumento } = await supabase
-          .from('portal_documentos_cargue')
-          .select('estado, editado_en')
-          .eq('id', documentoId)
-          .single()
+        if (userRole === 'admin_educacion') {
+          const { data: actual, error: errorActual } = await supabase.from('portal_documentos_cargue').select('estado').eq('id', documentoId).single()
+          if (errorActual) throw errorActual
+          if (actual.estado === 'borrador') {
+            const { error: errorCompletar } = await supabase.rpc('completar_datos_terceros', { p_documento_id: documentoId })
+            if (errorCompletar) throw errorCompletar
+          }
+        }
+        const { data: documento, error: errorDocumento } = await supabase.rpc('leer_terceros_cargue', { p_documento_id: documentoId })
         if (errorDocumento) throw errorDocumento
+        if (!documento || !Array.isArray(documento.filas)) throw new Error('No se pudo leer el documento TERCEROS completo.')
         documentoTerceros = documento
       }
-      const { data, error: errorCarga } = await supabase
+      const { data, error: errorCarga } = tipoDocumento === 'terceros' ? { data: documentoTerceros.filas } : await supabase
         .from('portal_valores_cargue')
         .select('id, identificacion, nombre_beneficiario, tipo_identificacion, email, telefono, direccion, ciudad')
         .eq('documento_id', documentoId)
@@ -247,6 +253,7 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
       id: `temp-${crypto.randomUUID()}`,
       ...campos.reduce((acc, c) => ({ ...acc, [c.name]: '' }), {})
     }
+    if (tipoDocumento === 'terceros') Object.assign(nuevaFila, FIJOS_TERCERO, { nombres_confirmados: false, nombre_referencia: '', ciudad_residencia: '' })
     setFilas((anteriores) => [...anteriores, nuevaFila])
     setExito(null)
     return nuevaFila.id
@@ -258,7 +265,10 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
   }
 
   const actualizarFila = (filaId, campo, valor) => {
-    setFilas((anteriores) => anteriores.map((f) => (f.id === filaId ? { ...f, [campo]: valor } : f)))
+    setFilas((anteriores) => anteriores.map((f) => (f.id === filaId ? {
+      ...f, [campo]: valor,
+      ...(['primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido'].includes(campo) ? { nombres_confirmados: false } : {})
+    } : f)))
     setExito(null)
   }
 
@@ -392,6 +402,7 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
       )}
 
       {tipoDocumento === 'terceros' ? (
+        userRole === 'admin_presupuesto' ? <ListaTercerosPresupuesto filas={filas} documentoId={documentoId} estado={estadoDocumento} /> :
         <EditorTerceros
           filas={filas}
           campos={campos}

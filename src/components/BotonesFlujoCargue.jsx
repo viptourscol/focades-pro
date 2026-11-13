@@ -10,9 +10,11 @@ const BotonesFlujoCargue = ({ documentoId, estado, tipoDocumento, userRole, onAc
   const [exito, setExito] = useState(null)
 
   // Determinar qué acciones son disponibles según el rol y estado actual
-  const puedeEnviarRevision = ['borrador', 'rechazado'].includes(estado)
-  const puedeAprobar = estado === 'enviado_para_revision'
-  const puedeRechazar = estado === 'enviado_para_revision'
+  const flujoPresupuesto = ['terceros', 'rp'].includes(tipoDocumento)
+  const puedeEnviarRevision = flujoPresupuesto ? estado === 'borrador' && userRole === 'admin_educacion' : ['borrador', 'rechazado'].includes(estado)
+  const puedeAprobar = estado === 'enviado_para_revision' && (!flujoPresupuesto || userRole === 'admin_presupuesto')
+  const puedeRechazar = puedeAprobar
+  const puedeReabrir = flujoPresupuesto && estado === 'rechazado' && userRole === 'admin_educacion'
   const puedeFinalizar = estado === 'aprobado' && tipoDocumento === 'siafe' && userRole === 'admin_pagos'
 
   // Validar permisos
@@ -49,6 +51,12 @@ const BotonesFlujoCargue = ({ documentoId, estado, tipoDocumento, userRole, onAc
       let resultado
       let endpoint = ''
 
+      if (flujoPresupuesto) {
+        const acciones = { 'enviar-revision': 'enviar', aprobar: 'aprobar', rechazar: 'rechazar', reabrir: 'reabrir' }
+        resultado = await supabase.rpc('transicionar_documento_presupuesto', {
+          p_documento_id: documentoId, p_accion: acciones[accion], p_comentario: comentario
+        })
+      } else {
       switch (accion) {
         case 'enviar-revision':
           endpoint = 'enviar-para-revision'
@@ -91,17 +99,18 @@ const BotonesFlujoCargue = ({ documentoId, estado, tipoDocumento, userRole, onAc
           })
           break
       }
+      }
 
       if (resultado.error) {
         setError(resultado.error.message)
-      } else if (resultado.data.success) {
+      } else if (resultado.data?.success) {
         setExito(`Acción completada: ${resultado.data.mensaje}`)
         setComentario('')
         setMostrarDialogo(null)
         if (onAccionCompletada) {
           onAccionCompletada(resultado.data)
         }
-      }
+      } else setError(resultado.data?.error || 'No se confirmó la acción. Recarga para verificar el estado.')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -141,6 +150,7 @@ const BotonesFlujoCargue = ({ documentoId, estado, tipoDocumento, userRole, onAc
 
       {/* Botones de acción */}
       <div className="flex flex-col md:flex-row gap-3 flex-wrap">
+        {puedeReabrir && <button type="button" onClick={() => ejecutarAccion('reabrir')} disabled={cargando} className="min-h-11 rounded-lg bg-amber-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Reabrir para corregir</button>}
         {puedeEnviarRevision && (
           <button
             onClick={() => setMostrarDialogo('enviar-revision')}

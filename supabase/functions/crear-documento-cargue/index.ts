@@ -83,6 +83,27 @@ serve(async (req: Request) => {
       );
     }
 
+    if (["terceros", "rp"].includes(tipo_documento)) {
+      const cliente = createClient(supabaseUrl!, supabaseAnonKey!, {
+        global: { headers: { Authorization: authHeader! } },
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const { data: id, error: errorCreacion } = await cliente.rpc("fn_crear_documento_cargue", {
+        p_convocatoria_id: convocatoria_id, p_tipo_documento: tipo_documento, p_cantidad_registros: 0,
+      });
+      if (errorCreacion) return new Response(JSON.stringify({ error: errorCreacion.message }), {
+        status: 400, headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+      const { data: documento, error: errorLectura } = await cliente.from("portal_documentos_cargue")
+        .select("id,tipo_documento,estado,convocatoria_id,creado_en").eq("id", id).single();
+      if (errorLectura) return new Response(JSON.stringify({ error: errorLectura.message, documento_id: id }), {
+        status: 500, headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+      return new Response(JSON.stringify({ success: true, documento }), {
+        status: 201, headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
     // Crear documento
     const { data: documento, error: errorDoc } = await supabaseAdmin
       .from("portal_documentos_cargue")

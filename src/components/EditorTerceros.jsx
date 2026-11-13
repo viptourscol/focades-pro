@@ -5,13 +5,15 @@ import {
   Trash2, UserRound, Users
 } from 'lucide-react'
 import {
-  CAMPOS_TERCEROS, camposPendientesTercero, normalizarBusquedaTercero, validarTercero
+  CAMPOS_TERCEROS, TIPOS_IDENTIFICACION, camposPendientesTercero, nombreVisibleTercero, normalizarBusquedaTercero, validarTercero
 } from '../lib/tercerosCargue'
 
 const GRUPOS = [
-  { titulo: 'Identificación', descripcion: 'Los datos que identifican al tercero.', icono: UserRound, campos: ['nombre_razon_social', 'tipo_identificacion', 'cc_nit'] },
+  { titulo: 'Identificación', descripcion: 'Verifica los nombres sugeridos con la ficha original.', icono: UserRound, campos: ['cc_nit', 'tipo_identificacion', 'primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido'] },
   { titulo: 'Contacto', descripcion: 'Canales para comunicarse con esta persona.', icono: Phone, campos: ['email', 'telefono'] },
-  { titulo: 'Ubicación', descripcion: 'Dirección y municipio de residencia.', icono: MapPin, campos: ['direccion', 'ciudad'] }
+  { titulo: 'Ubicación', descripcion: 'Dirección de residencia y códigos exigidos por Presupuesto.', icono: MapPin, campos: ['direccion', 'pais', 'departamento', 'ciudad_codigo'] },
+  { titulo: 'Datos bancarios', descripcion: 'Conserva todos los dígitos, incluidos ceros iniciales.', icono: ShieldCheck, campos: ['banco', 'tipo_cuenta', 'numero_cuenta'] },
+  { titulo: 'Configuración de importación', descripcion: 'Valores fijos del formato; los campos en blanco se exportan vacíos.', icono: ShieldCheck, campos: ['nombre_razon_social', 'codigo_cargo', 'codigo_dependencia', 'digito_verificador', 'tipo_tercero', 'naturaleza', 'regimen'] }
 ]
 const POR_PAGINA = 8
 const accion = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
@@ -58,7 +60,7 @@ const EditorTerceros = ({
   const termino = normalizarBusquedaTercero(busqueda).trim()
   const filtradas = filas.filter((fila) => {
     if (editando && fila.id === seleccionId) return true
-    const coincide = CAMPOS_TERCEROS.some((campo) => normalizarBusquedaTercero(fila[campo.name]).includes(termino))
+    const coincide = normalizarBusquedaTercero(nombreVisibleTercero(fila)).includes(termino) || CAMPOS_TERCEROS.some((campo) => normalizarBusquedaTercero(fila[campo.name]).includes(termino))
     return coincide && (filtro === 'todos' || camposPendientesTercero(fila).length > 0)
   })
   const paginas = Math.max(1, Math.ceil(filtradas.length / POR_PAGINA))
@@ -184,10 +186,10 @@ const EditorTerceros = ({
                   aria-current={activa ? 'true' : undefined}
                   className={`mb-1 flex min-h-20 w-full items-start gap-3 rounded-xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 ${activa ? 'border-emerald-200 bg-white shadow-sm' : 'border-transparent hover:bg-white'}`}>
                   <span className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${activa ? 'bg-emerald-700 text-white' : 'bg-slate-200 text-slate-600'}`} aria-hidden="true">
-                    {(fila.nombre_razon_social || '?').trim().split(/\s+/).slice(0, 2).map((parte) => parte[0]).join('').toLocaleUpperCase('es')}
+                    {nombreVisibleTercero(fila).trim().split(/\s+/).slice(0, 2).map((parte) => parte[0]).join('').toLocaleUpperCase('es')}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block break-words text-sm font-semibold leading-5 text-slate-900">{fila.nombre_razon_social || 'Nuevo tercero'}</span>
+                    <span className="block break-words text-sm font-semibold leading-5 text-slate-900">{nombreVisibleTercero(fila)}</span>
                     <span className="mt-1 block break-all text-xs text-slate-500">{fila.tipo_identificacion || 'Documento'} · {fila.cc_nit || 'Sin identificación'}</span>
                     <span className={`mt-2 inline-flex items-center gap-1 text-[11px] font-medium ${completo ? 'text-emerald-700' : 'text-amber-700'}`}>
                       {completo ? <Check size={12} aria-hidden="true" /> : <CircleAlert size={12} aria-hidden="true" />}
@@ -230,11 +232,11 @@ const EditorTerceros = ({
                     <button type="button" aria-label="Tercero siguiente" onClick={() => mover(1)} disabled={indice >= filtradas.length - 1} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-emerald-600 disabled:opacity-30"><ChevronRight size={17} /></button>
                   </div>
                 </div>
-                <h3 ref={detalleRef} tabIndex={-1} className="mt-2 break-words text-xl font-bold leading-7 tracking-tight text-slate-900 outline-none sm:text-2xl">{seleccionada.nombre_razon_social || 'Nuevo tercero'}</h3>
+                <h3 ref={detalleRef} tabIndex={-1} className="mt-2 break-words text-xl font-bold leading-7 tracking-tight text-slate-900 outline-none sm:text-2xl">{nombreVisibleTercero(seleccionada)}</h3>
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${pendientes.length ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'}`}>
                     {pendientes.length ? <CircleAlert size={13} aria-hidden="true" /> : <ShieldCheck size={13} aria-hidden="true" />}
-                    {7 - pendientes.length} de 7 campos completos
+                    {pendientes.length === 0 ? 'Lista para enviar a revisión' : `${pendientes.length} requisitos por completar`}
                   </span>
                   {puedeEditar && (
                     <button type="button" onClick={() => {
@@ -252,7 +254,13 @@ const EditorTerceros = ({
               </div>
 
               <div className="space-y-7 p-5 sm:p-6">
-                {editando && <p className="rounded-xl bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-900">Los cambios se conservan al cambiar de ficha. Usa <strong>Guardar cambios</strong> para guardarlos en el documento. Solo los campos con * son obligatorios.</p>}
+                <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+                  <p><strong>Nombre original:</strong> {seleccionada.nombre_referencia || 'Tercero agregado manualmente'}</p>
+                  <p>La separación automática es una sugerencia. Revisa nombres compuestos y apellidos como «De la Cruz» antes de confirmar.</p>
+                  {puedeEditar ? <label className="flex items-start gap-3 font-semibold"><input type="checkbox" className="mt-1 h-4 w-4" checked={seleccionada.nombres_confirmados === true} disabled={ocupado} onChange={(e) => onActualizar(seleccionada.id, 'nombres_confirmados', e.target.checked)} />He verificado los nombres y ambos apellidos.</label> : <p>{seleccionada.nombres_confirmados ? 'Nombres confirmados por Educación.' : 'Nombres pendientes de confirmación.'}</p>}
+                  {seleccionada.ciudad_residencia && <p className="text-xs">Municipio de residencia original: {seleccionada.ciudad_residencia}. Ciudad de importación: 466.</p>}
+                </div>
+                {editando && <p className="rounded-xl bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-900">Puedes guardar borradores incompletos. Los campos con * y la confirmación de nombres son obligatorios antes de enviar a revisión.</p>}
                 {GRUPOS.map(({ titulo, descripcion, icono, campos: nombres }) => (
                   <section key={titulo} aria-label={titulo}>
                     <div className="mb-4 flex items-start gap-3">
@@ -274,16 +282,16 @@ const EditorTerceros = ({
                         return (
                           <div key={nombre} className={`min-w-0 ${anchoCompleto ? 'sm:col-span-2' : ''}`}>
                             <dt className="mb-1.5 text-xs font-medium text-slate-500">
-                              {editando ? <label htmlFor={id}>{campo.label}{campo.required && <span className="text-emerald-700"> *</span>}</label> : campo.label}
+                              {editando && !campo.readonly ? <label htmlFor={id}>{campo.label}{campo.required && <span className="text-emerald-700"> *</span>}</label> : campo.label}
                             </dt>
                             <dd className="min-w-0">
-                              {editando ? (
+                              {editando && !campo.readonly ? (
                                 <>
                                   {campo.type === 'select' ? (
                                     <select id={id} value={valor} disabled={ocupado} onChange={(e) => actualizar(e.target.value)} className={clase}>
                                       <option value="">Sin registrar</option>
                                       {valor && !campo.options.includes(valor) && <option value={valor}>{valor}</option>}
-                                      {campo.options.map((opcion) => <option key={opcion} value={opcion}>{opcion}</option>)}
+                                      {campo.options.map((opcion) => <option key={opcion} value={opcion}>{nombre === 'tipo_identificacion' ? `${opcion} · ${TIPOS_IDENTIFICACION[opcion]}` : opcion}</option>)}
                                     </select>
                                   ) : anchoCompleto || nombre === 'ciudad' ? (
                                     <TextoTercero id={id} rows={2} value={valor} disabled={ocupado}
@@ -313,7 +321,7 @@ const EditorTerceros = ({
                   <p className="border-t border-slate-100 pt-4 text-xs leading-5 text-slate-500">
                     <span className="font-semibold text-amber-800">Por completar: </span>
                     {pendientes.map((campo) => campo.label.toLocaleLowerCase('es')).join(', ')}.
-                    {' '}Los datos opcionales no impiden guardar.
+                    {' '}Puedes guardar el borrador y completar estos datos antes de enviarlo.
                   </p>
                 )}
               </div>

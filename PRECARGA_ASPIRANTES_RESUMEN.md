@@ -15,6 +15,8 @@ Actualizado: 2026-11-13.
 - Campos reales: `n_documento`, `nombre_completo`, `tipo_documento`, `email`,
   `n_celular`, `direccion_residencia` y `municipio_residencia`. Se guardan en
   `portal_valores_cargue` como identificacion, nombre y los cinco datos de contacto.
+  TERCEROS incorpora ademas nombres separados y datos bancarios, como se detalla
+  en la seccion del formato de Presupuesto. RP conserva su contrato anterior.
 - Los identificadores de inscripciones son UUID. No se truncan datos ni se
   sustituyen identificaciones o nombres faltantes por datos ficticios.
 - La RPC conserva el nombre publicado `precargar_rp_convocatoria` y recibe
@@ -54,7 +56,7 @@ en las opciones frecuentes.
 
 `Guardar cambios` utiliza `guardar_terceros_cargue` para persistir altas,
 ediciones y eliminaciones de forma atomica. Solo admite TERCEROS en borrador y
-los roles `admin_educacion` y `admin_presupuesto`. Compara `editado_en` para
+el rol `admin_educacion`; Presupuesto tiene una lista de solo lectura. Compara `editado_en` para
 rechazar ediciones desactualizadas; conserva los identificadores y datos
 financieros de las filas existentes. Nunca modifica `personas` ni `inscripciones`.
 El documento puede guardarse vacio despues de confirmar las eliminaciones.
@@ -78,6 +80,97 @@ La prueba SQL de guardado utiliza datos sinteticos en documentos temporales
 y revierte toda la transaccion. Las pruebas de navegador deben usar datos
 sinteticos y cubrir busqueda, filtros, edicion, alta, eliminacion confirmada,
 errores de guardado y lectura en escritorio y movil.
+
+## Formato completo de Presupuesto: 22 columnas
+
+Migracion vigente: `supabase/migrations/20261113170000_terceros_presupuesto_completo.sql`.
+Proteccion de identidad y documentos aprobados:
+`supabase/migrations/20261113171000_fijar_identidad_documentos_cargue.sql`.
+
+Orden exacto del archivo XLSX y la lista de Presupuesto:
+
+```text
+C.C/NIT | Nombre/Razón Social | Segundo Apellido | Primer Apellido |
+Segundo Nombre | Primer Nombre | Tipo Identificación | Código Cargo |
+Código Dependencia | Email | Teléfono | Dirección | Digito Verificador |
+Tipo Tercero | Naturaleza | Régimen | País | Departamento | Ciudad |
+Banco | Tipo Cuenta | Numero cuenta
+```
+
+- Nombre/Razon Social, Codigo Cargo y Digito Verificador se exportan vacios.
+- Constantes: dependencia `4`, tercero `OTROS`, naturaleza `0`, regimen `0`,
+  pais `52`, departamento `23`, ciudad `466`. El municipio original se conserva
+  en `portal_valores_cargue.ciudad`, sin sustituirlo por el codigo de importacion.
+- Tipos: CC=13, RC=11, TI=12, TE=21, CE=22, Cuenta=14, NIT=31,
+  Pasaporte=41, Documento Extranjero=42, Sin Identificacion Exterior=43, Otros=44.
+  Los tipos sin equivalencia confirmada (por ejemplo PPT) requieren seleccion
+  explicita; nunca se convierten silenciosamente en CC.
+- Los datos bancarios se toman de `inscripciones.datos_bancarios`, luego de la
+  persona y finalmente del beneficiario relacionado a esa inscripcion/persona
+  y convocatoria. No se hace una precarga general de beneficiarios historicos.
+  `ahorro`, como lo guarda Registro, se normaliza a `AHORROS`.
+- Los campos separados existentes tienen prioridad sobre la sugerencia de
+  nombres. Si solo existe nombre completo, los dos ultimos terminos se sugieren
+  como apellidos y el resto como nombres. Esta heuristica NO certifica el dato:
+  Educacion debe revisar nombres compuestos, corregir y confirmar cada ficha.
+  Cambiar cualquier nombre/apellido invalida la confirmacion en el editor.
+- Los campos nuevos se guardan en `datos_tercero` JSONB. El nombre original,
+  identificacion, contacto, municipio, IDs y valores financieros se conservan.
+  Abrir un borrador en Educacion completa solo claves fuente ausentes.
+- Se permiten borradores incompletos. Para enviar/aprobar se exige identificacion,
+  tipo, primer nombre, ambos apellidos, email, telefono, direccion, banco, tipo
+  y numero de cuenta, ademas de confirmar nombres. Segundo nombre es opcional.
+  Identificacion: solo digitos, maximo 15; nombres/apellidos: 120 cada uno;
+  email: 100; telefono: 30; direccion: 500. No se truncan datos.
+- La lectura usa una RPC de agregacion bajo RLS para no truncar a 1000 filas.
+  El guardado conserva la comprobacion de concurrencia y es atomico.
+- La pestaña Validaciones y el endpoint de validacion de TERCEROS revisan los
+  registros guardados con las mismas reglas actuales, incluyendo duplicados y
+  confirmacion de nombres. No se pueden ocultar esos errores marcandolos
+  manualmente como resueltos ni se exige la razon social que debe ir vacia.
+
+### Revision, descarga y continuacion
+
+Educacion envia; Presupuesto revisa una tabla de 22 columnas con busqueda,
+paginacion y desplazamiento horizontal, y aprueba o rechaza. Descargar no cambia
+el estado. El Excel incluye todas las filas guardadas, no solo el filtro o pagina.
+La descarga exige una instantanea autorizada y valida del documento enviado,
+aprobado o finalizado. No se publica ningun archivo en Storage.
+
+`generar-terceros` ahora devuelve el binario XLSX con las mismas reglas, en vez
+del CSV antiguo basado en la tabla auxiliar historica. Usa el mismo contrato
+JS y generador Excel que la interfaz.
+
+Al rechazar, Educacion utiliza **Reabrir para corregir**, guarda el borrador y
+lo reenvia. Envio, aprobacion y rechazo se realizan mediante una RPC atomica
+que verifica rol, estado, contenido y registra la transicion. Los endpoints
+existentes delegan en esa RPC con la sesion del solicitante.
+
+Los triggers aplican las restricciones tambien a las escrituras directas:
+solo Educacion edita terceros en borrador; solo Presupuesto aprueba TERCEROS.
+RP requiere un TERCEROS aprobado/finalizado con aprobador registrado de la
+misma convocatoria para crearse, precargarse, enviarse, aprobarse o exportarse.
+Los documentos ya aprobados/finalizados no se convierten ni se reabren.
+Los TERCEROS anteriores enviados e incompletos deben rechazarse para completar
+los datos y confirmar nombres; no se aprueban automaticamente.
+
+**Compatibilidad externa pendiente:** Banco se exporta por nombre y Tipo Cuenta
+como `AHORROS`/`CORRIENTE`, segun lo acordado. Se debe validar una importacion
+de prueba con Presupuesto antes de considerar certificado el formato para su
+programa; todavia no se ha proporcionado la plantilla original.
+
+Pruebas actualizadas:
+
+```sh
+node --test scripts/testing/test-editor-terceros.mjs scripts/testing/test-listado-documentos-por-rol.mjs scripts/testing/test-flujo-presupuesto-edge.mjs
+supabase db query --linked --file scripts/testing/test-guardar-editor-terceros.sql
+supabase db query --linked --file scripts/testing/test-precarga-aspirantes.sql
+npm run build
+```
+
+La prueba de guardado cubre el flujo completo y lectura de 1001 filas. La prueba
+de precarga instrumenta temporalmente datos bancarios de una inscripcion real
+y revierte la transaccion completa. No se imprimen datos personales.
 
 ## Bandeja de revision de Presupuesto
 

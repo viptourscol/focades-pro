@@ -5,6 +5,9 @@ BEGIN;
 DO $$
 DECLARE
   v_actor UUID;
+  v_presupuesto UUID;
+  v_habilitador UUID;
+  v_inscripcion UUID;
   v_conv UUID;
   v_doc UUID;
   v_tipo TEXT;
@@ -18,6 +21,8 @@ BEGIN
   FROM auth.users
   WHERE raw_user_meta_data->'roles' @> '["admin_educacion"]'::JSONB
   ORDER BY created_at LIMIT 1;
+  SELECT id INTO STRICT v_presupuesto FROM auth.users
+  WHERE raw_user_meta_data->'roles' @> '["admin_presupuesto"]'::JSONB ORDER BY created_at LIMIT 1;
   PERFORM set_config('request.jwt.claim.sub', v_actor::TEXT, TRUE);
   PERFORM set_config('request.jwt.claims', jsonb_build_object('sub', v_actor, 'role', 'authenticated')::TEXT, TRUE);
 
@@ -25,7 +30,25 @@ BEGIN
   FROM public.inscripciones
   WHERE LOWER(TRIM(estado)) = 'admitido'
   LIMIT 1;
+  SELECT id INTO STRICT v_inscripcion FROM public.inscripciones
+  WHERE convocatoria_id=v_conv AND lower(trim(estado))='admitido' LIMIT 1;
+  -- Instrumentacion temporal de una fuente real. ROLLBACK restaura el valor original.
+  UPDATE public.inscripciones SET datos_bancarios='{"banco":"BANCO PRUEBA ROLLBACK","tipo_cuenta":"ahorro","numero_cuenta":"000123456789"}'::JSONB
+  WHERE id=v_inscripcion;
 
+  SET LOCAL ROLE authenticated;
+
+  v_habilitador := public.fn_crear_documento_cargue(v_conv, 'terceros', 0);
+  PERFORM public.guardar_terceros_cargue(v_habilitador,
+    '[{"cc_nit":"000000012345678","nombre_referencia":"Ana Perez Gomez","primer_nombre":"Ana","primer_apellido":"Perez","segundo_apellido":"Gomez","tipo_identificacion":"13","email":"prueba@example.test","telefono":"3001234567","direccion":"Direccion de prueba","banco":"Banco prueba","tipo_cuenta":"AHORROS","numero_cuenta":"000123","nombres_confirmados":true}]',
+    (SELECT editado_en FROM public.portal_documentos_cargue WHERE id=v_habilitador));
+  PERFORM public.transicionar_documento_presupuesto(v_habilitador,'enviar','Prueba');
+  RESET ROLE;
+  PERFORM set_config('request.jwt.claim.sub',v_presupuesto::TEXT,TRUE);
+  SET LOCAL ROLE authenticated;
+  PERFORM public.transicionar_documento_presupuesto(v_habilitador,'aprobar','Prueba');
+  RESET ROLE;
+  PERFORM set_config('request.jwt.claim.sub',v_actor::TEXT,TRUE);
   SET LOCAL ROLE authenticated;
 
   FOREACH v_tipo IN ARRAY ARRAY['terceros', 'rp'] LOOP
@@ -53,6 +76,12 @@ BEGIN
         OR (SELECT cantidad_registros FROM public.portal_documentos_cargue WHERE id = v_doc) <> v_esperados THEN
         RAISE EXCEPTION 'Filas persistidas o contador incorrectos';
       END IF;
+      IF v_tipo='terceros' AND v_estado='admitido' AND NOT EXISTS (
+        SELECT 1 FROM public.portal_valores_cargue WHERE documento_id=v_doc
+          AND datos_tercero->>'banco'='BANCO PRUEBA ROLLBACK'
+          AND datos_tercero->>'tipo_cuenta'='AHORROS'
+          AND datos_tercero->>'numero_cuenta'='000123456789'
+      ) THEN RAISE EXCEPTION 'No se precargaron los datos bancarios desde la inscripcion'; END IF;
 
       IF EXISTS (
         SELECT 1 FROM public.inscripciones i
@@ -63,7 +92,9 @@ BEGIN
         WHERE i.convocatoria_id = v_conv AND LOWER(TRIM(i.estado)) = v_estado
           AND (v.id IS NULL OR
             v.nombre_beneficiario IS DISTINCT FROM COALESCE(NULLIF(TRIM(p.nombre_completo), ''), NULLIF(TRIM(i.nombre_completo), ''), NULLIF(TRIM(i.datos_formulario->>'nombre_completo'), '')) OR
-            v.tipo_identificacion IS DISTINCT FROM COALESCE(NULLIF(TRIM(p.tipo_documento), ''), NULLIF(TRIM(i.tipo_documento), ''), NULLIF(TRIM(i.datos_formulario->>'tipo_documento'), '')) OR
+            v.tipo_identificacion IS DISTINCT FROM CASE WHEN v_tipo = 'terceros'
+              THEN public.codigo_identificacion_tercero(COALESCE(NULLIF(TRIM(p.tipo_documento), ''), NULLIF(TRIM(i.tipo_documento), ''), NULLIF(TRIM(i.datos_formulario->>'tipo_documento'), '')))
+              ELSE COALESCE(NULLIF(TRIM(p.tipo_documento), ''), NULLIF(TRIM(i.tipo_documento), ''), NULLIF(TRIM(i.datos_formulario->>'tipo_documento'), '')) END OR
             v.email IS DISTINCT FROM COALESCE(NULLIF(TRIM(p.email), ''), NULLIF(TRIM(i.email), ''), NULLIF(TRIM(i.datos_formulario->>'email'), '')) OR
             v.telefono IS DISTINCT FROM COALESCE(NULLIF(TRIM(p.n_celular), ''), NULLIF(TRIM(i.n_celular), ''), NULLIF(TRIM(i.datos_formulario->>'n_celular'), ''), NULLIF(TRIM(i.datos_formulario->>'telefono'), '')) OR
             v.direccion IS DISTINCT FROM COALESCE(NULLIF(TRIM(p.direccion_residencia), ''), NULLIF(TRIM(i.direccion_residencia), ''), NULLIF(TRIM(i.datos_formulario->>'direccion_residencia'), ''), NULLIF(TRIM(i.datos_formulario->>'direccion'), '')) OR
@@ -142,7 +173,7 @@ BEGIN
   BEGIN
     PERFORM public.precargar_rp_convocatoria(v_doc, v_conv, 'admitido', NULL);
   EXCEPTION WHEN raise_exception THEN
-    v_error := SQLERRM LIKE '%Solo admin_educacion%';
+    v_error := SQLERRM LIKE '%Solo Educación%';
   END;
   IF NOT v_error THEN RAISE EXCEPTION 'Se permitio precargar sin rol autorizado'; END IF;
 END;

@@ -1,61 +1,93 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import ExcelJS from 'exceljs'
 import {
-  CAMPOS_TERCEROS, camposPendientesTercero, normalizarBusquedaTercero,
-  terceroDesdeRegistro, validarTercero
+  CAMPOS_TERCEROS, FIJOS_TERCERO, codigoIdentificacionTercero, camposPendientesTercero,
+  filaExportacionTercero, sugerirNombresTercero, terceroDesdeRegistro, validarTercero
 } from '../../src/lib/tercerosCargue.js'
+import { crearExcelTerceros } from '../../src/lib/exportarTerceros.js'
 
 const completo = {
-  id: 'fila', cc_nit: '123456789', nombre_razon_social: 'María Rodríguez',
-  tipo_identificacion: 'TI', email: 'maria@example.test', telefono: '3001234567',
-  direccion: 'Carrera 10 # 15-30', ciudad: 'Montelíbano'
+  id: 'fila', cc_nit: '00123456789', nombre_referencia: 'María José Pérez Muñoz',
+  primer_nombre: 'María', segundo_nombre: 'José', primer_apellido: 'Pérez', segundo_apellido: 'Muñoz',
+  tipo_identificacion: '13', email: 'maria@example.test', telefono: '3001234567',
+  direccion: 'Carrera 10 # 15-30', banco: 'Banco de prueba',
+  tipo_cuenta: 'AHORROS', numero_cuenta: '0001234500', nombres_confirmados: true, ...FIJOS_TERCERO
 }
 
-test('mapea los siete campos sin recortar contenido ni sustituir tipos de documento', () => {
-  const nombre = 'Nombre completo extenso '.repeat(7)
-  const direccion = 'Dirección completa '.repeat(12)
-  const fila = terceroDesdeRegistro({
-    id: 'id-1', identificacion: '12345', nombre_beneficiario: nombre,
-    tipo_identificacion: 'TI', email: 'maria@example.test', telefono: '3001234567',
-    direccion, ciudad: 'Montelíbano'
-  })
-  assert.equal(fila.nombre_razon_social, nombre)
-  assert.equal(fila.direccion, direccion)
-  assert.equal(fila.tipo_identificacion, 'TI')
-  assert.equal(Object.keys(fila).length, 8)
-  assert.ok(CAMPOS_TERCEROS.find((campo) => campo.name === 'tipo_identificacion').options.includes('TI'))
+test('contrato de exportación contiene las 22 columnas en el orden exigido', () => {
+  assert.deepEqual(CAMPOS_TERCEROS.map((c) => c.label), [
+    'C.C/NIT', 'Nombre/Razón Social', 'Segundo Apellido', 'Primer Apellido', 'Segundo Nombre',
+    'Primer Nombre', 'Tipo Identificación', 'Código Cargo', 'Código Dependencia', 'Email',
+    'Teléfono', 'Dirección', 'Digito Verificador', 'Tipo Tercero', 'Naturaleza', 'Régimen',
+    'País', 'Departamento', 'Ciudad', 'Banco', 'Tipo Cuenta', 'Numero cuenta'
+  ])
 })
 
-test('datos de contacto opcionales no impiden guardar', () => {
-  assert.deepEqual(validarTercero({ cc_nit: '123', nombre_razon_social: 'Tercero' }), {})
-  assert.equal(camposPendientesTercero({ cc_nit: '123', nombre_razon_social: 'Tercero' }).length, 5)
-  assert.deepEqual(camposPendientesTercero(completo), [])
-})
-
-test('los campos obligatorios rechazan cadenas de espacios', () => {
-  const errores = validarTercero({ cc_nit: '  ', nombre_razon_social: '\t' })
-  assert.deepEqual(Object.keys(errores), ['cc_nit', 'nombre_razon_social'])
-})
-
-test('valida el formato del correo sin rechazar espacios exteriores normalizables', () => {
-  assert.ok(validarTercero({ ...completo, email: 'correo-invalido' }).email)
-  assert.ok(validarTercero({ ...completo, email: 'dos correos@example.test' }).email)
-  assert.equal(validarTercero({ ...completo, email: '  maria@example.test  ' }).email, undefined)
-})
-
-test('verifica los límites exactos del almacenamiento, sin truncar valores', () => {
-  for (const campo of CAMPOS_TERCEROS.filter((item) => item.name !== 'email')) {
-    assert.equal(validarTercero({ ...completo, [campo.name]: 'a'.repeat(campo.maxLength) })[campo.name], undefined)
-    assert.ok(validarTercero({ ...completo, [campo.name]: 'a'.repeat(campo.maxLength + 1) })[campo.name])
+test('mapea códigos reales; no inventa equivalencia para PPT ni sustituye tipos desconocidos por 13', () => {
+  for (const [entrada, codigo] of Object.entries({ CC: '13', 'Cédula de ciudadanía': '13', TI: '12', CE: '22', NIT: '31', PAS: '41', RC: '11', 44: '44' })) {
+    assert.equal(codigoIdentificacionTercero(entrada), codigo)
   }
-  const correo = `${'a'.repeat(87)}@example.test`
-  assert.equal(correo.length, 100)
-  assert.equal(validarTercero({ ...completo, email: correo }).email, undefined)
-  assert.ok(validarTercero({ ...completo, email: `a${correo}` }).email)
+  assert.equal(codigoIdentificacionTercero('PPT'), 'PPT')
+  assert.ok(validarTercero({ ...completo, tipo_identificacion: 'PPT' }).tipo_identificacion)
 })
 
-test('búsqueda tolera acentos y mayúsculas y consulta todos los campos', () => {
-  assert.equal(normalizarBusquedaTercero('MARÍA MUÑOZ'), 'maria munoz')
-  assert.equal(normalizarBusquedaTercero(null), '')
-  assert.ok(CAMPOS_TERCEROS.some((campo) => normalizarBusquedaTercero(completo[campo.name]).includes('montelibano')))
+test('sugiere nombres sin confirmarlos y conserva fuente, municipio y datos bancarios', () => {
+  const fila = terceroDesdeRegistro({
+    id: '1', identificacion: '00012', nombre_beneficiario: 'María José Pérez Muñoz',
+    tipo_identificacion: 'TI', ciudad: 'Municipio original',
+    datos_tercero: { numero_cuenta: '00034', banco: 'Banco original', tipo_cuenta: 'ahorro', primer_apellido: 'De la Cruz' }
+  })
+  assert.equal(fila.nombre_razon_social, '')
+  assert.equal(fila.primer_nombre, 'María')
+  assert.equal(fila.primer_apellido, 'De la Cruz')
+  assert.equal(fila.nombres_confirmados, false)
+  assert.equal(fila.ciudad_residencia, 'Municipio original')
+  assert.equal(fila.ciudad_codigo, '466')
+  assert.equal(fila.numero_cuenta, '00034')
+  assert.equal(fila.tipo_cuenta, 'AHORROS')
+  assert.deepEqual(sugerirNombresTercero('Ana Pérez'), { primer_nombre: 'Ana', segundo_nombre: '', primer_apellido: 'Pérez', segundo_apellido: '' })
+})
+
+test('guarda borradores incompletos pero envío exige campos y nombres confirmados', () => {
+  assert.deepEqual(validarTercero({}), {})
+  assert.deepEqual(validarTercero(completo, { completo: true }), {})
+  assert.deepEqual(validarTercero({ ...completo, segundo_nombre: '' }, { completo: true }), {})
+  assert.ok(validarTercero({ ...completo, segundo_apellido: '' }, { completo: true }).segundo_apellido)
+  assert.ok(validarTercero({ ...completo, nombres_confirmados: false }, { completo: true }).nombres_confirmados)
+  assert.equal(camposPendientesTercero(completo).length, 0)
+  assert.ok(camposPendientesTercero({}).length > 0)
+})
+
+test('valida dígitos, tamaños exactos y email sin truncar contenido', () => {
+  for (const campo of CAMPOS_TERCEROS.filter((c) => c.maxLength && !c.readonly && c.type !== 'select' && c.type !== 'email')) {
+    const texto = (campo.numerico ? '1' : 'a').repeat(campo.maxLength)
+    assert.equal(validarTercero({ ...completo, [campo.name]: texto })[campo.name], undefined)
+    assert.ok(validarTercero({ ...completo, [campo.name]: `${texto}x` })[campo.name])
+  }
+  assert.ok(validarTercero({ ...completo, cc_nit: '12.345' }).cc_nit)
+  assert.ok(validarTercero({ ...completo, numero_cuenta: '1e10' }).numero_cuenta)
+  assert.ok(validarTercero({ ...completo, email: 'correo-invalido' }).email)
+  assert.equal(validarTercero({ ...completo, email: ` ${'a'.repeat(87)}@example.test ` }).email, undefined)
+})
+
+test('XLSX real conserva 22 columnas, vacíos, ceros iniciales, constantes y textos que parecen fórmulas', async () => {
+  const datos = { ...completo, banco: '=1+1', direccion: 'Dirección '.repeat(40), naturaleza: 'CAMBIADO' }
+  const buffer = await crearExcelTerceros([datos, { ...completo, id: 'otra', cc_nit: '0099', segundo_nombre: '' }])
+  const libro = new ExcelJS.Workbook()
+  await libro.xlsx.load(buffer)
+  const hoja = libro.getWorksheet('Terceros')
+  assert.equal(hoja.rowCount, 3)
+  assert.equal(hoja.columnCount, 22)
+  assert.deepEqual(hoja.getRow(1).values.slice(1), CAMPOS_TERCEROS.map((c) => c.label))
+  assert.equal(hoja.getCell('A2').value, '00123456789')
+  assert.equal(hoja.getCell('V2').value, '0001234500')
+  assert.equal(hoja.getCell('T2').value, '=1+1')
+  assert.equal(hoja.getCell('O2').value, '0')
+  assert.equal(hoja.getCell('B2').value, '')
+  assert.equal(hoja.getCell('L2').value, datos.direccion.trim())
+  assert.deepEqual(filaExportacionTercero(datos), hoja.getRow(2).values.slice(1))
+  await assert.rejects(() => crearExcelTerceros([]), /no tiene terceros/)
+  await assert.rejects(() => crearExcelTerceros([{ ...completo, nombres_confirmados: false }]), /confirmar/)
+  await assert.rejects(() => crearExcelTerceros([completo, completo]), /duplicada/)
 })

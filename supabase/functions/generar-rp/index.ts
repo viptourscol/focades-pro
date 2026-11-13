@@ -69,6 +69,17 @@ serve(async (req: Request) => {
       );
     }
 
+    const cliente = createClient(supabaseUrl!, supabaseAnonKey!, {
+      global: { headers: { Authorization: authHeader! } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { error: errorRequisito } = await cliente.rpc("verificar_rp_habilitado", { p_documento_id: documento_id });
+    if (errorRequisito) {
+      return new Response(JSON.stringify({ error: errorRequisito.message }), {
+        status: 400, headers: { "Content-Type": "application/json" },
+      });
+    }
+
     // Obtener valores RP asociados
     const { data: valores, error: errorValores } = await supabaseAdmin
       .from("portal_valores_cargue")

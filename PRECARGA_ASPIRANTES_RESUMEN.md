@@ -34,6 +34,51 @@ supabase db query --linked --file scripts/testing/test-precarga-aspirantes.sql
 npm run build
 ```
 
+## Editor visual de TERCEROS
+
+El editor de TERCEROS usa un directorio con busqueda y una ficha de detalle,
+en lugar de siete columnas de entradas estrechas. El patron lista-detalle
+conserva el contexto de la seleccion; en movil se muestra una vista a la vez,
+con navegacion de regreso al directorio.
+
+Referencias de diseño:
+- [PatternFly / Red Hat: primary-detail](https://www.patternfly.org/patterns/primary-detail/design-guidelines/).
+- [Carbon: uso de tablas y espacio para evitar truncamiento](https://carbondesignsystem.com/components/data-table/usage/).
+
+Incluye busqueda por cualquiera de los siete campos (sin distinguir tildes o
+mayusculas), filtro de datos por completar, paginacion, ficha de lectura sin
+truncar datos y edicion agrupada en identificacion, contacto y ubicacion.
+Los campos opcionales pendientes no se confunden con errores que bloquean guardar.
+Los tipos de identificacion precargados se conservan, incluso si no aparecen
+en las opciones frecuentes.
+
+`Guardar cambios` utiliza `guardar_terceros_cargue` para persistir altas,
+ediciones y eliminaciones de forma atomica. Solo admite TERCEROS en borrador y
+los roles `admin_educacion` y `admin_presupuesto`. Compara `editado_en` para
+rechazar ediciones desactualizadas; conserva los identificadores y datos
+financieros de las filas existentes. Nunca modifica `personas` ni `inscripciones`.
+El documento puede guardarse vacio despues de confirmar las eliminaciones.
+
+La interfaz advierte al recargar, volver desde el editor o cambiar a la pestaña
+de validaciones con cambios pendientes, y bloquea la precarga
+hasta que se guarden, evitando que una recarga sustituya cambios locales.
+RP y los demas tipos conservan su editor y flujo anterior.
+
+Migracion: `supabase/migrations/20261113110000_guardar_editor_terceros.sql`.
+Pruebas:
+
+```sh
+node --test scripts/testing/test-editor-terceros.mjs
+supabase db query --linked --file scripts/testing/test-guardar-editor-terceros.sql
+supabase db query --linked --file scripts/testing/test-precarga-aspirantes.sql
+npm run build
+```
+
+La prueba SQL de guardado utiliza datos sinteticos en documentos temporales
+y revierte toda la transaccion. Las pruebas de navegador deben usar datos
+sinteticos y cubrir busqueda, filtros, edicion, alta, eliminacion confirmada,
+errores de guardado y lectura en escritorio y movil.
+
 ## Historial anterior (no vigente)
 
 Las notas siguientes describen intentos previos; las firmas, fuentes y

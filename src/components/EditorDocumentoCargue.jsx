@@ -1,14 +1,21 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { AlertCircle, CheckCircle, X, Plus, Trash2 } from 'lucide-react'
+import EditorTerceros from './EditorTerceros'
+import { CAMPOS_TERCEROS, terceroDesdeRegistro, validarTercero } from '../lib/tercerosCargue'
 
-const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardado, onCancelado }) => {
+const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardado, onCancelado, onCambiosPendientes }) => {
   const [filas, setFilas] = useState([])
   const [cargando, setCargando] = useState(false)
   const [precargando, setPrecargando] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState(null)
   const [exito, setExito] = useState(null)
+  const [filasGuardadas, setFilasGuardadas] = useState('[]')
+  const [edicionDocumento, setEdicionDocumento] = useState(null)
+  const [estadoDocumento, setEstadoDocumento] = useState(null)
+  const hayCambios = tipoDocumento === 'terceros' && JSON.stringify(filas) !== filasGuardadas
+  const puedeEditarTerceros = ['admin_educacion', 'admin_presupuesto'].includes(userRole) && estadoDocumento === 'borrador'
   // Estados para modal de filtros de precarga
   const [mostrarModalFiltros, setMostrarModalFiltros] = useState(false)
   const [convocatoriaFiltro, setConvocatoriaFiltro] = useState('')
@@ -17,15 +24,7 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
   const estadosDisponibles = convocatorias.find((conv) => conv.id === convocatoriaFiltro)?.estados || []
 
   const camposporTipo = {
-    terceros: [
-      { name: 'cc_nit', label: 'C.C/NIT', type: 'text', required: true },
-      { name: 'nombre_razon_social', label: 'Nombre/Razón Social', type: 'text', required: true },
-      { name: 'tipo_identificacion', label: 'Tipo Identificación', type: 'select', options: ['CC', 'NIT', 'CE', 'PAS'], required: false },
-      { name: 'email', label: 'Email', type: 'email', required: false },
-      { name: 'telefono', label: 'Teléfono', type: 'tel', required: false },
-      { name: 'direccion', label: 'Dirección', type: 'text', required: false },
-      { name: 'ciudad', label: 'Ciudad', type: 'text', required: false }
-    ],
+    terceros: CAMPOS_TERCEROS,
     rp: [
       { name: 'identificacion', label: 'Identificación', type: 'text', required: true },
       { name: 'nombre_beneficiario', label: 'Nombre', type: 'text', required: true },
@@ -62,8 +61,23 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
   const campos = camposporTipo[tipoDocumento] || []
 
   useEffect(() => {
+    onCambiosPendientes?.(hayCambios)
+    return () => onCambiosPendientes?.(false)
+  }, [hayCambios, onCambiosPendientes])
+
+  useEffect(() => {
     cargarDatos()
   }, [documentoId, tipoDocumento])
+
+  useEffect(() => {
+    if (!hayCambios) return
+    const avisarSalida = (evento) => {
+      evento.preventDefault()
+      evento.returnValue = ''
+    }
+    window.addEventListener('beforeunload', avisarSalida)
+    return () => window.removeEventListener('beforeunload', avisarSalida)
+  }, [hayCambios])
 
   const esDocumentoExistente = Boolean(documentoId) && !String(documentoId).startsWith('nuevo')
 
@@ -77,6 +91,17 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
 
     try {
       setCargando(true)
+      setEstadoDocumento(null)
+      let documentoTerceros = null
+      if (tipoDocumento === 'terceros') {
+        const { data: documento, error: errorDocumento } = await supabase
+          .from('portal_documentos_cargue')
+          .select('estado, editado_en')
+          .eq('id', documentoId)
+          .single()
+        if (errorDocumento) throw errorDocumento
+        documentoTerceros = documento
+      }
       const { data, error: errorCarga } = await supabase
         .from('portal_valores_cargue')
         .select('id, identificacion, nombre_beneficiario, tipo_identificacion, email, telefono, direccion, ciudad')
@@ -84,20 +109,12 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
         .order('nombre_beneficiario')
       if (errorCarga) throw errorCarga
 
-      if (tipoDocumento === 'terceros' && data.length > 0) {
-        setFilas(
-          data.map((r) => ({
-            ...filaVacia(),
-            id: String(r.id),
-            cc_nit: r.identificacion,
-            nombre_razon_social: r.nombre_beneficiario,
-            tipo_identificacion: r.tipo_identificacion || '',
-            email: r.email || '',
-            telefono: r.telefono || '',
-            direccion: r.direccion || '',
-            ciudad: r.ciudad || ''
-          }))
-        )
+      if (tipoDocumento === 'terceros') {
+        const terceros = data.map(terceroDesdeRegistro)
+        setFilas(terceros)
+        setFilasGuardadas(JSON.stringify(terceros))
+        setEstadoDocumento(documentoTerceros.estado)
+        setEdicionDocumento(documentoTerceros.editado_en)
       } else if (tipoDocumento === 'rp' && data.length > 0) {
         setFilas(
           data.map((r) => ({
@@ -169,6 +186,10 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
   }, [documentoId, tipoDocumento, esDocumentoExistente])
 
   const precargarDesdeAspirantes = async () => {
+    if (hayCambios) {
+      setError('Guarda los cambios del documento antes de precargar más aspirantes.')
+      return
+    }
     // Mostrar modal de filtros para RP/Terceros
     if (tipoDocumento === 'rp' || tipoDocumento === 'terceros') {
       setMostrarModalFiltros(true)
@@ -223,21 +244,26 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
 
   const agregarFila = () => {
     const nuevaFila = {
-      id: `temp-${Date.now()}`,
+      id: `temp-${crypto.randomUUID()}`,
       ...campos.reduce((acc, c) => ({ ...acc, [c.name]: '' }), {})
     }
-    setFilas([...filas, nuevaFila])
+    setFilas((anteriores) => [...anteriores, nuevaFila])
+    setExito(null)
+    return nuevaFila.id
   }
 
   const eliminarFila = (filaId) => {
-    setFilas(filas.filter((f) => f.id !== filaId))
+    setFilas((anteriores) => anteriores.filter((f) => f.id !== filaId))
+    setExito(null)
   }
 
   const actualizarFila = (filaId, campo, valor) => {
-    setFilas(filas.map((f) => (f.id === filaId ? { ...f, [campo]: valor } : f)))
+    setFilas((anteriores) => anteriores.map((f) => (f.id === filaId ? { ...f, [campo]: valor } : f)))
+    setExito(null)
   }
 
   const validarFila = (fila) => {
+    if (tipoDocumento === 'terceros') return Object.values(validarTercero(fila))
     const errores = []
     campos.forEach((campo) => {
       if (campo.required && !fila[campo.name]) {
@@ -257,6 +283,7 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
     try {
       setGuardando(true)
       setError(null)
+      setExito(null)
 
       // Validar todas las filas
       const erroresValidacion = []
@@ -269,6 +296,27 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
 
       if (erroresValidacion.length > 0) {
         setError(erroresValidacion.join('\n'))
+        return
+      }
+
+      if (tipoDocumento === 'terceros') {
+        if (!puedeEditarTerceros) throw new Error('Solo puedes editar terceros en un documento en borrador con el rol autorizado.')
+        const { data, error: errorGuardado } = await supabase.rpc('guardar_terceros_cargue', {
+          p_documento_id: documentoId,
+          p_editado_en: edicionDocumento,
+          p_filas: filas.map((fila) => ({
+            ...fila,
+            id: fila.id.startsWith('temp-') ? null : fila.id
+          }))
+        })
+        if (errorGuardado) throw errorGuardado
+        if (!data || !Array.isArray(data.filas) || !data.editado_en) throw new Error('El guardado no devolvió una confirmación válida. Recarga para verificar el documento.')
+        const terceros = data.filas.map(terceroDesdeRegistro)
+        setFilas(terceros)
+        setFilasGuardadas(JSON.stringify(terceros))
+        setEdicionDocumento(data.editado_en)
+        setExito(`${terceros.length} tercero(s) guardado(s) correctamente en el documento.`)
+        onGuardado?.(data)
         return
       }
 
@@ -319,31 +367,50 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
     <div className="w-full space-y-6">
       {/* Alertas */}
       {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
+        <div role="alert" className="p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
           <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
             <p className="text-sm font-medium text-red-800 mb-1">Errores de validación</p>
             <p className="text-xs text-red-700 whitespace-pre-wrap">{error}</p>
           </div>
-          <button onClick={() => setError(null)} className="text-red-600 hover:text-red-800">
+          <button onClick={() => setError(null)} aria-label="Cerrar mensaje de error" className="text-red-600 hover:text-red-800">
             <X size={18} />
           </button>
         </div>
       )}
 
       {exito && (
-        <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex gap-3">
+        <div role="status" className="p-4 bg-green-50 border border-green-200 rounded-lg flex gap-3">
           <CheckCircle size={20} className="text-green-600 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
             <p className="text-sm font-medium text-green-800">{exito}</p>
           </div>
-          <button onClick={() => setExito(null)} className="text-green-600 hover:text-green-800">
+          <button onClick={() => setExito(null)} aria-label="Cerrar confirmación" className="text-green-600 hover:text-green-800">
             <X size={18} />
           </button>
         </div>
       )}
 
-      {/* Tabla editable */}
+      {tipoDocumento === 'terceros' ? (
+        <EditorTerceros
+          filas={filas}
+          campos={campos}
+          ocupado={guardando || precargando}
+          puedeEditar={puedeEditarTerceros}
+          puedePrecargar={puedePrecargar && puedeEditarTerceros}
+          hayCambios={hayCambios}
+          onActualizar={actualizarFila}
+          onAgregar={agregarFila}
+          onEliminar={eliminarFila}
+          onGuardar={guardar}
+          onPrecargar={precargarDesdeAspirantes}
+          onCancelar={() => {
+            if (!hayCambios || window.confirm('Tienes cambios sin guardar. ¿Salir y descartarlos?')) onCancelado?.()
+          }}
+        />
+      ) : (
+      <>
+      {/* Tabla editable de los otros tipos de documento */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -458,6 +525,9 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
           <p className="text-2xl font-bold text-indigo-900">{campos.length}</p>
         </div>
       </div>
+
+      </>
+      )}
 
       {/* Modal de filtros para precarga desde aspirantes */}
       {mostrarModalFiltros && (

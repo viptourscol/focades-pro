@@ -39,6 +39,7 @@ const AdminCargueDocumentos = () => {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState(null)
   const [activeTab, setActiveTab] = useState('editor') // 'editor' | 'validaciones' | 'historial'
+  const [cambiosTerceros, setCambiosTerceros] = useState(false)
   const [estadisticas, setEstadisticas] = useState(null)
   // Nuevos estados para el modal de filtros
   const [mostrarModalFiltros, setMostrarModalFiltros] = useState(false)
@@ -317,6 +318,7 @@ const AdminCargueDocumentos = () => {
           <div className="flex items-center gap-4">
             <button
               onClick={() => {
+                if (cambiosTerceros && !window.confirm('Tienes cambios sin guardar. ¿Salir y descartarlos?')) return
                 setDocumentoSeleccionado(null)
                 setDocumentoDetalle(null)
               }}
@@ -387,9 +389,9 @@ const AdminCargueDocumentos = () => {
           </div>
         ) : (
           // Editor de documento
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className={`grid grid-cols-1 gap-6 ${documentoTipo === 'terceros' ? '' : 'lg:grid-cols-4'}`}>
             {/* Main editor */}
-            <div className="lg:col-span-3 space-y-6">
+            <div className={`min-w-0 space-y-6 ${documentoTipo === 'terceros' ? '' : 'lg:col-span-3'}`}>
               {/* Tabs */}
               <div className="flex gap-2 border-b border-gray-200">
                 <button
@@ -404,7 +406,10 @@ const AdminCargueDocumentos = () => {
                   Editor de Datos
                 </button>
                 <button
-                  onClick={() => setActiveTab('validaciones')}
+                  onClick={() => {
+                    if (cambiosTerceros && !window.confirm('Tienes cambios sin guardar. ¿Abrir validaciones y descartarlos?')) return
+                    setActiveTab('validaciones')
+                  }}
                   className={`px-4 py-2 font-medium text-sm border-b-2 transition ${
                     activeTab === 'validaciones'
                       ? 'border-blue-600 text-blue-600'
@@ -423,6 +428,7 @@ const AdminCargueDocumentos = () => {
                     documentoId={documentoSeleccionado}
                     tipoDocumento={documentoTipo || 'terceros'}
                     userRole={userRole}
+                    onCambiosPendientes={setCambiosTerceros}
                     onGuardado={(data) => {
                       console.log('Documento guardado:', data)
                     }}
@@ -438,7 +444,7 @@ const AdminCargueDocumentos = () => {
 
             {/* Sidebar - Acciones y flujo */}
             <div className="lg:col-span-1">
-              <div className="sticky top-24 space-y-6">
+              <div className={documentoTipo === 'terceros' ? 'grid grid-cols-1 gap-6 md:grid-cols-3' : 'sticky top-24 space-y-6'}>
                 {/* Información del documento */}
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
                   <p className="text-xs font-semibold text-gray-600 mb-3">INFORMACIÓN</p>
@@ -459,6 +465,11 @@ const AdminCargueDocumentos = () => {
                 {/* Botones de flujo */}
                 <div>
                   <p className="text-xs font-semibold text-gray-600 mb-3">ACCIONES</p>
+                  {cambiosTerceros ? (
+                    <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+                      Guarda los cambios del editor antes de enviar este documento a revisión.
+                    </p>
+                  ) : (
                   <BotonesFlujoCargue
                     documentoId={documentoSeleccionado}
                     estado="borrador"
@@ -468,6 +479,7 @@ const AdminCargueDocumentos = () => {
                       console.log('Acción completada:', data)
                     }}
                   />
+                  )}
                 </div>
 
                 {/* Ayuda */}

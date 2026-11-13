@@ -83,6 +83,34 @@ BEGIN
           AND datos_tercero->>'numero_cuenta'='000123456789'
       ) THEN RAISE EXCEPTION 'No se precargaron los datos bancarios desde la inscripcion'; END IF;
 
+      IF v_tipo='terceros' AND v_estado='admitido' THEN
+        RESET ROLE;
+        UPDATE public.portal_valores_cargue
+        SET datos_tercero = datos_tercero || '{"banco":"  ","tipo_cuenta":"","numero_cuenta":null,"nombres_confirmados":false}'::JSONB
+        WHERE documento_id=v_doc;
+        SET LOCAL ROLE authenticated;
+        SELECT * INTO STRICT v_resultado FROM public.precargar_rp_convocatoria(v_doc, v_conv, v_estado, NULL);
+        IF v_resultado.cantidad_precargada <> 0 OR NOT EXISTS (
+          SELECT 1 FROM public.portal_valores_cargue WHERE documento_id=v_doc
+            AND datos_tercero->>'banco'='BANCO PRUEBA ROLLBACK'
+            AND datos_tercero->>'tipo_cuenta'='AHORROS'
+            AND datos_tercero->>'numero_cuenta'='000123456789'
+            AND datos_tercero->'nombres_confirmados'='false'::JSONB
+        ) THEN RAISE EXCEPTION 'Repetir precarga no recupero bancos faltantes en filas existentes'; END IF;
+        RESET ROLE;
+        UPDATE public.portal_valores_cargue
+        SET datos_tercero = datos_tercero || '{"banco":"BANCO CORREGIDO","tipo_cuenta":"CORRIENTE","numero_cuenta":"000987654321"}'::JSONB
+        WHERE documento_id=v_doc AND datos_tercero->>'banco'='BANCO PRUEBA ROLLBACK';
+        SET LOCAL ROLE authenticated;
+        PERFORM public.completar_datos_terceros(v_doc);
+        IF NOT EXISTS (
+          SELECT 1 FROM public.portal_valores_cargue WHERE documento_id=v_doc
+            AND datos_tercero->>'banco'='BANCO CORREGIDO'
+            AND datos_tercero->>'tipo_cuenta'='CORRIENTE'
+            AND datos_tercero->>'numero_cuenta'='000987654321'
+        ) THEN RAISE EXCEPTION 'Completar bancos sobrescribio correcciones de Educacion'; END IF;
+      END IF;
+
       IF EXISTS (
         SELECT 1 FROM public.inscripciones i
         LEFT JOIN public.personas p ON p.id = i.persona_id

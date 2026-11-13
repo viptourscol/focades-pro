@@ -24,11 +24,17 @@ Actualizado: 2026-11-13.
   La creacion automatica de RP usa `admitido` y la modalidad opcional real
   (`Sueño Educativo` o `Mérito Educativo`).
 - El contador devuelto corresponde a filas efectivamente insertadas.
-  Repetir la precarga no duplica ni sobrescribe filas existentes.
+  Repetir la precarga no duplica ni sobrescribe datos diligenciados; en TERCEROS
+  completa los campos faltantes desde la fuente, incluidos los bancarios, aunque
+  no inserte nuevas filas. Los textos vacios, espacios y nulos no bloquean esa
+  recuperacion. El editor recarga tambien cuando el contador de inserciones es cero.
+  Si el aspirante no tiene datos bancarios en su fuente vinculada, siguen pendientes
+  para Educacion; nunca se toman cuentas de beneficiarios ajenos.
 - Los errores SQL se propagan como errores, no como una respuesta exitosa de
   cero filas. Si no hay coincidencias o ya estan cargadas, se informa en el modal.
 
 Migracion correctiva: `supabase/migrations/20261113081000_fix_precarga_aspirantes_documentos.sql`.
+Recuperacion bancaria al precargar: `supabase/migrations/20261113180000_completar_bancos_en_precarga.sql`.
 Prueba de regresion con datos reales y `ROLLBACK`:
 
 ```sh

@@ -230,7 +230,7 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
       
       if (data && data.length > 0) {
         const { cantidad_precargada, mensaje } = data[0]
-        if (!Number.isInteger(cantidad_precargada) || cantidad_precargada <= 0 || mensaje?.startsWith('Error en precarga:')) {
+        if (!Number.isInteger(cantidad_precargada) || cantidad_precargada < 0 || mensaje?.startsWith('Error en precarga:')) {
           throw new Error(mensaje || 'No se insertaron registros en el documento.')
         }
         setExito(mensaje || `Precarga completada: ${cantidad_precargada} registro(s) precargado(s).`)

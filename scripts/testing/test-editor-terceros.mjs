@@ -5,7 +5,7 @@ import {
   CAMPOS_TERCEROS, FIJOS_TERCERO, codigoIdentificacionTercero, camposPendientesTercero,
   filaExportacionTercero, sugerirNombresTercero, terceroDesdeRegistro, validarTercero
 } from '../../src/lib/tercerosCargue.js'
-import { crearExcelTerceros } from '../../src/lib/exportarTerceros.js'
+import { crearExcelTerceros, descargarExcelTerceros } from '../../src/lib/exportarTerceros.js'
 
 const completo = {
   id: 'fila', cc_nit: '00123456789', nombre_referencia: 'María José Pérez Muñoz',
@@ -90,4 +90,36 @@ test('XLSX real conserva 22 columnas, vacíos, ceros iniciales, constantes y tex
   await assert.rejects(() => crearExcelTerceros([]), /no tiene terceros/)
   await assert.rejects(() => crearExcelTerceros([{ ...completo, nombres_confirmados: false }]), /confirmar/)
   await assert.rejects(() => crearExcelTerceros([completo, completo]), /duplicada/)
+})
+
+test('descarga un XLSX reabrible con nombre y MIME correctos y libera el recurso', async (t) => {
+  let descargado
+  let enlace
+  let liberado
+  t.mock.method(URL, 'createObjectURL', (blob) => {
+    descargado = blob
+    return 'blob:excel-prueba'
+  })
+  t.mock.method(URL, 'revokeObjectURL', (url) => { liberado = url })
+  t.mock.method(globalThis, 'setTimeout', (callback) => { callback() })
+  const documentoAnterior = Object.getOwnPropertyDescriptor(globalThis, 'document')
+  t.after(() => {
+    if (documentoAnterior) Object.defineProperty(globalThis, 'document', documentoAnterior)
+    else delete globalThis.document
+  })
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: { createElement: (tag) => {
+    assert.equal(tag, 'a')
+    enlace = { click: t.mock.fn() }
+    return enlace
+  } } })
+  await descargarExcelTerceros([completo], 'terceros-prueba.xlsx')
+  assert.equal(enlace.download, 'terceros-prueba.xlsx')
+  assert.equal(enlace.href, 'blob:excel-prueba')
+  assert.equal(enlace.click.mock.callCount(), 1)
+  assert.equal(liberado, enlace.href)
+  assert.equal(descargado.type, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  const libro = new ExcelJS.Workbook()
+  await libro.xlsx.load(await descargado.arrayBuffer())
+  assert.equal(libro.worksheets[0].columnCount, 22)
+  assert.equal(libro.worksheets[0].getCell('V2').value, '0001234500')
 })

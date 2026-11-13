@@ -2,6 +2,11 @@
 
 Actualizado: 2026-11-13.
 
+La exportacion XLSX carga ExcelJS junto con la aplicacion, no mediante un
+`import()` al descargar. Asi una pestaña abierta no depende de un fragmento
+ExcelJS de un despliegue anterior que Vercel ya no publica. Tras actualizar
+desde una version anterior, recargar la pagina una vez antes de descargar.
+
 - Ruta: `/admin/cargue-documentos`.
 - Tanto TERCEROS como RP admiten precarga en borrador, exclusivamente para
   `admin_educacion`. Los documentos aprobados no se modifican.

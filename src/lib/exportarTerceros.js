@@ -1,10 +1,10 @@
+import ExcelJS from 'exceljs'
 import { CAMPOS_TERCEROS, filaExportacionTercero, validacionesDocumentoTerceros } from './tercerosCargue.js'
 
 export const crearExcelTerceros = async (filas) => {
   if (!filas.length) throw new Error('El documento no tiene terceros para exportar.')
   const errores = validacionesDocumentoTerceros(filas).map((error) => `Fila ${error.fila_numero}: ${error.mensaje_error}`)
   if (errores.length) throw new Error(errores.join('\n'))
-  const { default: ExcelJS } = await import('exceljs')
   const libro = new ExcelJS.Workbook()
   const hoja = libro.addWorksheet('Terceros')
   hoja.addRow(CAMPOS_TERCEROS.map((campo) => campo.label))

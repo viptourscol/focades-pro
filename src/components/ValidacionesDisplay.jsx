@@ -2,6 +2,7 @@ import { createElement, useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { AlertCircle, AlertTriangle, CheckCircle, Copy, Filter, Link, Table2, Trash2, XCircle, Zap } from 'lucide-react'
 import { terceroDesdeRegistro, validacionesDocumentoTerceros } from '../lib/tercerosCargue'
+import { validacionesDocumentoRP } from '../lib/rpCargue'
 
 const ValidacionesDisplay = ({ documentoId, tipoDocumento }) => {
   const [validaciones, setValidaciones] = useState([])
@@ -26,11 +27,15 @@ const ValidacionesDisplay = ({ documentoId, tipoDocumento }) => {
         return
       }
 
-      if (tipoDocumento === 'terceros') {
-        const { data, error: errorLectura } = await supabase.rpc('leer_terceros_cargue', { p_documento_id: documentoId })
+      if (['terceros', 'rp'].includes(tipoDocumento)) {
+        const { data, error: errorLectura } = await supabase.rpc(tipoDocumento === 'rp' ? 'leer_rp_cargue' : 'leer_terceros_cargue', { p_documento_id: documentoId })
         if (errorLectura) throw errorLectura
-        if (!data || !Array.isArray(data.filas)) throw new Error('No se pudieron consultar los terceros para validar.')
-        setValidaciones(validacionesDocumentoTerceros(data.filas.map(terceroDesdeRegistro)).map((validacion, i) => ({ ...validacion, id: `actual-${i}`, resuelta: false })))
+        if (!data || !Array.isArray(data.filas)) throw new Error('No se pudo consultar el documento para validar.')
+        const errores = tipoDocumento === 'rp'
+          ? validacionesDocumentoRP(data.filas, data.estado === 'borrador' ? 'educacion' : 'completo')
+          : validacionesDocumentoTerceros(data.filas.map(terceroDesdeRegistro))
+        if (tipoDocumento === 'rp' && !data.terceros_id) errores.unshift({ tipo_error: 'validacion_referencia', mensaje_error: 'Debe vincular un documento TERCEROS aprobado.' })
+        setValidaciones(errores.map((validacion, i) => ({ ...validacion, id: `actual-${i}`, resuelta: false })))
         return
       }
 
@@ -215,7 +220,7 @@ const ValidacionesDisplay = ({ documentoId, tipoDocumento }) => {
                 </div>
 
                 {/* Acciones */}
-                {tipoDocumento !== 'terceros' && <div className="flex gap-2 flex-shrink-0">
+                {!['terceros', 'rp'].includes(tipoDocumento) && <div className="flex gap-2 flex-shrink-0">
                   {!validacion.resuelta && (
                     <button
                       onClick={() => marcarResuelta(validacion.id)}

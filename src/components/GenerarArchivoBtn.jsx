@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { Download, Upload, Loader, AlertCircle, CheckCircle } from 'lucide-react'
 import { terceroDesdeRegistro } from '../lib/tercerosCargue'
 import { descargarExcelTerceros } from '../lib/exportarTerceros'
+import { descargarExcelRP } from '../lib/exportarRP'
 
 const GenerarArchivoBtn = ({ documentoId, tipoDocumento, userRole, onGenerado }) => {
   const [cargando, setCargando] = useState(false)
@@ -48,6 +49,14 @@ const GenerarArchivoBtn = ({ documentoId, tipoDocumento, userRole, onGenerado })
         if (!Array.isArray(filas)) throw new Error('No se recibió una lista válida para exportar.')
         await descargarExcelTerceros(filas.map(terceroDesdeRegistro), `terceros-${documentoId}.xlsx`)
         setExito('Excel descargado. La descarga no aprueba el documento.')
+        return
+      }
+      if (accion === 'generar-rp') {
+        const { data: filas, error: fallo } = await supabase.rpc('obtener_rp_exportacion', { p_documento_id: documentoId })
+        if (fallo) throw fallo
+        if (!Array.isArray(filas)) throw new Error('No se recibió una lista válida para exportar.')
+        await descargarExcelRP(filas, `rp-${documentoId}.xlsx`)
+        setExito('Excel RP descargado. La descarga no aprueba el documento.')
         return
       }
 
@@ -139,7 +148,7 @@ const GenerarArchivoBtn = ({ documentoId, tipoDocumento, userRole, onGenerado })
       accion: 'generar-rp',
       label: 'Generar RP',
       icon: Download,
-      descripcion: 'Exportar presupuestos a CSV'
+      descripcion: 'Descargar las 16 columnas RP en Excel (.xlsx). Requiere datos completos.'
     },
     op: {
       accion: 'generar-op',

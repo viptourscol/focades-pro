@@ -1,7 +1,13 @@
 # RESUMEN: ESTRUCTURA DE TABLAS - FOCADES PRO
 
-> Actualizacion del cargue: la fuente de TERCEROS/RP es `inscripciones` y sus
+> Actualizacion del cargue: la fuente de TERCEROS es `inscripciones` y sus
 > relaciones; el documento guarda sus filas en `portal_valores_cargue`.
+> RP continua desde un TERCEROS aprobado de la misma convocatoria, enlazado
+> por `portal_documentos_cargue.rp_terceros_id`. Sus 16 campos y confirmaciones
+> por persona se guardan en `portal_valores_cargue.datos_rp`; valor_bruto,
+> valor_neto y numero_rp conservan los datos financieros para continuidad.
+> Educacion puede agregar personas mediante busqueda en las tres fuentes,
+> incluso de otras convocatorias. Presupuesto confirma su existencia externa.
 > Los 22 campos de Presupuesto y sus reglas vigentes se documentan en
 > [PRECARGA_ASPIRANTES_RESUMEN.md](./PRECARGA_ASPIRANTES_RESUMEN.md).
 > `inscripciones.datos_bancarios` contiene banco, tipo y numero de cuenta.

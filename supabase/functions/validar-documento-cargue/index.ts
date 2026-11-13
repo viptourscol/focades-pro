@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
 import { terceroDesdeRegistro, validacionesDocumentoTerceros } from "../../../src/lib/tercerosCargue.js";
+import { validacionesDocumentoRP } from "../../../src/lib/rpCargue.js";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL");
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
@@ -74,16 +75,19 @@ serve(async (req: Request) => {
       });
     }
 
-    if (documento.tipo_documento === "terceros") {
+    if (["terceros", "rp"].includes(documento.tipo_documento)) {
       const cliente = createClient(supabaseUrl!, supabaseAnonKey!, {
         global: { headers: { Authorization: authHeader! } },
         auth: { persistSession: false, autoRefreshToken: false },
       });
-      const { data: guardado, error: errorLectura } = await cliente.rpc("leer_terceros_cargue", { p_documento_id: documento_id });
+      const esRP = documento.tipo_documento === "rp";
+      const { data: guardado, error: errorLectura } = await cliente.rpc(esRP ? "leer_rp_cargue" : "leer_terceros_cargue", { p_documento_id: documento_id });
       if (errorLectura || !guardado || !Array.isArray(guardado.filas)) return new Response(
         JSON.stringify({ error: errorLectura?.message || "Documento no accesible" }), { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } },
       );
-      const errores = validacionesDocumentoTerceros(guardado.filas.map(terceroDesdeRegistro));
+      const errores = esRP ? validacionesDocumentoRP(guardado.filas, guardado.estado === "borrador" ? "educacion" : "completo")
+        : validacionesDocumentoTerceros(guardado.filas.map(terceroDesdeRegistro));
+      if (esRP && !guardado.terceros_id) errores.unshift({ tipo_error: "validacion_referencia", mensaje_error: "Debe vincular un documento TERCEROS aprobado." });
       return new Response(JSON.stringify({
         success: true, documento_id, filas_validadas: guardado.filas.length,
         errores_encontrados: errores.length, es_valido: errores.length === 0, errores,

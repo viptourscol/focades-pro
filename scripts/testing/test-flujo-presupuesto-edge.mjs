@@ -5,6 +5,8 @@ import { test } from 'node:test'
 import ExcelJS from 'exceljs'
 import { terceroDesdeRegistro, validacionesDocumentoTerceros } from '../../src/lib/tercerosCargue.js'
 import { crearExcelTerceros } from '../../src/lib/exportarTerceros.js'
+import { nuevaFilaRP, validacionesDocumentoRP } from '../../src/lib/rpCargue.js'
+import { crearExcelRP } from '../../src/lib/exportarRP.js'
 
 const leer = (nombre) => stripTypeScriptTypes(readFileSync(new URL(`../../supabase/functions/${nombre}`, import.meta.url), 'utf8')).replace(/^import .*;\r?\n/gm, '')
 const preparar = (endpoint, { tipo = 'terceros', fallo = false } = {}) => {
@@ -14,6 +16,9 @@ const preparar = (endpoint, { tipo = 'terceros', fallo = false } = {}) => {
     tipo_identificacion: '13', email: 'prueba@example.test', telefono: '3001234567', direccion: 'Direccion',
     datos_tercero: { primer_nombre: 'Ana', primer_apellido: 'Perez', segundo_apellido: 'Gomez',
       banco: 'Banco prueba', tipo_cuenta: 'AHORROS', numero_cuenta: '000456', nombres_confirmados: true } }
+  const rp = { ...nuevaFilaRP({ origen: 'tercero:prueba', identificacion: '000123', nombre: 'Ana Perez Gomez' }),
+    no_rp: '0001', subconsecutivo: '1', descripcion: 'Prueba', fecha: '13112026', no_cdp: '0002', subconsecutivo_cdp: '1',
+    fuente_financiacion: '4', valor: '123.45', liquidacion: '123.45', valor_confirmado: true, tercero_confirmado: true }
   const createClient = (_url, _key, opciones) => ({
     auth: { getUser: async () => ({ data: { user: { id: 'usuario', user_metadata: { roles: ['admin_educacion'] } } } }) },
     rpc: async (nombre, parametros) => {
@@ -21,6 +26,8 @@ const preparar = (endpoint, { tipo = 'terceros', fallo = false } = {}) => {
       if (fallo) return { error: { message: 'Requisito o permiso no satisfecho' } }
       if (nombre === 'obtener_terceros_exportacion') return { data: [fila] }
       if (nombre === 'leer_terceros_cargue') return { data: { filas: [fila] } }
+      if (nombre === 'obtener_rp_exportacion') return { data: [rp] }
+      if (nombre === 'leer_rp_cargue') return { data: { filas: [rp], terceros_id: 'origen', estado: 'enviado_para_revision' } }
       if (nombre === 'fn_crear_documento_cargue') return { data: 'doc' }
       return { data: { success: true, nuevo_estado: 'aprobado' } }
     },
@@ -31,9 +38,9 @@ const preparar = (endpoint, { tipo = 'terceros', fallo = false } = {}) => {
     }
   })
   const compartido = new Function('createClient', `${leer('_shared/transicion-presupuesto.ts').replace(/^export /gm, '')}\nreturn {corsPresupuesto,transicionarPresupuesto};`)(createClient)
-  new Function('serve', 'createClient', 'Deno', 'corsPresupuesto', 'transicionarPresupuesto', 'terceroDesdeRegistro', 'crearExcelTerceros', 'validacionesDocumentoTerceros', leer(`${endpoint}/index.ts`))(
+  new Function('serve', 'createClient', 'Deno', 'corsPresupuesto', 'transicionarPresupuesto', 'terceroDesdeRegistro', 'crearExcelTerceros', 'validacionesDocumentoTerceros', 'crearExcelRP', 'validacionesDocumentoRP', leer(`${endpoint}/index.ts`))(
     (callback) => { handler = callback }, createClient, { env: { get: () => 'configuracion-sintetica' } },
-    compartido.corsPresupuesto, compartido.transicionarPresupuesto, terceroDesdeRegistro, crearExcelTerceros, validacionesDocumentoTerceros
+    compartido.corsPresupuesto, compartido.transicionarPresupuesto, terceroDesdeRegistro, crearExcelTerceros, validacionesDocumentoTerceros, crearExcelRP, validacionesDocumentoRP
   )
   return {
     llamadas,
@@ -85,11 +92,32 @@ test('el endpoint antiguo de creación usa la RPC con la sesión y respeta el re
   assert.equal((await preparar('crear-documento-cargue', { tipo: 'rp', fallo: true }).solicitar()).status, 400)
 })
 
-test('generar-rp comprueba el requisito con sesión antes de generar archivos', async () => {
+test('generar-rp comprueba contrato completo con sesión antes de generar archivos', async () => {
   const { solicitar, llamadas } = preparar('generar-rp', { tipo: 'rp', fallo: true })
   assert.equal((await solicitar()).status, 400)
-  assert.equal(llamadas[0].nombre, 'verificar_rp_habilitado')
+  assert.equal(llamadas[0].nombre, 'obtener_rp_exportacion')
   assert.equal(llamadas[0].authorization, 'Bearer sesion-sintetica')
+})
+
+test('generar-rp devuelve XLSX privado de 16 columnas, sin publicar archivos en Storage', async () => {
+  const { solicitar } = preparar('generar-rp', { tipo: 'rp' })
+  const respuesta = await solicitar()
+  assert.equal(respuesta.status, 200)
+  assert.equal(respuesta.headers.get('Cache-Control'), 'no-store')
+  const libro = new ExcelJS.Workbook()
+  await libro.xlsx.load(await respuesta.arrayBuffer())
+  assert.equal(libro.worksheets[0].columnCount, 16)
+  assert.equal(libro.worksheets[0].getCell('A2').value, '0001')
+  assert.equal(libro.worksheets[0].getCell('M2').value, '123.45')
+  assert.equal((await solicitar(false)).status, 401)
+})
+
+test('validar-documento-cargue usa RP guardado autorizado, no las filas enviadas por el cliente', async () => {
+  const { solicitar, llamadas } = preparar('validar-documento-cargue', { tipo: 'rp' })
+  const respuesta = await solicitar()
+  assert.equal(respuesta.status, 200)
+  assert.equal((await respuesta.json()).es_valido, true)
+  assert.equal(llamadas[0].nombre, 'leer_rp_cargue')
 })
 
 test('validar-documento-cargue valida el contenido guardado autorizado y admite razon social vacia', async () => {

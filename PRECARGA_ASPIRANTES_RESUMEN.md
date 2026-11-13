@@ -44,7 +44,79 @@ Prueba transaccional: `supabase db query --linked --file scripts/testing/test-el
 Esta migracion no elimina documentos existentes; el usuario debe confirmar
 cada documento individualmente desde la interfaz.
 
-## Precarga y exportacion
+## RP: registro presupuestal de 16 columnas
+
+Educacion crea RP en `/admin/cargue-documentos` despues de la aprobacion de
+TERCEROS de la misma convocatoria. En el editor selecciona el documento aprobado
+y pulsa **Incorporar personas**. Se conserva `rp_terceros_id` y una copia de la
+identidad, nombre y modalidad disponible. No se vuelve a filtrar por `admitido`.
+La incorporacion repetida no duplica personas ni reemplaza importes.
+
+- Educacion puede buscar/agregar personas de `personas`, `inscripciones` y
+  `portal_beneficiarios`, sin limitarse a la convocatoria actual. La busqueda
+  exige tres caracteres y devuelve hasta 30 identificaciones distintas; puede
+  refinarse con el numero completo. No se admiten identificaciones inventadas,
+  repetidas, no numericas ni de mas de 15 digitos.
+- Educacion digita y confirma el valor por persona. No se calculan SMLV ni se
+  presumen equivalencias de modalidad. Liquidacion refleja el mismo importe.
+  Ambos son positivos, de hasta 13 enteros y 2 decimales (punto decimal), sin
+  aritmetica flotante ni perdida de ceros.
+- Codigos fijos: origen legal `5`, proyecto `841`, entidad `9901`, rubro
+  `2.3.2.02.02.009`, firma mecanica `NO`.
+- Presupuesto, solo en revision, llena No. RP (10 digitos), SubConsecutivo
+  (4), Descripcion (500 caracteres), Fecha real `DDMMYYYY`, No. CDP (10),
+  SubConsecutivo CDP (4), Fuente de Financiacion (4) y Contrato (texto opcional,
+  sin un maximo inventado).
+- No. RP y No. CDP admiten edicion manual o asignacion a personas seleccionadas
+  con el mismo numero o consecutivos desde un inicio. Cada columna es
+  independiente. La vista previa muestra todas las filas afectadas en el orden
+  del documento, anterior/nuevo y exige confirmacion. Reemplazar numeros
+  existentes requiere otra confirmacion; un desborde de 10 digitos no aplica
+  ningun cambio. Filtrar no altera el orden.
+- Encontrar una persona en FOCADES o aprobar TERCEROS no certifica que se
+  haya importado al programa externo. Presupuesto debe confirmar por persona
+  la existencia externa del tercero, entidad, rubro y fuente antes de aprobar.
+  No se inventan catalogos ni validaciones contra un sistema no conectado.
+- Se permiten borradores incompletos con formatos validos. Enviar requiere
+  los datos y confirmacion de Educacion; aprobar/exportar requiere las 16
+  columnas completas salvo Contrato y la confirmacion externa de Presupuesto.
+  Aprobar es una accion separada de guardar y descargar. Despues se bloquea
+  la edicion. La devolucion/reapertura conserva los datos para corregir.
+- Los roles y estados se comprueban en PostgreSQL, no solo en botones. El
+  guardado atomico verifica `editado_en`, conserva valores numericos exactos
+  en las columnas financieras existentes y registra copia anterior/nueva,
+  usuario, rol y fecha en `portal_transiciones_documento`.
+  El nombre completo se conserva sin truncar en `datos_rp.nombre`; cuando
+  excede 200 caracteres no se duplica en la columna opcional heredada
+  `nombre_beneficiario`, para mantener compatibles sus vistas existentes.
+- La interfaz ofrece lista/detalle, vista de las 16 columnas, filtros,
+  paginacion de 25 personas e historial. Los cambios pendientes bloquean
+  decisiones y exportacion; se avisa antes de salir.
+- El XLSX real contiene exactamente las 16 columnas en el orden solicitado.
+  Identificadores, fecha y numeros se conservan como texto, incluidos ceros
+  iniciales y dos decimales en los importes. La compatibilidad final con el
+  importador externo requiere una prueba real de Presupuesto.
+
+Los RP anteriores no se modifican por la migracion. Si estaban en borrador,
+el editor conserva sus importes/documentos existentes y exige vincular su
+origen antes de enviarlos. Incorporar el TERCEROS aprobado vincula las
+coincidencias; buscar una identificacion ya incluida sin origen permite
+vincularla sin quitar la fila ni reemplazar sus importes. Los documentos antiguos en revision sin origen
+deben devolverse y reabrirse para completar el nuevo formato.
+
+Migracion: `supabase/migrations/20261113210000_editor_rp_completo.sql`.
+RPC: `leer_rp_cargue`, `personas_terceros_rp`, `buscar_personas_rp`,
+`guardar_rp_cargue`, `obtener_rp_exportacion`.
+La Edge Function `generar-rp` tambien devuelve XLSX privado validado,
+sin CSV ni URL publica. `validar-documento-cargue` lee el RP guardado autorizado.
+
+Pruebas:
+```sh
+node --test scripts/testing/test-rp-cargue.mjs scripts/testing/test-flujo-presupuesto-edge.mjs
+supabase db query --linked --file scripts/testing/test-editor-rp.sql
+```
+
+## Precarga y exportacion TERCEROS
 
 La exportacion XLSX carga ExcelJS junto con la aplicacion, no mediante un
 `import()` al descargar. Asi una pestaña abierta no depende de un fragmento
@@ -52,7 +124,7 @@ ExcelJS de un despliegue anterior que Vercel ya no publica. Tras actualizar
 desde una version anterior, recargar la pagina una vez antes de descargar.
 
 - Ruta: `/admin/cargue-documentos`.
-- Tanto TERCEROS como RP admiten precarga en borrador, exclusivamente para
+- TERCEROS admite precarga en borrador, exclusivamente para
   `admin_educacion`. Los documentos aprobados no se modifican.
 - Se filtra por la convocatoria del documento y el estado seleccionado,
   comparado exactamente sin distinguir mayusculas y espacios exteriores.
@@ -65,13 +137,13 @@ desde una version anterior, recargar la pagina una vez antes de descargar.
   `n_celular`, `direccion_residencia` y `municipio_residencia`. Se guardan en
   `portal_valores_cargue` como identificacion, nombre y los cinco datos de contacto.
   TERCEROS incorpora ademas nombres separados y datos bancarios, como se detalla
-  en la seccion del formato de Presupuesto. RP conserva su contrato anterior.
+  en la seccion del formato de Presupuesto.
 - Los identificadores de inscripciones son UUID. No se truncan datos ni se
   sustituyen identificaciones o nombres faltantes por datos ficticios.
 - La RPC conserva el nombre publicado `precargar_rp_convocatoria` y recibe
   `p_documento_id`, `p_convocatoria_id`, `p_estado`, `p_modalidad_beca`.
-  La creacion automatica de RP usa `admitido` y la modalidad opcional real
-  (`Sueño Educativo` o `Mérito Educativo`).
+  Se conserva para el editor TERCEROS; RP usa ahora el documento aprobado
+  seleccionado, no la precarga antigua por estado/modalidad.
 - El contador devuelto corresponde a filas efectivamente insertadas.
   Repetir la precarga no duplica ni sobrescribe datos diligenciados; en TERCEROS
   completa los campos faltantes desde la fuente, incluidos los bancarios, aunque

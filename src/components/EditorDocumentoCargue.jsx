@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { AlertCircle, CheckCircle, X, Plus, Trash2 } from 'lucide-react'
 import EditorTerceros from './EditorTerceros'
 import ListaTercerosPresupuesto from './ListaTercerosPresupuesto'
+import EditorRP from './EditorRP'
 import { CAMPOS_TERCEROS, FIJOS_TERCERO, terceroDesdeRegistro, validarTercero } from '../lib/tercerosCargue'
 
 const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardado, onCancelado, onCambiosPendientes }) => {
@@ -27,15 +28,6 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
 
   const camposporTipo = {
     terceros: CAMPOS_TERCEROS,
-    rp: [
-      { name: 'identificacion', label: 'Identificación', type: 'text', required: true },
-      { name: 'nombre_beneficiario', label: 'Nombre', type: 'text', required: true },
-      { name: 'tipo_identificacion', label: 'Tipo Identificación', type: 'text', required: false },
-      { name: 'email', label: 'Email', type: 'email', required: false },
-      { name: 'telefono', label: 'Teléfono', type: 'tel', required: false },
-      { name: 'direccion', label: 'Dirección', type: 'text', required: false },
-      { name: 'ciudad', label: 'Ciudad', type: 'text', required: false }
-    ],
     op: [
       { name: 'no_op', label: 'No. OP', type: 'text', required: true, readonly: true },
       { name: 'rubro_presupuestal', label: 'Rubro', type: 'text', required: false, readonly: true },
@@ -122,20 +114,6 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
         setFilasGuardadas(JSON.stringify(terceros))
         setEstadoDocumento(documentoTerceros.estado)
         setEdicionDocumento(documentoTerceros.editado_en)
-      } else if (tipoDocumento === 'rp' && data.length > 0) {
-        setFilas(
-          data.map((r) => ({
-            ...filaVacia(),
-            id: String(r.id),
-            identificacion: r.identificacion,
-            nombre_beneficiario: r.nombre_beneficiario,
-            tipo_identificacion: r.tipo_identificacion || '',
-            email: r.email || '',
-            telefono: r.telefono || '',
-            direccion: r.direccion || '',
-            ciudad: r.ciudad || ''
-          }))
-        )
       } else {
         setFilas([filaVacia()])
       }
@@ -146,13 +124,13 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
     }
   }
 
-  const puedePrecargar = (tipoDocumento === 'terceros' || tipoDocumento === 'rp') && userRole === 'admin_educacion' && esDocumentoExistente
+  const puedePrecargar = tipoDocumento === 'terceros' && userRole === 'admin_educacion' && esDocumentoExistente
 
   useEffect(() => {
     let activo = true
     const cargarConvocatorias = async () => {
       try {
-        if (!esDocumentoExistente || !['terceros', 'rp'].includes(tipoDocumento)) return
+        if (!esDocumentoExistente || tipoDocumento !== 'terceros') return
         const [opciones, documento] = await Promise.all([
           supabase.rpc('obtener_convocatorias_con_inscritos'),
           supabase.from('portal_documentos_cargue').select('convocatoria_id').eq('id', documentoId).single()
@@ -647,4 +625,6 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
   )
 }
 
-export default EditorDocumentoCargue
+export default function EditorCargue(props) {
+  return props.tipoDocumento === 'rp' ? <EditorRP {...props} /> : <EditorDocumentoCargue {...props} />
+}

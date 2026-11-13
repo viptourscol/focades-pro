@@ -109,6 +109,7 @@ const AdminCargueDocumentos = () => {
   }
 
   const realizarCreacionDocumento = async (tipo, modalidad = null) => {
+    let nuevoDocumentoId = null
     try {
       setCreando(true)
       setErrorCreacion(null)
@@ -119,33 +120,97 @@ const AdminCargueDocumentos = () => {
       })
       if (errorRpc) throw errorRpc
 
+      nuevoDocumentoId = nuevoId
+
       if (tipo === 'rp') {
         const modalidadFiltro = modalidad || null
         const { data: resultadoPrecarga, error: errorPrecarga } = await supabase.rpc(
           'precargar_rp_convocatoria',
           {
             p_documento_id: nuevoId,
+            p_convocatoria_id: convocatoriaId,
+            p_estado: 'admitido',
             p_modalidad_beca: modalidadFiltro
           }
         )
         if (errorPrecarga) throw errorPrecarga
         
-        // Mostrar resultado de precarga
-        if (resultadoPrecarga && resultadoPrecarga.length > 0) {
-          console.log('Precarga completada:', resultadoPrecarga[0].mensaje)
+        const resultado = resultadoPrecarga?.[0]
+        if (!resultado || !Number.isInteger(resultado.cantidad_precargada) ||
+            resultado.cantidad_precargada <= 0 || resultado.mensaje?.startsWith('Error en precarga:')) {
+          throw new Error(resultado?.mensaje || 'La precarga no devolvió registros. El documento se creó y puede reintentar desde el editor.')
         }
       }
-
-      setDocumentoTipo(tipo)
-      setDocumentoSeleccionado(nuevoId)
-      setMostrarModalFiltros(false)
-      setModalidadBeca('')  // Resetear modalidad para próximo uso
     } catch (err) {
       setErrorCreacion(err.message)
     } finally {
+      if (nuevoDocumentoId) {
+        setDocumentoTipo(tipo)
+        setDocumentoSeleccionado(nuevoDocumentoId)
+        setMostrarModalFiltros(false)
+        setModalidadBeca('')
+      }
       setCreando(false)
     }
   }
+
+  const modalCreacion = mostrarModalFiltros && (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 pointer-events-none">
+      <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4 pointer-events-auto">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <h2 className="text-lg font-bold text-gray-900">Crear Documento: RP</h2>
+          <button
+            onClick={() => setMostrarModalFiltros(false)}
+            className="p-1 hover:bg-gray-100 rounded-lg transition"
+            disabled={creando}
+          >
+            <X size={20} className="text-gray-600" />
+          </button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Modalidad de Beca (Opcional)
+            </label>
+            <select
+              value={modalidadBeca}
+              onChange={(e) => setModalidadBeca(e.target.value)}
+              disabled={creando}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Todas las modalidades</option>
+              <option value="Sueño Educativo">Sueño Educativo</option>
+              <option value="Mérito Educativo">Mérito Educativo</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Se precargarán aspirantes ADMITIDOS de la convocatoria seleccionada
+            </p>
+          </div>
+          {errorCreacion && (
+            <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg">
+              {errorCreacion}
+            </div>
+          )}
+        </div>
+        <div className="flex gap-3 justify-end p-6 border-t border-gray-200">
+          <button
+            onClick={() => setMostrarModalFiltros(false)}
+            disabled={creando}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50 transition"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => realizarCreacionDocumento(tipoDocumentoEnCreacion, modalidadBeca || null)}
+            disabled={creando}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
+          >
+            {creando ? 'Creando...' : 'Crear Documento'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 
   if (cargando) {
     return (
@@ -238,77 +303,7 @@ const AdminCargueDocumentos = () => {
           </div>
         </div>
 
-        {/* Modal de filtros para crear RP */}
-        {mostrarModalFiltros && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 pointer-events-none">
-            <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4 pointer-events-auto">
-              <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                <h2 className="text-lg font-bold text-gray-900">Crear Documento: RP (Resolución y Promoción)</h2>
-                <button
-                  onClick={() => setMostrarModalFiltros(false)}
-                  className="p-1 hover:bg-gray-100 rounded-lg transition"
-                  disabled={creando}
-                >
-                  <X size={20} className="text-gray-600" />
-                </button>
-              </div>
-
-              <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Modalidad de Beca (Opcional)
-                  </label>
-                  <select
-                    value={modalidadBeca}
-                    onChange={(e) => setModalidadBeca(e.target.value)}
-                    disabled={creando}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Todas las modalidades</option>
-                    <option value="SUEÑOS">Sueños Educativos</option>
-                    <option value="MÉRITO">Mérito Educativo</option>
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Se precargará aspirantes ADMITIDOS de la convocatoria seleccionada
-                  </p>
-                </div>
-
-                {errorCreacion && (
-                  <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg">
-                    {errorCreacion}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-3 justify-end p-6 border-t border-gray-200">
-                <button
-                  onClick={() => setMostrarModalFiltros(false)}
-                  disabled={creando}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50 transition"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={() => realizarCreacionDocumento(
-                    'rp',
-                    modalidadBeca || null
-                  )}
-                  disabled={creando}
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
-                >
-                  {creando ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                      Creando...
-                    </>
-                  ) : (
-                    'Crear Documento'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {modalCreacion}
       </div>
     )
   }
@@ -490,6 +485,7 @@ const AdminCargueDocumentos = () => {
           </div>
         )}
       </div>
+      {modalCreacion}
     </div>
   )
 }

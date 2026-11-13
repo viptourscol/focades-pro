@@ -1,4 +1,43 @@
-# 🎯 PRECARGA DE ASPIRANTES CON CAMPOS COMPLETOS
+# Precarga de aspirantes: comportamiento vigente
+
+Actualizado: 2026-11-13.
+
+- Ruta: `/admin/cargue-documentos`.
+- Tanto TERCEROS como RP admiten precarga en borrador, exclusivamente para
+  `admin_educacion`. Los documentos aprobados no se modifican.
+- Se filtra por la convocatoria del documento y el estado seleccionado,
+  comparado exactamente sin distinguir mayusculas y espacios exteriores.
+  Los estados se obtienen por convocatoria desde las inscripciones existentes;
+  no se ofrecen estados inventados ni se usa una busqueda parcial con `LIKE`.
+- La fuente es `inscripciones` con su `persona_id` relacionado a `personas`,
+  nunca la base historica de beneficiarios. La prioridad coincide con la ficha:
+  `personas`, columnas de `inscripciones`, `inscripciones.datos_formulario`.
+- Campos reales: `n_documento`, `nombre_completo`, `tipo_documento`, `email`,
+  `n_celular`, `direccion_residencia` y `municipio_residencia`. Se guardan en
+  `portal_valores_cargue` como identificacion, nombre y los cinco datos de contacto.
+- Los identificadores de inscripciones son UUID. No se truncan datos ni se
+  sustituyen identificaciones o nombres faltantes por datos ficticios.
+- La RPC conserva el nombre publicado `precargar_rp_convocatoria` y recibe
+  `p_documento_id`, `p_convocatoria_id`, `p_estado`, `p_modalidad_beca`.
+  La creacion automatica de RP usa `admitido` y la modalidad opcional real
+  (`Sueño Educativo` o `Mérito Educativo`).
+- El contador devuelto corresponde a filas efectivamente insertadas.
+  Repetir la precarga no duplica ni sobrescribe filas existentes.
+- Los errores SQL se propagan como errores, no como una respuesta exitosa de
+  cero filas. Si no hay coincidencias o ya estan cargadas, se informa en el modal.
+
+Migracion correctiva: `supabase/migrations/20261113081000_fix_precarga_aspirantes_documentos.sql`.
+Prueba de regresion con datos reales y `ROLLBACK`:
+
+```sh
+supabase db query --linked --file scripts/testing/test-precarga-aspirantes.sql
+npm run build
+```
+
+## Historial anterior (no vigente)
+
+Las notas siguientes describen intentos previos; las firmas, fuentes y
+afirmaciones de despliegue antiguas no sustituyen el comportamiento indicado arriba.
 
 **Fecha:** 2026-11-12  
 **Status:** ✅ COMPLETADO, PUSHEADO Y MIGRACIONES EJECUTADAS EN SUPABASE  

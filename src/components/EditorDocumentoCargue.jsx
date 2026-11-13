@@ -14,7 +14,7 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
   const [convocatoriaFiltro, setConvocatoriaFiltro] = useState('')
   const [estadoFiltro, setEstadoFiltro] = useState('')
   const [convocatorias, setConvocatorias] = useState([])
-  const [estadosDisponibles, setEstadosDisponibles] = useState(['admitido', 'rechazado', 'aspirante', 'pendiente'])
+  const estadosDisponibles = convocatorias.find((conv) => conv.id === convocatoriaFiltro)?.estados || []
 
   const camposporTipo = {
     terceros: [
@@ -124,80 +124,49 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
 
   const puedePrecargar = (tipoDocumento === 'terceros' || tipoDocumento === 'rp') && userRole === 'admin_educacion' && esDocumentoExistente
 
-  // Cargar convocatorias al montar el componente
   useEffect(() => {
-    cargarConvocatorias()
-  }, [])
-
-  const cargarConvocatorias = async () => {
-    try {
-      // Obtener estados disponibles en inscripciones
+    let activo = true
+    const cargarConvocatorias = async () => {
       try {
-        const { data: estadosData, error: estadosErr } = await supabase.rpc('debug_precargar_rp')
-        if (estadosData && !estadosErr) {
-          const estadosUnicos = new Set()
-          estadosData
-            .filter(row => row.info_tipo === 'ESTADO')
-            .forEach(row => {
-              if (row.valor && row.valor !== 'NULL') {
-                estadosUnicos.add(row.valor.toLowerCase().trim())
-              }
+        if (!esDocumentoExistente || !['terceros', 'rp'].includes(tipoDocumento)) return
+        const [opciones, documento] = await Promise.all([
+          supabase.rpc('obtener_convocatorias_con_inscritos'),
+          supabase.from('portal_documentos_cargue').select('convocatoria_id').eq('id', documentoId).single()
+        ])
+        if (opciones.error) throw opciones.error
+        if (documento.error) throw documento.error
+
+        const convocatoriasMap = new Map()
+        opciones.data?.forEach(row => {
+          if (!convocatoriasMap.has(row.convocatoria_id)) {
+            convocatoriasMap.set(row.convocatoria_id, {
+              id: row.convocatoria_id,
+              nombre: row.convocatoria_nombre,
+              anio: row.convocatoria_anio,
+              estados: []
             })
-          if (estadosUnicos.size > 0) {
-            const estadosList = Array.from(estadosUnicos).sort()
-            setEstadosDisponibles(estadosList)
-            setEstadoFiltro(estadosList[0])
           }
-        }
-      } catch (err) {
-        console.warn('No se pudieron cargar estados dinámicos, usando valores por defecto:', err)
-      }
+          if (Number(row.cantidad) > 0 && row.estado && row.estado !== 'sin_estado') {
+            const estados = convocatoriasMap.get(row.convocatoria_id).estados
+            const estado = row.estado.trim().toLowerCase()
+            if (!estados.includes(estado)) estados.push(estado)
+          }
+        })
 
-      // Obtener convocatorias con inscritos por estado
-      const { data, error: err } = await supabase.rpc('obtener_convocatorias_con_inscritos')
-      if (err || !data) {
-        console.warn('RPC fallido, usando consulta directa:', err)
-        // Fallback a consulta directa si RPC falla
-        const { data: convData, error: convErr } = await supabase
-          .from('convocatorias')
-          .select('id, nombre, anio')
-          .order('anio', { ascending: false })
-        if (convErr) throw convErr
-        setConvocatorias(convData || [])
-        if (convData?.[0]) setConvocatoriaFiltro(convData[0].id)
-        return
-      }
-      
-      // Procesar resultados: agrupar por convocatoria única
-      const convocatoriasMap = new Map()
-      data?.forEach(row => {
-        if (!convocatoriasMap.has(row.convocatoria_id)) {
-          convocatoriasMap.set(row.convocatoria_id, {
-            id: row.convocatoria_id,
-            nombre: row.convocatoria_nombre,
-            anio: row.convocatoria_anio
-          })
-        }
-      })
-      
-      const convocatoriasList = Array.from(convocatoriasMap.values()).sort((a, b) => b.anio - a.anio)
-      setConvocatorias(convocatoriasList)
-      if (convocatoriasList?.[0]) setConvocatoriaFiltro(convocatoriasList[0].id)
-    } catch (err) {
-      console.error('Error cargando convocatorias:', err)
-      // Último fallback: cargar convocatorias sin inscritos
-      try {
-        const { data: convData } = await supabase
-          .from('convocatorias')
-          .select('id, nombre, anio')
-          .order('anio', { ascending: false })
-        setConvocatorias(convData || [])
-        if (convData?.[0]) setConvocatoriaFiltro(convData[0].id)
-      } catch (fallbackErr) {
-        console.error('Fallback también falló:', fallbackErr)
+        const convocatoriasList = Array.from(convocatoriasMap.values()).sort((a, b) => b.anio - a.anio)
+        if (!activo) return
+        setConvocatorias(convocatoriasList)
+        const seleccionada = convocatoriasMap.get(documento.data.convocatoria_id)
+        setConvocatoriaFiltro(documento.data.convocatoria_id)
+        setEstadoFiltro(seleccionada?.estados.includes('admitido') ? 'admitido' : seleccionada?.estados[0] || '')
+      } catch (err) {
+        console.error('Error cargando filtros de precarga:', err)
+        if (activo) setError(`No se pudieron cargar los filtros de aspirantes: ${err.message}`)
       }
     }
-  }
+    cargarConvocatorias()
+    return () => { activo = false }
+  }, [documentoId, tipoDocumento, esDocumentoExistente])
 
   const precargarDesdeAspirantes = async () => {
     // Mostrar modal de filtros para RP/Terceros
@@ -211,6 +180,7 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
     try {
       setPrecargando(true)
       setError(null)
+      setExito(null)
       
       if (!convId) {
         setError('Debes seleccionar una convocatoria')
@@ -233,14 +203,15 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
       
       if (data && data.length > 0) {
         const { cantidad_precargada, mensaje } = data[0]
-        setExito(`Precarga completada: ${cantidad_precargada} registro(s) precargado(s). ${mensaje}`)
+        if (!Number.isInteger(cantidad_precargada) || cantidad_precargada <= 0 || mensaje?.startsWith('Error en precarga:')) {
+          throw new Error(mensaje || 'No se insertaron registros en el documento.')
+        }
+        setExito(mensaje || `Precarga completada: ${cantidad_precargada} registro(s) precargado(s).`)
       } else {
-        setError('Sin respuesta de la precarga')
+        throw new Error('Sin respuesta de la precarga')
       }
       
       setMostrarModalFiltros(false)
-      setConvocatoriaFiltro('')
-      setEstadoFiltro('admitido')
       await cargarDatos()
     } catch (err) {
       console.error('Error en realizarPrecarga:', err)
@@ -510,7 +481,12 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
                 </label>
                 <select
                   value={convocatoriaFiltro}
-                  onChange={(e) => setConvocatoriaFiltro(e.target.value)}
+                  onChange={(e) => {
+                    const convId = e.target.value
+                    const estados = convocatorias.find((conv) => conv.id === convId)?.estados || []
+                    setConvocatoriaFiltro(convId)
+                    setEstadoFiltro(estados.includes('admitido') ? 'admitido' : estados[0] || '')
+                  }}
                   disabled={precargando}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
@@ -562,7 +538,7 @@ const EditorDocumentoCargue = ({ documentoId, tipoDocumento, userRole, onGuardad
               </button>
               <button
                 onClick={() => realizarPrecarga(convocatoriaFiltro, estadoFiltro)}
-                disabled={precargando || !convocatoriaFiltro}
+                disabled={precargando || !convocatoriaFiltro || !estadoFiltro}
                 className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
               >
                 {precargando ? (

@@ -42,6 +42,7 @@ import Landing from './pages/Landing';
 import AdminGeneradorTokens from './pages/AdminGeneradorTokens';
 import AdminTokensActivacion from './pages/AdminTokensActivacion';
 import AdminCargueDocumentos from './pages/AdminCargueDocumentos';
+import AdminUsuariosRoles from './pages/AdminUsuariosRoles';
 import Requisitos from './pages/Requisitos';
 import GuiaInscripcion from './pages/GuiaInscripcion';
 import { supabase } from './lib/supabase';
@@ -316,6 +317,7 @@ function App() {
           <Route path="generador-tokens" element={<AdminGeneradorTokens />} />
           <Route path="tokens-activacion" element={<AdminTokensActivacion />} />
           <Route path="cargue-documentos" element={<AdminCargueDocumentos />} />
+          <Route path="usuarios-roles" element={<AdminUsuariosRoles />} />
           <Route path="actualizaciones" element={<AdminActualizaciones />} />
           <Route path="actualizaciones/ventanas" element={<AdminVentanasActualizacion />} />
           <Route path="condonaciones" element={<AdminCondonaciones />} />

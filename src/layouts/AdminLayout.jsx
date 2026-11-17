@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Settings, LogOut, Bell, LifeBuoy, IdCard, ClipboardList, Menu, X, BarChart3, Calculator, FileText, CalendarClock, ShieldCheck, Search, ArrowUpRight, UploadCloud, UserPlus, HandCoins, FolderOpen, Database, ChevronDown, ChevronRight, Megaphone, HelpCircle, Zap, KeyRound, BookOpen } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, LogOut, Bell, LifeBuoy, IdCard, ClipboardList, Menu, X, BarChart3, Calculator, FileText, CalendarClock, ShieldCheck, Search, ArrowUpRight, UploadCloud, UserPlus, HandCoins, FolderOpen, Database, ChevronDown, ChevronRight, ChevronLeft, Megaphone, HelpCircle, Zap, KeyRound, BookOpen, UserCog } from 'lucide-react';
 import { invokeAdminTickets } from '../lib/adminTickets';
 import { supabase, logoutDueToTimeout } from '../lib/supabase';
 import { useSessionTimeout } from '../lib/hooks/useSessionTimeout';
@@ -23,6 +23,7 @@ const NAV_ITEMS = [
   { to: '/admin/faq', label: 'FAQ Pública', icon: <HelpCircle size={20} />, match: (path) => path.startsWith('/admin/faq') },
   { to: '/admin/documentacion', label: 'Documentación Pública', icon: <BookOpen size={20} />, match: (path) => path.startsWith('/admin/documentacion') },
   { to: '/admin/configuracion', label: 'Configuración', icon: <Settings size={20} />, match: (path) => path === '/admin/configuracion' },
+  { to: '/admin/usuarios-roles', label: 'Usuarios y roles', icon: <UserCog size={20} />, match: (path) => path.startsWith('/admin/usuarios-roles'), superAdminOnly: true },
 ];
 
 const getPageMeta = (pathname) => {
@@ -43,6 +44,7 @@ const getPageMeta = (pathname) => {
   if (pathname.startsWith('/admin/condonaciones')) return { title: 'Condonaciones', subtitle: 'Seguimiento normativo, certificaciones y decisiones.' };
   if (pathname.startsWith('/admin/resoluciones')) return { title: 'Resoluciones', subtitle: 'Generación institucional de actos administrativos.' };
   if (pathname.startsWith('/admin/tickets')) return { title: 'Tickets', subtitle: 'Atención, seguimiento y trazabilidad de solicitudes.' };
+  if (pathname.startsWith('/admin/usuarios-roles')) return { title: 'Usuarios y roles', subtitle: 'Control de acceso al portal y permisos operativos.' };
   if (pathname.startsWith('/admin/configuracion')) return { title: 'Configuración', subtitle: 'Parámetros del portal y control administrativo.' };
   if (pathname.startsWith('/admin/aspirantes/configuracion-puntaje')) return { title: 'Configuración de Puntaje', subtitle: 'Criterios y pesos con los que se califica a los aspirantes.' };
   if (pathname.startsWith('/admin/aspirantes')) return { title: 'Aspirantes', subtitle: 'Ruta de admisión, legalización y revisión de soportes.' };
@@ -59,8 +61,14 @@ const AdminLayout = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [recentTickets, setRecentTickets] = useState([]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarReady, setSidebarReady] = useState(false);
+  const [sidebarSaving, setSidebarSaving] = useState(false);
+  const [sidebarError, setSidebarError] = useState('');
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const pageMeta = getPageMeta(location.pathname);
   const todayLabel = new Intl.DateTimeFormat('es-CO', { dateStyle: 'full' }).format(new Date());
+  const navItems = NAV_ITEMS.filter((item) => !item.superAdminOnly || isSuperAdmin);
 
   // Hook para detectar inactividad (2 horas = 7200 segundos para admin)
   const sessionTimeout = useSessionTimeout(
@@ -74,9 +82,52 @@ const AdminLayout = () => {
     navigate('/admin/login', { replace: true });
   };
 
+  const saveSidebarPreference = async (collapsed) => {
+    if (sidebarSaving || !sidebarReady) return;
+    const previous = sidebarCollapsed;
+    setSidebarCollapsed(collapsed);
+    setSidebarError('');
+    setSidebarSaving(true);
+    try {
+      const { data, error } = await supabase.rpc('admin_set_sidebar_preference', { p_collapsed: collapsed });
+      if (error) throw error;
+      if (data !== collapsed) throw new Error('No se confirmó el guardado de la preferencia.');
+    } catch (error) {
+      setSidebarCollapsed(previous);
+      setSidebarError(error.message || 'No se pudo guardar la preferencia de navegación.');
+    } finally {
+      setSidebarSaving(false);
+    }
+  };
+
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadSidebarState = async () => {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!userData?.user) throw new Error('No se pudo identificar al usuario actual.');
+
+      const [{ data: preference, error: preferenceError }, { data: admin, error: adminError }] = await Promise.all([
+        supabase.rpc('admin_get_sidebar_preference'),
+        supabase.from('portal_admin_users').select('role,is_active').eq('user_id', userData.user.id).maybeSingle(),
+      ]);
+      if (!mounted) return;
+      if (adminError) throw adminError;
+      setIsSuperAdmin(admin?.role === 'super_admin' && admin.is_active === true);
+      if (preferenceError) throw preferenceError;
+      setSidebarCollapsed(Boolean(preference));
+    };
+
+    loadSidebarState()
+      .catch((error) => { if (mounted) setSidebarError(error.message || 'No se pudieron cargar las preferencias de navegación.'); })
+      .finally(() => { if (mounted) setSidebarReady(true); });
+
+    return () => { mounted = false; };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -115,41 +166,50 @@ const AdminLayout = () => {
         />
       )}
 
-      <aside className={`fixed md:static inset-y-0 left-0 w-80 admin-panel-dark text-white flex flex-col z-40 transition-transform duration-300 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className={`fixed md:static inset-y-0 left-0 ${sidebarCollapsed ? 'w-80 md:w-20' : 'w-80 md:w-80'} admin-panel-dark text-white flex flex-col z-40 transition-[width,transform] duration-300 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="absolute inset-0 opacity-35 pointer-events-none admin-grid" />
-        <div className="relative p-7 border-b border-white/10">
-          <div className="flex items-center gap-3">
+        <div className={`relative border-b border-white/10 ${sidebarCollapsed ? 'p-4 md:px-3 md:py-5' : 'p-7'}`}>
+          <div className={`flex items-center gap-3 ${sidebarCollapsed ? 'md:flex-col md:gap-4' : ''}`}>
             <div className="w-12 h-12 rounded-2xl bg-[linear-gradient(135deg,#f1c57f,#c88c3a)] text-[#10233f] flex items-center justify-center shadow-lg shadow-amber-950/20 font-black">F</div>
-            <div className="min-w-0">
+            <div className={`min-w-0 ${sidebarCollapsed ? 'md:hidden' : ''}`}>
               <p className="text-[11px] uppercase tracking-[0.35em] text-amber-200/80 font-extrabold">Portal</p>
               <h1 className="text-2xl font-bold tracking-tight">FOCADES</h1>
             </div>
-          <button
-            type="button"
-            className="ml-auto md:hidden w-9 h-9 rounded-xl border border-white/10 text-slate-300 inline-flex items-center justify-center"
-            onClick={() => setMobileMenuOpen(false)}
-            aria-label="Cerrar menú"
-          >
-            <X size={18} />
-          </button>
+            <button
+              type="button"
+              className={`hidden md:inline-flex items-center justify-center w-9 h-9 rounded-xl border border-white/10 text-slate-300 hover:bg-white/10 disabled:opacity-50 ${sidebarCollapsed ? '' : 'ml-auto'}`}
+              onClick={() => saveSidebarPreference(!sidebarCollapsed)}
+              disabled={!sidebarReady || sidebarSaving}
+              aria-label={sidebarCollapsed ? 'Expandir menú lateral' : 'Contraer menú lateral'}
+              title={sidebarCollapsed ? 'Expandir menú lateral' : 'Contraer menú lateral'}
+            >
+              {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            </button>
+            <button
+              type="button"
+              className="ml-auto md:hidden w-9 h-9 rounded-xl border border-white/10 text-slate-300 inline-flex items-center justify-center"
+              onClick={() => setMobileMenuOpen(false)}
+              aria-label="Cerrar menú"
+            >
+              <X size={18} />
+            </button>
           </div>
-
         </div>
 
-        <nav className="relative flex-1 px-4 py-5 space-y-2 overflow-y-auto">
-          {NAV_ITEMS.slice(0, 3).map((item) => (
-            <NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} active={item.match(location.pathname)} onClick={() => setMobileMenuOpen(false)} badge={item.to === '/admin/tickets' ? pendingTickets : 0} />
+        <nav className={`relative flex-1 py-5 space-y-2 overflow-y-auto ${sidebarCollapsed ? 'px-4 md:px-2' : 'px-4'}`}>
+          {navItems.slice(0, 3).map((item) => (
+            <NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} active={item.match(location.pathname)} onClick={() => setMobileMenuOpen(false)} badge={item.to === '/admin/tickets' ? pendingTickets : 0} collapsed={sidebarCollapsed} />
           ))}
-          <BeneficiariesGroup location={location} onClick={() => setMobileMenuOpen(false)} />
-          <ActualizacionesGroup location={location} onClick={() => setMobileMenuOpen(false)} />
-          <HistoricosGroup location={location} onClick={() => setMobileMenuOpen(false)} />
-          {NAV_ITEMS.slice(3).map((item) => (
-            <NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} active={item.match(location.pathname)} onClick={() => setMobileMenuOpen(false)} badge={item.to === '/admin/tickets' ? pendingTickets : 0} />
+          <BeneficiariesGroup location={location} onClick={() => setMobileMenuOpen(false)} collapsed={sidebarCollapsed} onExpand={() => saveSidebarPreference(false)} />
+          <ActualizacionesGroup location={location} onClick={() => setMobileMenuOpen(false)} collapsed={sidebarCollapsed} onExpand={() => saveSidebarPreference(false)} />
+          <HistoricosGroup location={location} onClick={() => setMobileMenuOpen(false)} collapsed={sidebarCollapsed} onExpand={() => saveSidebarPreference(false)} />
+          {navItems.slice(3).map((item) => (
+            <NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} active={item.match(location.pathname)} onClick={() => setMobileMenuOpen(false)} badge={item.to === '/admin/tickets' ? pendingTickets : 0} collapsed={sidebarCollapsed} />
           ))}
         </nav>
 
-        <div className="relative p-6 border-t border-white/10 space-y-3">
-          <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
+        <div className={`relative border-t border-white/10 space-y-3 ${sidebarCollapsed ? 'p-3 md:p-2' : 'p-6'}`}>
+          <div className={`rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 ${sidebarCollapsed ? 'md:hidden' : ''}`}>
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Atajo</p>
             <div className="mt-2 flex items-center justify-between gap-3">
               <span className="font-semibold">Ir a tickets críticos</span>
@@ -161,9 +221,10 @@ const AdminLayout = () => {
           <button
             type="button"
             onClick={handleLogout}
-            className="flex items-center gap-3 text-slate-300 hover:text-red-300 w-full px-4 py-3 rounded-2xl hover:bg-white/5 font-bold text-sm transition-colors"
+            className={`flex items-center gap-3 text-slate-300 hover:text-red-300 w-full py-3 rounded-2xl hover:bg-white/5 font-bold text-sm transition-colors ${sidebarCollapsed ? 'justify-center px-2' : 'px-4'}`}
+            title={sidebarCollapsed ? 'Cerrar sesión' : undefined}
           >
-            <LogOut size={18}/> Cerrar Sesión
+            <LogOut size={18}/><span className={sidebarCollapsed ? 'md:hidden' : ''}>Cerrar Sesión</span>
           </button>
         </div>
       </aside>
@@ -311,6 +372,7 @@ const AdminLayout = () => {
           </div>
         </header>
         <section className="flex-1 overflow-y-auto px-4 md:px-8 lg:px-10 pb-6 md:pb-8 pt-4">
+          {sidebarError && <p role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{sidebarError}</p>}
           <Outlet /> {/* AQUÍ SE CARGAN LAS PÁGINAS DEL ADMIN */}
         </section>
       </main>
@@ -326,7 +388,7 @@ const AdminLayout = () => {
   );
 };
 
-function BeneficiariesGroup({ location, onClick }) {
+function BeneficiariesGroup({ location, onClick, collapsed, onExpand }) {
   const isActive = location.pathname.startsWith('/admin/beneficiarios')
   const [open, setOpen] = useState(isActive)
 
@@ -338,21 +400,22 @@ function BeneficiariesGroup({ location, onClick }) {
     <div>
       <button
         type="button"
-        onClick={() => { setOpen(o => !o); }}
-        className={`group flex items-center gap-4 w-full px-4 py-3.5 rounded-2xl transition-all duration-300 ${
+        onClick={() => { if (collapsed) { onExpand(); setOpen(true); } else setOpen(o => !o); }}
+        title={collapsed ? 'Beneficiarios' : undefined}
+        className={`group flex items-center gap-4 w-full py-3.5 rounded-2xl transition-all duration-300 ${collapsed ? 'md:justify-center md:px-2' : 'px-4'} ${
           isActive ? 'bg-white text-[#10233f] shadow-xl shadow-slate-950/10' : 'text-slate-300 hover:bg-white/5'
         }`}
       >
         <span className={`${isActive ? 'text-[#c88c3a]' : 'text-slate-400 group-hover:text-amber-200'} transition-colors`}>
           <IdCard size={20} />
         </span>
-        <span className="font-bold text-sm flex-1 text-left">Beneficiarios</span>
-        <span className={`${isActive ? 'text-[#c88c3a]' : 'text-slate-400 group-hover:text-amber-200'} transition-colors`}>
+        <span className={`font-bold text-sm flex-1 text-left ${collapsed ? 'md:hidden' : ''}`}>Beneficiarios</span>
+        <span className={`${collapsed ? 'md:hidden' : ''} ${isActive ? 'text-[#c88c3a]' : 'text-slate-400 group-hover:text-amber-200'} transition-colors`}>
           {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         </span>
       </button>
       {open && (
-        <div className="mt-1 space-y-1">
+        <div className={`mt-1 space-y-1 ${collapsed ? 'md:hidden' : ''}`}>
           <SubNavItem to="/admin/beneficiarios" icon={<IdCard size={16} />} label="Todos los beneficiarios" active={location.pathname === '/admin/beneficiarios'} onClick={onClick} />
           <SubNavItem to="/admin/beneficiarios/autorizados" icon={<ShieldCheck size={16} />} label="Beneficiarios autorizados" active={location.pathname.startsWith('/admin/beneficiarios/autorizados')} onClick={onClick} />
           <SubNavItem to="/admin/beneficiarios/importar" icon={<UploadCloud size={16} />} label="Importar CSV" active={location.pathname.startsWith('/admin/beneficiarios/importar')} onClick={onClick} />
@@ -362,7 +425,7 @@ function BeneficiariesGroup({ location, onClick }) {
   )
 }
 
-function ActualizacionesGroup({ location, onClick }) {
+function ActualizacionesGroup({ location, onClick, collapsed, onExpand }) {
   const isActive = location.pathname.startsWith('/admin/actualizaciones')
   const [open, setOpen] = useState(isActive)
 
@@ -374,21 +437,22 @@ function ActualizacionesGroup({ location, onClick }) {
     <div>
       <button
         type="button"
-        onClick={() => { setOpen(o => !o); }}
-        className={`group flex items-center gap-4 w-full px-4 py-3.5 rounded-2xl transition-all duration-300 ${
+        onClick={() => { if (collapsed) { onExpand(); setOpen(true); } else setOpen(o => !o); }}
+        title={collapsed ? 'Actualizaciones' : undefined}
+        className={`group flex items-center gap-4 w-full py-3.5 rounded-2xl transition-all duration-300 ${collapsed ? 'md:justify-center md:px-2' : 'px-4'} ${
           isActive ? 'bg-white text-[#10233f] shadow-xl shadow-slate-950/10' : 'text-slate-300 hover:bg-white/5'
         }`}
       >
         <span className={`${isActive ? 'text-[#c88c3a]' : 'text-slate-400 group-hover:text-amber-200'} transition-colors`}>
           <ClipboardList size={20} />
         </span>
-        <span className="font-bold text-sm flex-1 text-left">Actualizaciones</span>
-        <span className={`${isActive ? 'text-[#c88c3a]' : 'text-slate-400 group-hover:text-amber-200'} transition-colors`}>
+        <span className={`font-bold text-sm flex-1 text-left ${collapsed ? 'md:hidden' : ''}`}>Actualizaciones</span>
+        <span className={`${collapsed ? 'md:hidden' : ''} ${isActive ? 'text-[#c88c3a]' : 'text-slate-400 group-hover:text-amber-200'} transition-colors`}>
           {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         </span>
       </button>
       {open && (
-        <div className="mt-1 space-y-1">
+        <div className={`mt-1 space-y-1 ${collapsed ? 'md:hidden' : ''}`}>
           <SubNavItem to="/admin/actualizaciones" icon={<ClipboardList size={16} />} label="Revisión de actualizaciones" active={location.pathname === '/admin/actualizaciones'} onClick={onClick} />
           <SubNavItem to="/admin/actualizaciones/ventanas" icon={<CalendarClock size={16} />} label="Ventanas de actualización" active={location.pathname.startsWith('/admin/actualizaciones/ventanas')} onClick={onClick} />
         </div>
@@ -397,7 +461,7 @@ function ActualizacionesGroup({ location, onClick }) {
   )
 }
 
-function HistoricosGroup({ location, onClick }) {
+function HistoricosGroup({ location, onClick, collapsed, onExpand }) {
   const isActive = location.pathname.startsWith('/admin/historicos')
   const [open, setOpen] = useState(isActive)
 
@@ -409,21 +473,22 @@ function HistoricosGroup({ location, onClick }) {
     <div>
       <button
         type="button"
-        onClick={() => { setOpen(o => !o); }}
-        className={`group flex items-center gap-4 w-full px-4 py-3.5 rounded-2xl transition-all duration-300 ${
+        onClick={() => { if (collapsed) { onExpand(); setOpen(true); } else setOpen(o => !o); }}
+        title={collapsed ? 'Gestión Históricos' : undefined}
+        className={`group flex items-center gap-4 w-full py-3.5 rounded-2xl transition-all duration-300 ${collapsed ? 'md:justify-center md:px-2' : 'px-4'} ${
           isActive ? 'bg-white text-[#10233f] shadow-xl shadow-slate-950/10' : 'text-slate-300 hover:bg-white/5'
         }`}
       >
         <span className={`${isActive ? 'text-[#c88c3a]' : 'text-slate-400 group-hover:text-amber-200'} transition-colors`}>
           <Database size={20} />
         </span>
-        <span className="font-bold text-sm flex-1 text-left">Gestión Históricos</span>
-        <span className={`${isActive ? 'text-[#c88c3a]' : 'text-slate-400 group-hover:text-amber-200'} transition-colors`}>
+        <span className={`font-bold text-sm flex-1 text-left ${collapsed ? 'md:hidden' : ''}`}>Gestión Históricos</span>
+        <span className={`${collapsed ? 'md:hidden' : ''} ${isActive ? 'text-[#c88c3a]' : 'text-slate-400 group-hover:text-amber-200'} transition-colors`}>
           {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         </span>
       </button>
       {open && (
-        <div className="mt-1 space-y-1">
+        <div className={`mt-1 space-y-1 ${collapsed ? 'md:hidden' : ''}`}>
           <SubNavItem to="/admin/historicos" icon={<Database size={16} />} label="Resumen de lotes" active={location.pathname === '/admin/historicos'} onClick={onClick} />
           <SubNavItem to="/admin/historicos/importar" icon={<UploadCloud size={16} />} label="Importar Beneficiarios" active={location.pathname.startsWith('/admin/historicos/importar')} onClick={onClick} />
           <SubNavItem to="/admin/historicos/documentos" icon={<FolderOpen size={16} />} label="Documentos" active={location.pathname.startsWith('/admin/historicos/documentos')} onClick={onClick} />
@@ -435,17 +500,19 @@ function HistoricosGroup({ location, onClick }) {
   )
 }
 
-function NavItem({ to, icon, label, active, badge = 0, onClick }) {
+function NavItem({ to, icon, label, active, badge = 0, onClick, collapsed }) {
   return (
     <Link 
       to={to}
       onClick={onClick}
-      className={`group flex items-center gap-4 w-full px-4 py-3.5 rounded-2xl transition-all duration-300 ${
+      title={collapsed ? label : undefined}
+      aria-label={label}
+      className={`group flex items-center gap-4 w-full py-3.5 rounded-2xl transition-all duration-300 ${collapsed ? 'md:justify-center md:px-2' : 'px-4'} ${
         active ? 'bg-white text-[#10233f] shadow-xl shadow-slate-950/10' : 'text-slate-300 hover:bg-white/5'
       }`}
     >
       <span className={`${active ? 'text-[#c88c3a]' : 'text-slate-400 group-hover:text-amber-200'} transition-colors`}>{icon}</span>
-      <span className="font-bold text-sm">{label}</span>
+      <span className={`font-bold text-sm ${collapsed ? 'md:hidden' : ''}`}>{label}</span>
       {badge > 0 && (
         <span className={`ml-auto min-w-[22px] h-[22px] px-1 rounded-full text-[10px] font-black flex items-center justify-center ${
           active ? 'bg-[#10233f] text-white' : 'bg-red-500 text-white'

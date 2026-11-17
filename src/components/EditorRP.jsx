@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, ArrowDownToLine, Check, History, List, Plus, Save, Search, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { CAMPOS_RP, FIJOS_RP, contratoRP, descripcionAutomaticaRP, modalidadesRP, nuevaFilaRP, validarDatosGeneralesRP, validarFilaRP, validacionesDocumentoRP, vistaPreviaNumeracionRP } from '../lib/rpCargue'
+import { CAMPOS_RP, FIJOS_RP, contratoRP, descripcionAutomaticaRP, fechaFilaDesdeISO, fechaISODesdeFilaRP, modalidadesRP, nuevaFilaRP, validarDatosGeneralesRP, validarFilaRP, validacionesDocumentoRP, vistaPreviaNumeracionRP } from '../lib/rpCargue'
 import { descargarExcelRP } from '../lib/exportarRP'
 
 const claveFila = (fila) => fila.id ?? fila.origen
@@ -15,6 +15,7 @@ const prepararGenerales = (datos, convocatoriaAnio) => ({
 const sincronizarGeneralesFilas = (filas, datos) => filas.map((fila) => ({
   ...fila,
   descripcion: datos.descripcion || '',
+  fecha: fechaFilaDesdeISO(datos.fecha_rp),
   fuente_financiacion: datos.fuente_financiacion || '',
   contrato: datos.contrato || ''
 }))
@@ -62,11 +63,14 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
         .in('estado', ['aprobado', 'finalizado']).not('aprobado_por', 'is', null).order('creado_en', { ascending: false })
       if (falloFuentes) throw falloFuentes
       const primeraFila = data.filas[0] || {}
+      const fechaComun = data.filas.length > 0 && data.filas.every((fila) => fila.fecha === primeraFila.fecha)
+        ? fechaISODesdeFilaRP(primeraFila.fecha) : ''
       const contratoAnterior = primeraFila.contrato?.match(/^RESOLUCION\s+(\d+)\s+(\d{2})(\d{2})(\d{4})$/i)
       const datosPrevios = data.datos_generales_rp || {}
       const iniciales = {
         numero_resolucion: datosPrevios.numero_resolucion || contratoAnterior?.[1] || '',
         fecha_resolucion: datosPrevios.fecha_resolucion || (contratoAnterior ? `${contratoAnterior[4]}-${contratoAnterior[3]}-${contratoAnterior[2]}` : ''),
+        fecha_rp: datosPrevios.fecha_rp || fechaComun,
         semestre_pago: datosPrevios.semestre_pago || '',
         anio_pago: datosPrevios.anio_pago || '',
         modalidades: datosPrevios.modalidades ?? modalidadesRP(data.filas),
@@ -81,7 +85,9 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
       setFilas(filasConDatos)
       setGuardadas(JSON.stringify(filasConDatos))
       setDatosGenerales(generales)
-      setGeneralesGuardados(JSON.stringify(generales))
+      const generalesGuardadosDesdeServidor = { ...generales }
+      if (!Object.hasOwn(datosPrevios, 'fecha_rp')) delete generalesGuardadosDesdeServidor.fecha_rp
+      setGeneralesGuardados(JSON.stringify(generalesGuardadosDesdeServidor))
       setTercerosId(data.terceros_id || '')
       setOpciones(fuentes)
       setActivo(data.filas[0] ? claveFila(data.filas[0]) : null)
@@ -274,6 +280,7 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
         <label className="text-xs font-semibold text-slate-700">Convocatoria<input className={`${control} mt-1`} value={documento.convocatoria_anio || ''} readOnly /></label>
         <label className="text-xs font-semibold text-slate-700">Número de resolución *<input className={`${control} mt-1 font-mono`} inputMode="numeric" value={datosGenerales.numero_resolucion || ''} onChange={(e) => actualizarDatosGenerales('numero_resolucion', e.target.value)} placeholder="1589" /></label>
         <label className="text-xs font-semibold text-slate-700">Fecha de resolución *<input className={`${control} mt-1`} type="date" value={datosGenerales.fecha_resolucion || ''} onChange={(e) => actualizarDatosGenerales('fecha_resolucion', e.target.value)} /></label>
+        <label className="text-xs font-semibold text-slate-700">Fecha del RP para todas las personas *<input className={`${control} mt-1`} type="date" value={datosGenerales.fecha_rp || ''} onChange={(e) => actualizarDatosGenerales('fecha_rp', e.target.value)} /></label>
         <label className="text-xs font-semibold text-slate-700">Semestre de pago *<select className={`${control} mt-1`} value={datosGenerales.semestre_pago || ''} onChange={(e) => actualizarDatosGenerales('semestre_pago', e.target.value)}><option value="">Seleccionar…</option><option value="1">Primer semestre</option><option value="2">Segundo semestre</option></select></label>
         <label className="text-xs font-semibold text-slate-700">Año de pago *<input className={`${control} mt-1 font-mono`} inputMode="numeric" maxLength={4} value={datosGenerales.anio_pago || ''} onChange={(e) => actualizarDatosGenerales('anio_pago', e.target.value)} placeholder="2026" /></label>
         <label className="text-xs font-semibold text-slate-700">Fuente de financiación común *<input className={`${control} mt-1 font-mono`} inputMode="numeric" maxLength={4} value={datosGenerales.fuente_financiacion || ''} onChange={(e) => actualizarDatosGenerales('fuente_financiacion', e.target.value)} placeholder="0004" /></label>
@@ -340,9 +347,9 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
           <legend className="mb-3 w-full border-b border-slate-200 pb-2 text-xs font-bold uppercase tracking-wider text-slate-600">{rol === 'educacion' ? '01 · Completa Educación' : '02 · Completa Presupuesto'}</legend>
           <div className="grid gap-4 sm:grid-cols-2">{CAMPOS_RP.filter((c) => c.rol === rol).map((c) => <label key={c.name} className={`min-w-0 text-xs font-semibold text-slate-700 ${c.name === 'descripcion' ? 'sm:col-span-2' : ''}`}>
             {c.label}{c.opcional ? <span className="ml-1 font-normal text-slate-400">(opcional)</span> : ' *'}{c.name in FIJOS_RP && <span className="ml-1 font-normal text-slate-400">Fijo</span>}
-            {['descripcion', 'fuente_financiacion', 'contrato'].includes(c.name) && <span className="ml-1 font-normal text-emerald-700">Dato común</span>}
+            {['descripcion', 'fecha', 'fuente_financiacion', 'contrato'].includes(c.name) && <span className="ml-1 font-normal text-emerald-700">Dato común</span>}
             {c.name === 'descripcion' ? <textarea className={`${control} mt-1 min-h-24`} maxLength={500} value={fila[c.name]} disabled={c.name === 'descripcion' || ocupado} onChange={(e) => actualizar(c.name, e.target.value)} /> :
-              <input className={`${control} mt-1 font-mono`} value={fila[c.name]} disabled={c.name in FIJOS_RP || ['tercero_presupuestal', 'liquidacion', 'fuente_financiacion', 'contrato'].includes(c.name)}
+              <input className={`${control} mt-1 font-mono`} value={fila[c.name]} disabled={c.name in FIJOS_RP || ['tercero_presupuestal', 'liquidacion', 'fecha', 'fuente_financiacion', 'contrato'].includes(c.name)}
                 inputMode={c.importe ? 'decimal' : c.max || c.fecha ? 'numeric' : 'text'} maxLength={c.codigoRP ? 30 : c.max || c.maxLength || (c.fecha ? 8 : undefined)}
                 placeholder={c.codigoRP ? (c.name === 'no_rp' ? '2026.ALC.01.001407' : '2026.ALC.01.001233') : c.fecha ? 'DDMMYYYY' : c.importe ? '0.00' : ''} onChange={(e) => actualizar(c.name, e.target.value)} />}
             {erroresFila[c.name] && <span className="mt-1 block text-[11px] font-normal text-amber-800">{erroresFila[c.name]}</span>}

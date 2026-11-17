@@ -78,11 +78,13 @@ La incorporacion repetida no duplica personas ni reemplaza importes.
   superar la longitud disponible del consecutivo no aplica ningun cambio.
   Filtrar no altera el orden.
 - Presupuesto ingresa una sola vez, en los datos generales del RP, el número y
-  fecha de resolución, el semestre y año de pago, las modalidades y la fuente de
-  financiación. La convocatoria se toma del documento RP; el año de pago es
-  independiente. La descripción se compone automáticamente y puede ajustarse
-  manualmente; el contrato se genera como `RESOLUCION {número} {DDMMYYYY}`.
-  Descripción, fuente y contrato se replican en todas las filas y en el Excel.
+  fecha de resolución, la Fecha del RP (con selector de fecha), el semestre y
+  año de pago, las modalidades y la fuente de financiación. La convocatoria se
+  toma del documento RP; el año de pago es independiente. La Fecha del RP se
+  replica a todas las filas en formato `DDMMYYYY`. La descripción se compone
+  automáticamente y puede ajustarse manualmente; el contrato se genera como
+  `RESOLUCION {número} {DDMMYYYY}`. Fecha, descripción, fuente y contrato se
+  replican en todas las filas y en el Excel.
 - Encontrar una persona en FOCADES o aprobar TERCEROS no certifica que se
   haya importado al programa externo. Presupuesto debe confirmar por persona
   la existencia externa del tercero, entidad, rubro y fuente antes de aprobar.

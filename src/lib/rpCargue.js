@@ -44,6 +44,18 @@ export const fechaValidaRP = (valor) => {
   return anio > 0 && fecha.getUTCDate() === dia && fecha.getUTCMonth() === mes - 1 && fecha.getUTCFullYear() === anio
 }
 
+export const fechaFilaDesdeISO = (valor) => {
+  if (typeof valor !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return ''
+  const [anio, mes, dia] = valor.split('-')
+  const fechaFila = `${dia}${mes}${anio}`
+  return fechaValidaRP(fechaFila) ? fechaFila : ''
+}
+
+export const fechaISODesdeFilaRP = (valor) => {
+  if (!fechaValidaRP(valor)) return ''
+  return `${valor.slice(4)}-${valor.slice(2, 4)}-${valor.slice(0, 2)}`
+}
+
 export const modalidadesRP = (filas) => {
   const normalizar = (valor) => {
     const texto = String(valor || '').trim()
@@ -85,6 +97,8 @@ export const validarDatosGeneralesRP = (datos, { requerido = false } = {}) => {
   if (datos.numero_resolucion && !/^\d+$/.test(datos.numero_resolucion)) errores.numero_resolucion = 'Usa solo dígitos.'
   revisar('fecha_resolucion', datos.fecha_resolucion)
   if (datos.fecha_resolucion && !fechaResolucionLegibleRP(datos.fecha_resolucion)) errores.fecha_resolucion = 'Selecciona una fecha válida.'
+  revisar('fecha_rp', datos.fecha_rp)
+  if (datos.fecha_rp && !fechaFilaDesdeISO(datos.fecha_rp)) errores.fecha_rp = 'Selecciona una fecha válida para el RP.'
   revisar('semestre_pago', datos.semestre_pago)
   if (datos.semestre_pago && !/^[12]$/.test(datos.semestre_pago)) errores.semestre_pago = 'Selecciona primer o segundo semestre.'
   revisar('anio_pago', datos.anio_pago)

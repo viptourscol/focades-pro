@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import ExcelJS from 'exceljs'
-import { CAMPOS_RP, contratoRP, descripcionAutomaticaRP, formatearNumeroRP, modalidadesRP, nuevaFilaRP, validarDatosGeneralesRP, validarFilaRP, validacionesDocumentoRP, vistaPreviaNumeracionRP, fechaValidaRP, centavosRP } from '../../src/lib/rpCargue.js'
+import { CAMPOS_RP, contratoRP, descripcionAutomaticaRP, fechaFilaDesdeISO, fechaISODesdeFilaRP, formatearNumeroRP, modalidadesRP, nuevaFilaRP, validarDatosGeneralesRP, validarFilaRP, validacionesDocumentoRP, vistaPreviaNumeracionRP, fechaValidaRP, centavosRP } from '../../src/lib/rpCargue.js'
 import { crearExcelRP, descargarExcelRP } from '../../src/lib/exportarRP.js'
 
 const completa = () => ({
@@ -29,12 +29,15 @@ test('Educación confirma importes, no requiere campos pendientes de Presupuesto
 
 test('Datos generales componen descripción y contrato una sola vez; los subconsecutivos son opcionales', () => {
   const datos = {
-    numero_resolucion: '1589', fecha_resolucion: '2026-11-04', semestre_pago: '2', anio_pago: '2026',
+    numero_resolucion: '1589', fecha_resolucion: '2026-11-04', fecha_rp: '2026-11-17', semestre_pago: '2', anio_pago: '2026',
     modalidades: 'SUEÑOS Y MÉRITOS EDUCATIVOS', fuente_financiacion: '0004'
   }
   assert.equal(descripcionAutomaticaRP(datos, '2022'),
     'RESOLUCION 1589 DEL 4 DE NOVIEMBRE DE 2026 POR LA CUAL EL FONDO EDUCATIVO PARA EDUCACION SUPERIOR FOCADES, ORDENA PAGAR CREDITOS CONDONABLES CORRESPONDIENTES A LOS BENEFICIARIOS QUE FUERON SELECCIONADOS EN LA CONVOCATORIA 2022, EN EL SEGUNDO SEMESTRE DEL 2026 EN LAS MODALIDADES DE SUEÑOS Y MÉRITOS EDUCATIVOS')
   assert.equal(contratoRP(datos.numero_resolucion, datos.fecha_resolucion), 'RESOLUCION 1589 20261104')
+  assert.equal(fechaFilaDesdeISO(datos.fecha_rp), '17112026')
+  assert.equal(fechaISODesdeFilaRP('17112026'), datos.fecha_rp)
+  assert.equal(fechaFilaDesdeISO('2026-02-30'), '')
   assert.deepEqual(validarDatosGeneralesRP({ ...datos, descripcion: descripcionAutomaticaRP(datos, '2022') }, { requerido: true }), {})
   assert.equal(modalidadesRP([{ modalidad: 'SUEÑOS' }, { modalidad: 'MERITO' }, { modalidad: 'MÉRITO' }]), 'MÉRITOS EDUCATIVOS Y SUEÑOS')
   const fila = { ...completa(), subconsecutivo: '', subconsecutivo_cdp: '' }

@@ -3,7 +3,7 @@ BEGIN;
 DO $$
 DECLARE
   v_edu UUID; v_pre UUID; v_conv UUID; v_otra UUID; v_ter UUID; v_rp UUID; v_legacy UUID; v_r JSONB; v_f JSONB; v_legacy_fila JSONB;
-  v_filas JSONB; v_id UUID; v_persona UUID; v_ins UUID; v_benef BIGINT; v_ts TIMESTAMPTZ; v_error BOOLEAN; v_fuentes TEXT; v_busqueda JSONB;
+  v_filas JSONB; v_id UUID; v_persona UUID; v_ins UUID; v_benef BIGINT; v_ts TIMESTAMPTZ; v_error BOOLEAN; v_mensaje TEXT; v_fuentes TEXT; v_busqueda JSONB;
   v_terceros JSONB := '[{"cc_nit":"000123","primer_nombre":"Ana","primer_apellido":"Perez","segundo_apellido":"Gomez","tipo_identificacion":"13","email":"prueba@example.test","telefono":"3001234567","direccion":"Direccion","banco":"Banco prueba","tipo_cuenta":"AHORROS","numero_cuenta":"000987","nombres_confirmados":true}]';
 BEGIN
   v_terceros:=jsonb_set(jsonb_set(jsonb_set(v_terceros,'{0,primer_nombre}',to_jsonb(repeat('A',120))),
@@ -44,7 +44,7 @@ BEGIN
   v_r:=public.leer_rp_cargue(v_legacy);
   v_legacy_fila:=v_r->'filas'->0;
   v_r:=public.guardar_rp_cargue(v_legacy,v_ter,jsonb_build_array(v_legacy_fila||jsonb_build_object('origen','tercero:'||v_id::TEXT)),(v_r->>'editado_en')::TIMESTAMPTZ);
-  IF v_r->'filas'->0->>'valor'<>'12.50' OR v_r->'filas'->0->>'no_rp'<>'0008' THEN RAISE EXCEPTION 'Vincular origen perdio datos heredados'; END IF;
+  IF v_r->'filas'->0->>'valor'<>'12.50' OR v_r->'filas'->0->>'no_rp'<>'2099.ALC.01.000008' THEN RAISE EXCEPTION 'Vincular origen perdio datos heredados'; END IF;
   v_rp:=public.fn_crear_documento_cargue(v_conv,'rp',0);
   IF jsonb_array_length(public.personas_terceros_rp(v_ter))<>1 THEN RAISE EXCEPTION 'No leyo personas de origen'; END IF;
   v_r:=public.leer_rp_cargue(v_rp);
@@ -58,6 +58,9 @@ BEGIN
   v_error:=FALSE;
   BEGIN PERFORM public.guardar_rp_cargue(v_rp,v_ter,jsonb_build_array(v_f||'{"no_rp":"10"}'),v_ts); EXCEPTION WHEN raise_exception THEN v_error:=SQLERRM LIKE '%Presupuesto%'; END;
   IF NOT v_error THEN RAISE EXCEPTION 'Educacion completo No RP'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM unnest(public.errores_fila_rp(v_f||'{"no_rp":"2099.XXX.01.000001"}','completo')) e WHERE e LIKE 'no_rp:%') THEN
+    RAISE EXCEPTION 'Acepto formato RP invalido';
+  END IF;
   v_error:=FALSE;
   BEGIN PERFORM public.guardar_rp_cargue(v_rp,v_ter,jsonb_build_array(v_f||'{"tercero_presupuestal":"999"}'),v_ts); EXCEPTION WHEN raise_exception THEN v_error:=TRUE; END;
   IF NOT v_error THEN RAISE EXCEPTION 'Falsifico identificacion de origen'; END IF;
@@ -98,6 +101,11 @@ BEGIN
   IF NOT v_error THEN RAISE EXCEPTION 'Presupuesto pudo buscar/agregar personas'; END IF;
   v_ts:=(public.leer_rp_cargue(v_rp)->>'editado_en')::TIMESTAMPTZ;
   v_error:=FALSE;
+  BEGIN PERFORM public.guardar_rp_cargue(v_rp,v_ter,jsonb_build_array(v_f||'{"no_cdp":"2026.ALC.01.000002"}'),v_ts);
+    EXCEPTION WHEN raise_exception THEN v_mensaje:=SQLERRM; v_error:=SQLERRM LIKE '%año%'; END;
+  IF NOT v_error THEN RAISE EXCEPTION 'Acepto año de CDP distinto a convocatoria (respuesta: %)',v_mensaje; END IF;
+  v_ts:=(public.leer_rp_cargue(v_rp)->>'editado_en')::TIMESTAMPTZ;
+  v_error:=FALSE;
   BEGIN PERFORM public.transicionar_documento_presupuesto(v_rp,'aprobar','Faltan datos'); EXCEPTION WHEN raise_exception THEN v_error:=TRUE; END;
   IF NOT v_error THEN RAISE EXCEPTION 'Aprobo incompleto'; END IF;
   v_error:=FALSE;
@@ -109,20 +117,20 @@ BEGIN
   v_error:=FALSE;
   BEGIN PERFORM public.guardar_rp_cargue(v_rp,v_ter,'[]',v_ts); EXCEPTION WHEN raise_exception THEN v_error:=TRUE; END;
   IF NOT v_error THEN RAISE EXCEPTION 'Presupuesto elimino persona'; END IF;
-  v_f:=v_f||'{"no_rp":"000001","subconsecutivo":"0001","descripcion":"Registro de prueba","fecha":"29022025","no_cdp":"000002","subconsecutivo_cdp":"0001","fuente_financiacion":"0004","contrato":"","tercero_confirmado":true}';
+  v_f:=v_f||'{"no_rp":"2099.ALC.01.000001","subconsecutivo":"0001","descripcion":"Registro de prueba","fecha":"29022025","no_cdp":"2099.ALC.01.000002","subconsecutivo_cdp":"0001","fuente_financiacion":"0004","contrato":"","tercero_confirmado":true}';
   v_error:=FALSE;
   BEGIN PERFORM public.guardar_rp_cargue(v_rp,v_ter,jsonb_build_array(v_f),v_ts); EXCEPTION WHEN raise_exception THEN v_error:=TRUE; END;
   IF NOT v_error THEN RAISE EXCEPTION 'Guardo fecha inexistente'; END IF;
   v_r:=public.guardar_rp_cargue(v_rp,v_ter,jsonb_build_array(v_f||'{"fecha":"13112026"}'),v_ts);
   v_f:=v_r->'filas'->0;
   v_filas:=public.obtener_rp_exportacion(v_rp);
-  IF v_filas->0->>'valor'<>'9999999999999.99' OR v_filas->0->>'no_rp'<>'000001' THEN RAISE EXCEPTION 'Perdio precision o ceros'; END IF;
+  IF v_filas->0->>'valor'<>'9999999999999.99' OR v_filas->0->>'no_rp'<>'2099.ALC.01.000001' THEN RAISE EXCEPTION 'Perdio precision o ceros'; END IF;
   IF (SELECT estado FROM public.portal_documentos_cargue WHERE id=v_rp)<>'enviado_para_revision' THEN RAISE EXCEPTION 'Exportar aprobo'; END IF;
   PERFORM public.transicionar_documento_presupuesto(v_rp,'rechazar','Verificar importe con Educacion');
   RESET ROLE; PERFORM set_config('request.jwt.claim.sub',v_edu::TEXT,TRUE); SET LOCAL ROLE authenticated;
   PERFORM public.transicionar_documento_presupuesto(v_rp,'reabrir','Revision de Educacion');
   v_r:=public.leer_rp_cargue(v_rp);
-  IF v_r->'filas'->0->>'no_rp'<>'000001' OR v_r->'filas'->0->>'valor'<>'9999999999999.99' THEN RAISE EXCEPTION 'Reabrir perdio datos'; END IF;
+  IF v_r->'filas'->0->>'no_rp'<>'2099.ALC.01.000001' OR v_r->'filas'->0->>'valor'<>'9999999999999.99' THEN RAISE EXCEPTION 'Reabrir perdio datos'; END IF;
   v_error:=FALSE;
   BEGIN PERFORM public.guardar_rp_cargue(v_rp,v_ter,jsonb_build_array(v_f||'{"no_cdp":"123"}'),(v_r->>'editado_en')::TIMESTAMPTZ);
     EXCEPTION WHEN raise_exception THEN v_error:=TRUE; END;

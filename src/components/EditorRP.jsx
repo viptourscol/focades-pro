@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, ArrowDownToLine, Check, History, List, Plus, Save, Search, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { CAMPOS_RP, FIJOS_RP, nuevaFilaRP, validarFilaRP, validacionesDocumentoRP, vistaPreviaNumeracionRP } from '../lib/rpCargue'
+import { CAMPOS_RP, FIJOS_RP, nuevaFilaRP, prefijoNumeroRP, validarFilaRP, validacionesDocumentoRP, vistaPreviaNumeracionRP } from '../lib/rpCargue'
 import { descargarExcelRP } from '../lib/exportarRP'
 
 const claveFila = (fila) => fila.id ?? fila.origen
@@ -10,6 +10,7 @@ const boton = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-lg
 
 export default function EditorRP({ documentoId, userRole, onCambiosPendientes, onGuardado }) {
   const [documento, setDocumento] = useState(null)
+  const [anio, setAnio] = useState('')
   const [filas, setFilas] = useState([])
   const [guardadas, setGuardadas] = useState('[]')
   const [tercerosId, setTercerosId] = useState('')
@@ -48,6 +49,7 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
         .in('estado', ['aprobado', 'finalizado']).not('aprobado_por', 'is', null).order('creado_en', { ascending: false })
       if (falloFuentes) throw falloFuentes
       setDocumento(data)
+      setAnio(String(data.rp_anio || ''))
       setFilas(data.filas)
       setGuardadas(JSON.stringify(data.filas))
       setTercerosId(data.terceros_id || '')
@@ -142,7 +144,7 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
     setExito('Excel de 16 columnas descargado. La descarga no aprueba el documento.')
   })
   const previsualizar = () => {
-    try { setError(null); setPrevia({ campo: campoNumero, filas: vistaPreviaNumeracionRP(filas, seleccion, campoNumero, modoNumero, inicio) }) }
+    try { setError(null); setPrevia({ campo: campoNumero, filas: vistaPreviaNumeracionRP(filas, seleccion, campoNumero, modoNumero, inicio, anio) }) }
     catch (e) { setError(e.message) }
   }
   const aplicarNumeracion = () => {
@@ -199,15 +201,16 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
     {presupuesto && <fieldset disabled={ocupado} className="min-w-0 space-y-3 rounded-xl border border-amber-200 bg-amber-50/50 p-4">
       <h3 className="text-sm font-bold text-slate-900">Asignación de No. RP y No. CDP</h3>
       <p className="text-xs leading-5 text-slate-600">Manual: edita cada persona. Para asignación común o consecutiva, selecciona personas y revisa la vista previa. El orden es el de la lista completa, no cambia al filtrar. RP y CDP se asignan por separado.</p>
+      <p className="rounded-lg border border-amber-200 bg-white px-3 py-2 font-mono text-sm font-bold text-slate-800">Formato: {prefijoNumeroRP(anio)}NNNNNN</p>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className="text-xs font-semibold">Columna<select className={`${control} mt-1`} value={campoNumero} onChange={(e) => { setCampoNumero(e.target.value); setPrevia(null) }}><option value="no_rp">No. RP</option><option value="no_cdp">No. CDP</option></select></label>
         <label className="text-xs font-semibold">Modo<select className={`${control} mt-1`} value={modoNumero} onChange={(e) => { setModoNumero(e.target.value); setPrevia(null) }}><option value="consecutivo">Consecutivo</option><option value="comun">Mismo número</option></select></label>
-        <label className="text-xs font-semibold">Número inicial<input className={`${control} mt-1`} inputMode="numeric" maxLength={10} value={inicio} onChange={(e) => { setInicio(e.target.value); setPrevia(null) }} /></label>
+        <label className="text-xs font-semibold">Consecutivo inicial<input className={`${control} mt-1 font-mono`} inputMode="numeric" maxLength={6} placeholder="001407" value={inicio} onChange={(e) => { setInicio(e.target.value); setPrevia(null) }} /></label>
         <button className={`${boton} self-end`} disabled={ocupado || !seleccion.length} onClick={previsualizar}>Vista previa ({seleccion.length})</button>
       </div>
       <div className="flex flex-wrap gap-2"><button className={boton} disabled={ocupado} onClick={() => { setSeleccion(visibles.map(claveFila)); setPrevia(null) }}>Seleccionar filtrados ({visibles.length})</button><button className={boton} disabled={ocupado} onClick={() => { setSeleccion([]); setPrevia(null) }}>Quitar selección</button></div>
       {previa && <div className="space-y-3 rounded-lg border border-amber-300 bg-white p-3">
-        <p className="text-sm font-bold">{previa.campo === 'no_rp' ? 'No. RP' : 'No. CDP'} · {previa.filas.length} cambios por confirmar</p>
+        <p className="text-sm font-bold">{previa.campo === 'no_rp' ? 'No. RP' : 'No. CDP'} · consecutivo inicial {inicio} · {previa.filas.length} cambios por confirmar</p>
         <div className="max-h-64 overflow-auto"><table className="w-full text-left text-xs"><thead><tr><th className="p-2">Tercero / orden</th><th className="p-2">Anterior</th><th className="p-2">Nuevo</th></tr></thead><tbody>{previa.filas.map((p, i) => <tr key={p.clave}><td className="p-2">{i + 1}. {p.identificacion} · {p.nombre}</td><td className="p-2">{p.anterior || 'Vacío'}</td><td className="p-2 font-mono">{p.nuevo}</td></tr>)}</tbody></table></div>
         <div className="flex gap-2"><button className={boton} disabled={ocupado} onClick={aplicarNumeracion}><Check size={16} />Confirmar aplicación</button><button className={boton} disabled={ocupado} onClick={() => setPrevia(null)}>Cancelar</button></div>
       </div>}
@@ -236,8 +239,8 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
             {c.label}{!c.opcional && ' *'}{c.name in FIJOS_RP && <span className="ml-1 font-normal text-slate-400">Fijo</span>}
             {c.name === 'descripcion' ? <textarea className={`${control} mt-1 min-h-24`} maxLength={500} value={fila[c.name]} onChange={(e) => actualizar(c.name, e.target.value)} /> :
               <input className={`${control} mt-1 font-mono`} value={fila[c.name]} disabled={c.name in FIJOS_RP || ['tercero_presupuestal', 'liquidacion'].includes(c.name)}
-                inputMode={c.importe ? 'decimal' : c.max || c.fecha ? 'numeric' : 'text'} maxLength={c.max || c.maxLength || (c.fecha ? 8 : undefined)}
-                placeholder={c.fecha ? 'DDMMYYYY' : c.importe ? '0.00' : ''} onChange={(e) => actualizar(c.name, e.target.value)} />}
+                inputMode={c.importe ? 'decimal' : c.max || c.fecha ? 'numeric' : 'text'} maxLength={c.codigoRP ? 18 : c.max || c.maxLength || (c.fecha ? 8 : undefined)}
+                placeholder={c.codigoRP ? `${anio}.ALC.01.001407` : c.fecha ? 'DDMMYYYY' : c.importe ? '0.00' : ''} onChange={(e) => actualizar(c.name, e.target.value)} />}
             {erroresFila[c.name] && <span className="mt-1 block text-[11px] font-normal text-amber-800">{erroresFila[c.name]}</span>}
           </label>)}</div>
           {rol === 'educacion' ? <label className="flex items-start gap-3 rounded-lg bg-emerald-50 p-3 text-xs leading-5 text-emerald-950"><input type="checkbox" className="mt-1 h-4 w-4 shrink-0" checked={fila.valor_confirmado} onChange={(e) => actualizar('valor_confirmado', e.target.checked)} />Confirmo el valor a pagar para esta persona y su modalidad. Liquidación tiene el mismo importe.</label> :

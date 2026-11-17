@@ -63,15 +63,19 @@ La incorporacion repetida no duplica personas ni reemplaza importes.
   aritmetica flotante ni perdida de ceros.
 - Codigos fijos: origen legal `5`, proyecto `841`, entidad `9901`, rubro
   `2.3.2.02.02.009`, firma mecanica `NO`.
-- Presupuesto, solo en revision, llena No. RP (10 digitos), SubConsecutivo
+- Presupuesto, solo en revision, asigna No. RP y No. CDP con el formato
+  `AAAA.ALC.01.NNNNNN` (año de la convocatoria y seis dígitos), SubConsecutivo
   (4), Descripcion (500 caracteres), Fecha real `DDMMYYYY`, No. CDP (10),
   SubConsecutivo CDP (4), Fuente de Financiacion (4) y Contrato (texto opcional,
   sin un maximo inventado).
-- No. RP y No. CDP admiten edicion manual o asignacion a personas seleccionadas
-  con el mismo numero o consecutivos desde un inicio. Cada columna es
+- No. RP y No. CDP admiten edición manual del código completo o asignación a
+  personas seleccionadas indicando únicamente el consecutivo inicial (por
+  ejemplo `001407` genera `2026.ALC.01.001407`). El sistema toma el año de la
+  convocatoria y completa los seis dígitos. Permite asignar el mismo número o
+  consecutivos desde ese inicio. Cada columna es
   independiente. La vista previa muestra todas las filas afectadas en el orden
   del documento, anterior/nuevo y exige confirmacion. Reemplazar numeros
-  existentes requiere otra confirmacion; un desborde de 10 digitos no aplica
+  existentes requiere otra confirmacion; superar `999999` no aplica
   ningun cambio. Filtrar no altera el orden.
 - Encontrar una persona en FOCADES o aprobar TERCEROS no certifica que se
   haya importado al programa externo. Presupuesto debe confirmar por persona

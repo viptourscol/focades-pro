@@ -23,7 +23,7 @@ export const CAMPOS_RP = [
 ]
 
 export const importeValidoRP = (valor) => typeof valor === 'string' && /^\d{1,13}(\.\d{1,2})?$/.test(valor) && /[1-9]/.test(valor)
-export const FORMATO_NUMERO_RP = /^(\d{4})\.ALC\.01\.(\d{6})$/
+export const FORMATO_NUMERO_RP = /^[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)+$/
 export const prefijoNumeroRP = (anio) => {
   const anioTexto = String(anio ?? '')
   if (!/^\d{4}$/.test(anioTexto)) throw new Error('No se pudo determinar el año de la convocatoria.')
@@ -61,7 +61,9 @@ export const validarFilaRP = (fila, etapa = 'completo') => {
       if (requerido && !campo.opcional) errores[campo.name] = `${campo.label} es obligatorio.`
       continue
     }
-    if (campo.codigoRP && !FORMATO_NUMERO_RP.test(valor)) errores[campo.name] = `${campo.label}: usa AAAA.ALC.01.NNNNNN.`
+    if (campo.codigoRP && (valor.length > 30 || !FORMATO_NUMERO_RP.test(valor) || !/\d+$/.test(valor))) {
+      errores[campo.name] = `${campo.label}: usa hasta 30 caracteres alfanuméricos con separadores y termina en dígitos.`
+    }
     if (campo.max && !new RegExp(`^\\d{1,${campo.max}}$`).test(valor)) errores[campo.name] = `${campo.label}: máximo ${campo.max} dígitos.`
     if (campo.maxLength && [...valor].length > campo.maxLength) errores[campo.name] = `${campo.label}: máximo ${campo.maxLength} caracteres.`
     if (campo.importe && !importeValidoRP(valor)) errores[campo.name] = `${campo.label}: importe mayor que cero, hasta 13 enteros y 2 decimales, con punto decimal.`
@@ -95,16 +97,22 @@ export const validacionesDocumentoRP = (filas, etapa = 'completo') => {
   return errores
 }
 
-export const vistaPreviaNumeracionRP = (filas, ids, campo, modo, inicio, anio) => {
+export const vistaPreviaNumeracionRP = (filas, ids, campo, modo, inicio) => {
   if (!['no_rp', 'no_cdp'].includes(campo) || !['comun', 'consecutivo'].includes(modo)) throw new Error('Configuración de numeración inválida.')
-  if (!/^\d{1,6}$/.test(inicio) || Number(inicio) === 0) throw new Error('Indica un consecutivo inicial entre 000001 y 999999.')
-  const prefijo = prefijoNumeroRP(anio)
+  if (typeof inicio !== 'string' || inicio.length > 30 || !FORMATO_NUMERO_RP.test(inicio)) {
+    throw new Error('Ingresa un número inicial de hasta 30 caracteres alfanuméricos separados por punto o guion.')
+  }
+  const coincidencia = inicio.match(/\d+$/)
+  if (!coincidencia) throw new Error('El número inicial debe terminar en un consecutivo numérico.')
+  const sufijo = coincidencia[0]
+  const prefijo = inicio.slice(0, -sufijo.length)
   const seleccionadas = filas.filter((f) => ids.includes(f.id ?? f.origen))
   if (!seleccionadas.length) throw new Error('Selecciona al menos una persona.')
   return seleccionadas.map((fila, i) => {
-    const consecutivo = BigInt(inicio) + (modo === 'consecutivo' ? BigInt(i) : 0n)
-    if (consecutivo > 999999n) throw new Error('La secuencia supera 999999. No se aplicó ningún cambio.')
-    const numero = `${prefijo}${consecutivo.toString().padStart(6, '0')}`
+    const consecutivo = BigInt(sufijo) + (modo === 'consecutivo' ? BigInt(i) : 0n)
+    if (consecutivo >= 10n ** BigInt(sufijo.length)) throw new Error('La secuencia supera la longitud del consecutivo inicial. No se aplicó ningún cambio.')
+    const numero = `${prefijo}${consecutivo.toString().padStart(sufijo.length, '0')}`
+    if (numero.length > 30) throw new Error('La secuencia supera el máximo de 30 caracteres. No se aplicó ningún cambio.')
     return { clave: fila.id ?? fila.origen, nombre: fila.nombre, identificacion: fila.tercero_presupuestal, anterior: fila[campo], nuevo: numero }
   })
 }

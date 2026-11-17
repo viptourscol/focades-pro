@@ -39,11 +39,12 @@ test('Formatos, máximos exactos y fechas reales DDMMYYYY', () => {
   assert.ok(fechaValidaRP('29022024'))
   for (const fecha of ['29022025', '31042026', '00012026', '01002026', '01010000', '20261113', '131126']) assert.equal(fechaValidaRP(fecha), false, fecha)
   assert.ok(validarFilaRP({ ...fila, proyecto: '842' }).proyecto)
-  for (const valor of ['2026.XXX.01.001407', '2026.ALC.01.00140', '2026.ALC.01.0014070']) {
+  for (const valor of ['2026..01.001407', '2026.ALC.01.00140X', '2026.ALC.01.0014070-too-long-code-value']) {
     assert.ok(validarFilaRP({ ...fila, no_rp: valor }).no_rp)
   }
   assert.equal(validarFilaRP({ ...fila, no_rp: '2026.ALC.01.001407' }).no_rp, undefined)
   assert.equal(validarFilaRP({ ...fila, no_rp: '2025.ALC.01.001407' }).no_rp, undefined)
+  assert.equal(validarFilaRP({ ...fila, no_rp: '2027.RP-BC.001407' }).no_rp, undefined)
   assert.equal(formatearNumeroRP('001407', '2026'), '2026.ALC.01.001407')
 })
 
@@ -60,14 +61,14 @@ test('Importes exactos sin flotantes, sin negativos, sin exceso ni notación cie
 test('Numeración común o consecutiva independiente, orden estable, conserva ceros y valida desbordes', () => {
   const filas = [completa(), { ...completa(), id: 'fila-2', nombre: 'Otra', no_cdp: '777' }]
   const ids = ['fila-2', 'fila-1']
-  assert.deepEqual(vistaPreviaNumeracionRP(filas, ids, 'no_rp', 'consecutivo', '001407', '2026').map((p) => p.nuevo), ['2026.ALC.01.001407', '2026.ALC.01.001408'])
-  assert.deepEqual(vistaPreviaNumeracionRP(filas, ids, 'no_cdp', 'comun', '001233', '2026').map((p) => p.nuevo), ['2026.ALC.01.001233', '2026.ALC.01.001233'])
+  assert.deepEqual(vistaPreviaNumeracionRP(filas, ids, 'no_rp', 'consecutivo', '2027.RP-BC.001407').map((p) => p.nuevo), ['2027.RP-BC.001407', '2027.RP-BC.001408'])
+  assert.deepEqual(vistaPreviaNumeracionRP(filas, ids, 'no_cdp', 'comun', 'CDP.26-A.001233').map((p) => p.nuevo), ['CDP.26-A.001233', 'CDP.26-A.001233'])
   assert.equal(filas[1].no_cdp, '777')
-  assert.throws(() => vistaPreviaNumeracionRP(filas, ids, 'no_rp', 'consecutivo', '999999', '2026'), /999999/)
-  assert.throws(() => vistaPreviaNumeracionRP(filas, [], 'no_rp', 'comun', '1', '2026'), /Selecciona/)
-  assert.throws(() => vistaPreviaNumeracionRP(filas, ids, 'valor', 'comun', '1', '2026'), /inválida/)
-  assert.throws(() => vistaPreviaNumeracionRP(filas, ids, 'no_rp', 'comun', '1e5', '2026'), /consecutivo inicial/)
-  assert.throws(() => vistaPreviaNumeracionRP(filas, ids, 'no_rp', 'comun', '1', ''), /año/)
+  assert.throws(() => vistaPreviaNumeracionRP(filas, ids, 'no_rp', 'consecutivo', '2027.RP-BC.9999'), /longitud/)
+  assert.throws(() => vistaPreviaNumeracionRP(filas, [], 'no_rp', 'comun', '2027.RP-BC.0001'), /Selecciona/)
+  assert.throws(() => vistaPreviaNumeracionRP(filas, ids, 'valor', 'comun', '2027.RP-BC.0001'), /inválida/)
+  assert.throws(() => vistaPreviaNumeracionRP(filas, ids, 'no_rp', 'comun', '1e5'), /número inicial/)
+  assert.throws(() => vistaPreviaNumeracionRP(filas, ids, 'no_rp', 'comun', 'RP-ABC'), /consecutivo numérico/)
 })
 
 test('Excel real con 16 columnas, ceros iniciales, fecha, precisión monetaria y texto sin fórmulas', async () => {

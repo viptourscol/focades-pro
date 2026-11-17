@@ -5,11 +5,11 @@ export const FIJOS_RP = Object.freeze({
 
 export const CAMPOS_RP = [
   { name: 'no_rp', label: 'No. RP', rol: 'presupuesto', codigoRP: true },
-  { name: 'subconsecutivo', label: 'SubConsecutivo', rol: 'presupuesto', max: 4 },
+  { name: 'subconsecutivo', label: 'SubConsecutivo', rol: 'presupuesto', max: 4, opcional: true },
   { name: 'descripcion', label: 'Descripción', rol: 'presupuesto', maxLength: 500 },
   { name: 'fecha', label: 'Fecha', rol: 'presupuesto', fecha: true },
   { name: 'no_cdp', label: 'No. CDP', rol: 'presupuesto', codigoRP: true },
-  { name: 'subconsecutivo_cdp', label: 'SubConsecutivo CDP', rol: 'presupuesto', max: 4 },
+  { name: 'subconsecutivo_cdp', label: 'SubConsecutivo CDP', rol: 'presupuesto', max: 4, opcional: true },
   { name: 'tercero_presupuestal', label: 'Tercero Presupuestal', rol: 'educacion', max: 15 },
   { name: 'origen_legal_apropiacion', label: 'Origen Legal Apropiación', rol: 'educacion', max: 4 },
   { name: 'proyecto', label: 'Proyecto', rol: 'educacion', max: 4 },
@@ -42,6 +42,60 @@ export const fechaValidaRP = (valor) => {
   const fecha = new Date(0)
   fecha.setUTCFullYear(anio, mes - 1, dia)
   return anio > 0 && fecha.getUTCDate() === dia && fecha.getUTCMonth() === mes - 1 && fecha.getUTCFullYear() === anio
+}
+
+export const modalidadesRP = (filas) => {
+  const normalizar = (valor) => {
+    const texto = String(valor || '').trim()
+    const clave = texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleUpperCase()
+    if (clave.includes('SUENO')) return 'SUEÑOS'
+    if (clave.includes('MERITO')) return 'MÉRITOS EDUCATIVOS'
+    return texto.toLocaleUpperCase()
+  }
+  return [...new Set(filas.map((fila) => normalizar(fila.modalidad)).filter(Boolean))].sort().join(' Y ')
+}
+
+export const fechaResolucionLegibleRP = (valor) => {
+  if (typeof valor !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return ''
+  const [anio, mes, dia] = valor.split('-').map(Number)
+  const fecha = new Date(Date.UTC(anio, mes - 1, dia, 12))
+  if (fecha.getUTCFullYear() !== anio || fecha.getUTCMonth() !== mes - 1 || fecha.getUTCDate() !== dia) return ''
+  const meses = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE']
+  return `${dia} DE ${meses[mes - 1]} DE ${anio}`
+}
+
+export const descripcionAutomaticaRP = (datos, anioConvocatoria) => {
+  const fecha = fechaResolucionLegibleRP(datos.fecha_resolucion)
+  if (!datos.numero_resolucion || !fecha || !/^[12]$/.test(datos.semestre_pago || '') ||
+    !/^\d{4}$/.test(datos.anio_pago || '') || !datos.modalidades?.trim() || !/^\d{4}$/.test(String(anioConvocatoria || ''))) return ''
+  const semestre = datos.semestre_pago === '1' ? 'PRIMER' : 'SEGUNDO'
+  return `RESOLUCION ${datos.numero_resolucion} DEL ${fecha} POR LA CUAL EL FONDO EDUCATIVO PARA EDUCACION SUPERIOR FOCADES, ORDENA PAGAR CREDITOS CONDONABLES CORRESPONDIENTES A LOS BENEFICIARIOS QUE FUERON SELECCIONADOS EN LA CONVOCATORIA ${anioConvocatoria}, EN EL ${semestre} SEMESTRE DEL ${datos.anio_pago} EN LAS MODALIDADES DE ${datos.modalidades.trim()}`
+}
+
+export const contratoRP = (numeroResolucion, fechaResolucion) => {
+  const fecha = fechaResolucionLegibleRP(fechaResolucion)
+  if (!/^\d+$/.test(numeroResolucion || '') || !fecha) return ''
+  return `RESOLUCION ${numeroResolucion} ${fechaResolucion.replaceAll('-', '')}`
+}
+
+export const validarDatosGeneralesRP = (datos, { requerido = false } = {}) => {
+  const errores = {}
+  const revisar = (campo, valor) => { if (requerido && !valor) errores[campo] = 'Este dato es obligatorio para completar el RP.' }
+  revisar('numero_resolucion', datos.numero_resolucion)
+  if (datos.numero_resolucion && !/^\d+$/.test(datos.numero_resolucion)) errores.numero_resolucion = 'Usa solo dígitos.'
+  revisar('fecha_resolucion', datos.fecha_resolucion)
+  if (datos.fecha_resolucion && !fechaResolucionLegibleRP(datos.fecha_resolucion)) errores.fecha_resolucion = 'Selecciona una fecha válida.'
+  revisar('semestre_pago', datos.semestre_pago)
+  if (datos.semestre_pago && !/^[12]$/.test(datos.semestre_pago)) errores.semestre_pago = 'Selecciona primer o segundo semestre.'
+  revisar('anio_pago', datos.anio_pago)
+  if (datos.anio_pago && !/^\d{4}$/.test(datos.anio_pago)) errores.anio_pago = 'Ingresa un año de cuatro dígitos.'
+  revisar('modalidades', datos.modalidades)
+  if (datos.modalidades?.length > 120) errores.modalidades = 'Máximo 120 caracteres.'
+  revisar('fuente_financiacion', datos.fuente_financiacion)
+  if (datos.fuente_financiacion && !/^\d{1,4}$/.test(datos.fuente_financiacion)) errores.fuente_financiacion = 'Usa hasta 4 dígitos.'
+  revisar('descripcion', datos.descripcion)
+  if (datos.descripcion?.length > 500) errores.descripcion = 'La descripción supera los 500 caracteres.'
+  return errores
 }
 
 export const nuevaFilaRP = (persona) => ({

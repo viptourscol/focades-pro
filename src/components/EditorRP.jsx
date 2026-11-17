@@ -1,16 +1,29 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, ArrowDownToLine, Check, History, List, Plus, Save, Search, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { CAMPOS_RP, FIJOS_RP, nuevaFilaRP, validarFilaRP, validacionesDocumentoRP, vistaPreviaNumeracionRP } from '../lib/rpCargue'
+import { CAMPOS_RP, FIJOS_RP, contratoRP, descripcionAutomaticaRP, modalidadesRP, nuevaFilaRP, validarDatosGeneralesRP, validarFilaRP, validacionesDocumentoRP, vistaPreviaNumeracionRP } from '../lib/rpCargue'
 import { descargarExcelRP } from '../lib/exportarRP'
 
 const claveFila = (fila) => fila.id ?? fila.origen
 const control = 'min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-100 disabled:text-slate-600'
 const boton = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50'
+const prepararGenerales = (datos, convocatoriaAnio) => ({
+  ...datos,
+  descripcion: datos.descripcion_manual ? datos.descripcion : descripcionAutomaticaRP(datos, convocatoriaAnio),
+  contrato: contratoRP(datos.numero_resolucion, datos.fecha_resolucion)
+})
+const sincronizarGeneralesFilas = (filas, datos) => filas.map((fila) => ({
+  ...fila,
+  descripcion: datos.descripcion || '',
+  fuente_financiacion: datos.fuente_financiacion || '',
+  contrato: datos.contrato || ''
+}))
 
 export default function EditorRP({ documentoId, userRole, onCambiosPendientes, onGuardado }) {
   const [documento, setDocumento] = useState(null)
   const [filas, setFilas] = useState([])
+  const [datosGenerales, setDatosGenerales] = useState({})
+  const [generalesGuardados, setGeneralesGuardados] = useState('{}')
   const [guardadas, setGuardadas] = useState('[]')
   const [tercerosId, setTercerosId] = useState('')
   const [opciones, setOpciones] = useState([])
@@ -31,7 +44,8 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
   const educacion = userRole === 'admin_educacion' && documento?.estado === 'borrador'
   const presupuesto = userRole === 'admin_presupuesto' && documento?.estado === 'enviado_para_revision'
   const editable = educacion || presupuesto
-  const pendiente = JSON.stringify(filas) !== guardadas || tercerosId !== (documento?.terceros_id || '') || Boolean(previa)
+  const pendiente = JSON.stringify(filas) !== guardadas || JSON.stringify(datosGenerales) !== generalesGuardados ||
+    tercerosId !== (documento?.terceros_id || '') || Boolean(previa)
   const fila = filas.find((f) => claveFila(f) === activo)
   const visibles = filas.filter((f) => `${f.nombre} ${f.tercero_presupuestal}`.toLocaleLowerCase().includes(filtro.toLocaleLowerCase()))
   const paginas = Math.max(1, Math.ceil(visibles.length / 25))
@@ -47,9 +61,27 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
         .select('id,creado_en,cantidad_registros').eq('tipo_documento', 'terceros').eq('convocatoria_id', data.convocatoria_id)
         .in('estado', ['aprobado', 'finalizado']).not('aprobado_por', 'is', null).order('creado_en', { ascending: false })
       if (falloFuentes) throw falloFuentes
+      const primeraFila = data.filas[0] || {}
+      const contratoAnterior = primeraFila.contrato?.match(/^RESOLUCION\s+(\d+)\s+(\d{2})(\d{2})(\d{4})$/i)
+      const datosPrevios = data.datos_generales_rp || {}
+      const iniciales = {
+        numero_resolucion: datosPrevios.numero_resolucion || contratoAnterior?.[1] || '',
+        fecha_resolucion: datosPrevios.fecha_resolucion || (contratoAnterior ? `${contratoAnterior[4]}-${contratoAnterior[3]}-${contratoAnterior[2]}` : ''),
+        semestre_pago: datosPrevios.semestre_pago || '',
+        anio_pago: datosPrevios.anio_pago || '',
+        modalidades: datosPrevios.modalidades ?? modalidadesRP(data.filas),
+        modalidades_manual: datosPrevios.modalidades_manual === true,
+        fuente_financiacion: datosPrevios.fuente_financiacion ?? primeraFila.fuente_financiacion ?? '',
+        descripcion_manual: datosPrevios.descripcion_manual ?? Boolean(primeraFila.descripcion),
+        descripcion: datosPrevios.descripcion || primeraFila.descripcion || ''
+      }
+      const generales = prepararGenerales(iniciales, data.convocatoria_anio)
       setDocumento(data)
-      setFilas(data.filas)
-      setGuardadas(JSON.stringify(data.filas))
+      const filasConDatos = sincronizarGeneralesFilas(data.filas, generales)
+      setFilas(filasConDatos)
+      setGuardadas(JSON.stringify(filasConDatos))
+      setDatosGenerales(generales)
+      setGeneralesGuardados(JSON.stringify(generales))
       setTercerosId(data.terceros_id || '')
       setOpciones(fuentes)
       setActivo(data.filas[0] ? claveFila(data.filas[0]) : null)
@@ -82,6 +114,30 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
     } : f))
     setPrevia(null); setExito(null)
   }
+  const actualizarDatosGenerales = (campo, valor) => {
+    const nuevos = prepararGenerales({
+      ...datosGenerales, [campo]: valor,
+      ...(campo === 'modalidades' ? { modalidades_manual: true } : {})
+    }, documento?.convocatoria_anio)
+    const cambioFuente = campo === 'fuente_financiacion' && datosGenerales.fuente_financiacion !== valor
+    setDatosGenerales(nuevos)
+    setFilas((anteriores) => sincronizarGeneralesFilas(anteriores, nuevos).map((fila) =>
+      cambioFuente ? { ...fila, tercero_confirmado: false } : fila))
+    setPrevia(null); setExito(null)
+  }
+  const actualizarLista = (nuevasFilas) => {
+    const modalidades = datosGenerales.modalidades_manual ? datosGenerales.modalidades : modalidadesRP(nuevasFilas)
+    const nuevosGenerales = prepararGenerales({ ...datosGenerales, modalidades }, documento?.convocatoria_anio)
+    setDatosGenerales(nuevosGenerales)
+    setFilas(sincronizarGeneralesFilas(nuevasFilas, nuevosGenerales))
+  }
+  const usarModalidadesBeneficiarios = () => {
+    const nuevos = prepararGenerales({
+      ...datosGenerales, modalidades: modalidadesRP(filas), modalidades_manual: false
+    }, documento?.convocatoria_anio)
+    setDatosGenerales(nuevos)
+    setFilas(sincronizarGeneralesFilas(filas, nuevos))
+  }
   const incorporar = () => ejecutar(async () => {
     if (!tercerosId) throw new Error('Selecciona el documento TERCEROS aprobado.')
     const { data, error: fallo } = await supabase.rpc('personas_terceros_rp', { p_terceros_id: tercerosId })
@@ -94,7 +150,7 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
       else if (!nuevas[existente].origen) nuevas[existente] = { ...nuevas[existente], origen: persona.origen, nombre: persona.nombre, modalidad: persona.modalidad || '' }
     }
     if (!data.length) throw new Error('El documento TERCEROS no tiene personas.')
-    setFilas(nuevas); setActivo(claveFila(nuevas[0])); setSeleccion([]); setPrevia(null)
+    actualizarLista(nuevas); setActivo(claveFila(nuevas[0])); setSeleccion([]); setPrevia(null)
     setExito('Personas incorporadas sin sobrescribir importes. Revisa y guarda el borrador.')
   })
   const buscar = () => ejecutar(async () => {
@@ -109,27 +165,37 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
     const existente = filas.find((f) => f.tercero_presupuestal === persona.identificacion)
     if (existente?.origen) { setError('Esta persona ya está en el documento.'); return }
     if (existente) {
-      setFilas((anteriores) => anteriores.map((f) => f === existente ? {
+      const nuevasFilas = filas.map((f) => f === existente ? {
         ...f, origen: persona.origen, nombre: persona.nombre, modalidad: persona.modalidad || ''
-      } : f))
+      } : f)
+      actualizarLista(nuevasFilas)
       setActivo(claveFila(existente)); setPrevia(null); setError(null)
       setExito('Origen vinculado sin reemplazar los importes ni los campos existentes. Revisa y guarda.')
       return
     }
     const nueva = nuevaFilaRP(persona)
-    setFilas((anteriores) => [...anteriores, nueva]); setActivo(claveFila(nueva)); setPrevia(null); setExito(null)
+    actualizarLista([...filas, nueva]); setActivo(claveFila(nueva)); setPrevia(null); setExito(null)
   }
   const guardar = () => ejecutar(async () => {
     if (previa) throw new Error('Aplica o cancela la vista previa de numeración.')
+    if (presupuesto) {
+      const erroresGenerales = validarDatosGeneralesRP(datosGenerales)
+      if (Object.keys(erroresGenerales).length) throw new Error(Object.values(erroresGenerales).join('\n'))
+    }
     const errores = validacionesDocumentoRP(filas, 'borrador')
     if (!filas.length) errores.splice(0, 1)
     if (errores.length) throw new Error(errores.map((e) => `Fila ${e.fila_numero}: ${e.mensaje_error}`).join('\n'))
-    const { data, error: fallo } = await supabase.rpc('guardar_rp_cargue', {
-      p_documento_id: documentoId, p_terceros_id: tercerosId || null, p_filas: filas, p_editado_en: documento.editado_en
+    const { data, error: fallo } = await supabase.rpc('guardar_rp_cargue_generales', {
+      p_documento_id: documentoId, p_terceros_id: tercerosId || null, p_filas: filas,
+      p_editado_en: documento.editado_en, p_datos_generales: datosGenerales
     })
     if (fallo) throw fallo
     if (!data || !Array.isArray(data.filas) || !data.editado_en || !Array.isArray(data.historial)) throw new Error('No se confirmó el guardado. Recarga para verificar.')
-    setDocumento(data); setFilas(data.filas); setGuardadas(JSON.stringify(data.filas)); setSeleccion([])
+    setDocumento(data)
+    const generalesGuardadas = data.datos_generales_rp || datosGenerales
+    const filasGuardadas = sincronizarGeneralesFilas(data.filas, generalesGuardadas)
+    setDatosGenerales(generalesGuardadas); setGeneralesGuardados(JSON.stringify(generalesGuardadas))
+    setFilas(filasGuardadas); setGuardadas(JSON.stringify(filasGuardadas)); setSeleccion([])
     setActivo(data.filas[0] ? claveFila(data.filas[0]) : null)
     setExito('Cambios guardados. Guardar no envía ni aprueba el documento.'); onGuardado?.(data)
   })
@@ -147,10 +213,11 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
   }
   const aplicarNumeracion = () => {
     if (previa.filas.some((f) => f.anterior && f.anterior !== f.nuevo) && !window.confirm('Se reemplazarán números existentes en las filas indicadas. ¿Confirmas el reemplazo?')) return
-    setFilas((anteriores) => anteriores.map((f) => {
+    const nuevas = filas.map((f) => {
       const cambio = previa.filas.find((p) => p.clave === claveFila(f))
       return cambio ? { ...f, [previa.campo]: cambio.nuevo, tercero_confirmado: false } : f
-    }))
+    })
+    setFilas(nuevas)
     setPrevia(null); setExito('Numeración aplicada localmente. Revisa y guarda para registrarla.')
   }
   const cambiarSeleccion = (clave) => {
@@ -160,6 +227,7 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
 
   if (!documento) return <div className="space-y-3">{error ? <><p role="alert" className="text-sm text-red-700">{error}</p><button className={boton} disabled={ocupado} onClick={cargar}>Reintentar</button></> : <p role="status">Consultando registro presupuestal…</p>}</div>
   const erroresFila = fila ? validarFilaRP(fila, educacion ? 'educacion' : 'completo') : {}
+  const erroresGenerales = validarDatosGeneralesRP(datosGenerales, { requerido: true })
   const etapa = documento.estado === 'borrador' ? 'educacion' : 'completo'
   const pendientes = validacionesDocumentoRP(filas, etapa).length
   return <section className="min-w-0 space-y-5">
@@ -196,6 +264,43 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
         <button className={boton} disabled={ocupado || filas.some((f) => f.tercero_presupuestal === p.identificacion && f.origen)} onClick={() => agregar(p)} aria-label={`${filas.some((f) => f.tercero_presupuestal === p.identificacion) ? 'Vincular' : 'Agregar'} ${p.nombre}`}><Plus size={16} /></button>
       </li>)}</ul>}
     </div>}
+    {presupuesto && <section aria-labelledby="rp-datos-generales" className="space-y-4 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 sm:p-5">
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-[.16em] text-emerald-800">Se aplica a las {filas.length} filas del RP</p>
+        <h3 id="rp-datos-generales" className="mt-1 text-base font-bold text-slate-900">Datos generales de la resolución</h3>
+        <p className="mt-1 text-xs leading-5 text-slate-600">Ingresa estos datos una sola vez. La convocatoria corresponde a {documento.convocatoria_anio || '—'}; el semestre y el año de pago se seleccionan aparte.</p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <label className="text-xs font-semibold text-slate-700">Convocatoria<input className={`${control} mt-1`} value={documento.convocatoria_anio || ''} readOnly /></label>
+        <label className="text-xs font-semibold text-slate-700">Número de resolución *<input className={`${control} mt-1 font-mono`} inputMode="numeric" value={datosGenerales.numero_resolucion || ''} onChange={(e) => actualizarDatosGenerales('numero_resolucion', e.target.value)} placeholder="1589" /></label>
+        <label className="text-xs font-semibold text-slate-700">Fecha de resolución *<input className={`${control} mt-1`} type="date" value={datosGenerales.fecha_resolucion || ''} onChange={(e) => actualizarDatosGenerales('fecha_resolucion', e.target.value)} /></label>
+        <label className="text-xs font-semibold text-slate-700">Semestre de pago *<select className={`${control} mt-1`} value={datosGenerales.semestre_pago || ''} onChange={(e) => actualizarDatosGenerales('semestre_pago', e.target.value)}><option value="">Seleccionar…</option><option value="1">Primer semestre</option><option value="2">Segundo semestre</option></select></label>
+        <label className="text-xs font-semibold text-slate-700">Año de pago *<input className={`${control} mt-1 font-mono`} inputMode="numeric" maxLength={4} value={datosGenerales.anio_pago || ''} onChange={(e) => actualizarDatosGenerales('anio_pago', e.target.value)} placeholder="2026" /></label>
+        <label className="text-xs font-semibold text-slate-700">Fuente de financiación común *<input className={`${control} mt-1 font-mono`} inputMode="numeric" maxLength={4} value={datosGenerales.fuente_financiacion || ''} onChange={(e) => actualizarDatosGenerales('fuente_financiacion', e.target.value)} placeholder="0004" /></label>
+        <label className="text-xs font-semibold text-slate-700 sm:col-span-2 lg:col-span-3">Modalidades incluidas *
+          <div className="mt-1 flex flex-wrap gap-2"><input className={`${control} min-w-0 flex-1`} maxLength={120} value={datosGenerales.modalidades || ''} onChange={(e) => actualizarDatosGenerales('modalidades', e.target.value)} placeholder="SUEÑOS Y MÉRITOS EDUCATIVOS" />
+            <button type="button" className={boton} disabled={ocupado} onClick={usarModalidadesBeneficiarios}>Tomar de beneficiarios</button></div>
+        </label>
+      </div>
+      <div className="space-y-2 rounded-lg border border-slate-200 bg-white p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs font-bold uppercase tracking-wide text-slate-600">Descripción que irá en todas las filas</span>
+          <label className="flex items-center gap-2 text-xs font-medium text-slate-600"><input type="checkbox" checked={datosGenerales.descripcion_manual === true} onChange={(e) => {
+            const manual = e.target.checked
+            const nuevos = prepararGenerales({ ...datosGenerales, descripcion_manual: manual, descripcion: manual ? datosGenerales.descripcion : '' }, documento.convocatoria_anio)
+            setDatosGenerales(nuevos); setFilas((anteriores) => sincronizarGeneralesFilas(anteriores, nuevos))
+          }} />Editar descripción manualmente</label>
+        </div>
+        <textarea className={`${control} min-h-32`} maxLength={500} readOnly={datosGenerales.descripcion_manual !== true}
+          value={datosGenerales.descripcion || ''} onChange={(e) => actualizarDatosGenerales('descripcion', e.target.value)}
+          placeholder="Completa resolución, fecha, semestre, año y modalidades para generar la descripción." />
+        <p className="text-[11px] text-slate-500">{(datosGenerales.descripcion || '').length}/500 caracteres · {datosGenerales.descripcion_manual ? 'Edición manual' : 'Generada desde los datos anteriores'}</p>
+      </div>
+      <label className="block max-w-xl text-xs font-semibold text-slate-700">Contrato generado automáticamente
+        <input className={`${control} mt-1 font-mono`} value={datosGenerales.contrato || ''} readOnly placeholder="RESOLUCION 1589 04112026" />
+      </label>
+      {Object.keys(erroresGenerales).length > 0 && <p className="text-xs leading-5 text-amber-800">Para aprobar el RP completa: {Object.values(erroresGenerales).join(' · ')}</p>}
+    </section>}
     {presupuesto && <fieldset disabled={ocupado} className="min-w-0 space-y-3 rounded-xl border border-amber-200 bg-amber-50/50 p-4">
       <h3 className="text-sm font-bold text-slate-900">Asignación de No. RP y No. CDP</h3>
       <p className="text-xs leading-5 text-slate-600">Manual: edita cada persona. Para asignación común o consecutiva, selecciona personas y revisa la vista previa. El orden es el de la lista completa, no cambia al filtrar. RP y CDP tienen números iniciales independientes; solo se incrementan los dígitos finales.</p>
@@ -229,14 +334,15 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
         <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="break-words font-bold text-slate-900">{fila.nombre}</h3><p className="mt-1 break-all font-mono text-xs text-slate-500">{fila.tercero_presupuestal} · {fila.origen || 'Origen pendiente de vincular'}</p></div>
           {educacion && <button className={boton} disabled={ocupado} aria-label={`Quitar ${fila.nombre} del RP`} onClick={() => {
             if (!window.confirm('¿Quitar esta persona del borrador RP? No elimina su perfil ni el TERCERO aprobado.')) return
-            setFilas((antes) => antes.filter((f) => claveFila(f) !== activo)); setActivo(null); setSeleccion([]); setPrevia(null)
+            actualizarLista(filas.filter((f) => claveFila(f) !== activo)); setActivo(null); setSeleccion([]); setPrevia(null)
           }}><Trash2 size={16} /></button>}</div>
         {['educacion', 'presupuesto'].map((rol) => <fieldset key={rol} disabled={ocupado || !(rol === 'educacion' ? educacion : presupuesto)} className="space-y-3">
           <legend className="mb-3 w-full border-b border-slate-200 pb-2 text-xs font-bold uppercase tracking-wider text-slate-600">{rol === 'educacion' ? '01 · Completa Educación' : '02 · Completa Presupuesto'}</legend>
           <div className="grid gap-4 sm:grid-cols-2">{CAMPOS_RP.filter((c) => c.rol === rol).map((c) => <label key={c.name} className={`min-w-0 text-xs font-semibold text-slate-700 ${c.name === 'descripcion' ? 'sm:col-span-2' : ''}`}>
-            {c.label}{!c.opcional && ' *'}{c.name in FIJOS_RP && <span className="ml-1 font-normal text-slate-400">Fijo</span>}
-            {c.name === 'descripcion' ? <textarea className={`${control} mt-1 min-h-24`} maxLength={500} value={fila[c.name]} onChange={(e) => actualizar(c.name, e.target.value)} /> :
-              <input className={`${control} mt-1 font-mono`} value={fila[c.name]} disabled={c.name in FIJOS_RP || ['tercero_presupuestal', 'liquidacion'].includes(c.name)}
+            {c.label}{c.opcional ? <span className="ml-1 font-normal text-slate-400">(opcional)</span> : ' *'}{c.name in FIJOS_RP && <span className="ml-1 font-normal text-slate-400">Fijo</span>}
+            {['descripcion', 'fuente_financiacion', 'contrato'].includes(c.name) && <span className="ml-1 font-normal text-emerald-700">Dato común</span>}
+            {c.name === 'descripcion' ? <textarea className={`${control} mt-1 min-h-24`} maxLength={500} value={fila[c.name]} disabled={c.name === 'descripcion' || ocupado} onChange={(e) => actualizar(c.name, e.target.value)} /> :
+              <input className={`${control} mt-1 font-mono`} value={fila[c.name]} disabled={c.name in FIJOS_RP || ['tercero_presupuestal', 'liquidacion', 'fuente_financiacion', 'contrato'].includes(c.name)}
                 inputMode={c.importe ? 'decimal' : c.max || c.fecha ? 'numeric' : 'text'} maxLength={c.codigoRP ? 30 : c.max || c.maxLength || (c.fecha ? 8 : undefined)}
                 placeholder={c.codigoRP ? (c.name === 'no_rp' ? '2026.ALC.01.001407' : '2026.ALC.01.001233') : c.fecha ? 'DDMMYYYY' : c.importe ? '0.00' : ''} onChange={(e) => actualizar(c.name, e.target.value)} />}
             {erroresFila[c.name] && <span className="mt-1 block text-[11px] font-normal text-amber-800">{erroresFila[c.name]}</span>}

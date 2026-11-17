@@ -66,10 +66,8 @@ La incorporacion repetida no duplica personas ni reemplaza importes.
 - Presupuesto, solo en revision, asigna No. RP y No. CDP con un código
   alfanumérico de hasta 30 caracteres, separado por puntos o guiones y terminado
   en dígitos. `2026.ALC.01.001407` es un ejemplo editable; no se exige que el año
-  corresponda a la convocatoria. SubConsecutivo
-  (4), Descripcion (500 caracteres), Fecha real `DDMMYYYY`, No. CDP (10),
-  SubConsecutivo CDP (4), Fuente de Financiacion (4) y Contrato (texto opcional,
-  sin un maximo inventado).
+  corresponda a la convocatoria. Los SubConsecutivos RP y CDP admiten hasta 4
+  dígitos, se conservan en el formulario y son opcionales.
 - No. RP y No. CDP admiten edición manual del código completo o asignación a
   personas seleccionadas indicando por separado el número inicial completo de
   cada columna. El sistema conserva letras, números y separadores e incrementa
@@ -79,13 +77,20 @@ La incorporacion repetida no duplica personas ni reemplaza importes.
   exige confirmacion. Reemplazar numeros existentes requiere otra confirmacion;
   superar la longitud disponible del consecutivo no aplica ningun cambio.
   Filtrar no altera el orden.
+- Presupuesto ingresa una sola vez, en los datos generales del RP, el número y
+  fecha de resolución, el semestre y año de pago, las modalidades y la fuente de
+  financiación. La convocatoria se toma del documento RP; el año de pago es
+  independiente. La descripción se compone automáticamente y puede ajustarse
+  manualmente; el contrato se genera como `RESOLUCION {número} {DDMMYYYY}`.
+  Descripción, fuente y contrato se replican en todas las filas y en el Excel.
 - Encontrar una persona en FOCADES o aprobar TERCEROS no certifica que se
   haya importado al programa externo. Presupuesto debe confirmar por persona
   la existencia externa del tercero, entidad, rubro y fuente antes de aprobar.
   No se inventan catalogos ni validaciones contra un sistema no conectado.
 - Se permiten borradores incompletos con formatos validos. Enviar requiere
-  los datos y confirmacion de Educacion; aprobar/exportar requiere las 16
-  columnas completas salvo Contrato y la confirmacion externa de Presupuesto.
+  los datos y confirmacion de Educacion; aprobar/exportar requiere las columnas
+  obligatorias completas salvo Contrato y los dos Subconsecutivos, además de la
+  confirmacion externa de Presupuesto.
   Aprobar es una accion separada de guardar y descargar. Despues se bloquea
   la edicion. La devolucion/reapertura conserva los datos para corregir.
 - Los roles y estados se comprueban en PostgreSQL, no solo en botones. El

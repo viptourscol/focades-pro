@@ -123,6 +123,19 @@ BEGIN
   IF NOT v_error THEN RAISE EXCEPTION 'Guardo fecha inexistente'; END IF;
   v_r:=public.guardar_rp_cargue(v_rp,v_ter,jsonb_build_array(v_f||'{"fecha":"13112026"}'),v_ts);
   v_f:=v_r->'filas'->0;
+  v_r:=public.guardar_rp_cargue_generales(v_rp,v_ter,
+    jsonb_build_array(v_f||'{"subconsecutivo":"","subconsecutivo_cdp":""}'),(v_r->>'editado_en')::TIMESTAMPTZ,
+    '{"numero_resolucion":"1589","fecha_resolucion":"2026-11-04","semestre_pago":"2","anio_pago":"2026","modalidades":"SUEÑOS Y MÉRITOS EDUCATIVOS","modalidades_manual":false,"fuente_financiacion":"0004","descripcion_manual":false}'::JSONB);
+  v_f:=v_r->'filas'->0;
+  IF v_f->>'descripcion'<>'RESOLUCION 1589 DEL 4 DE NOVIEMBRE DE 2026 POR LA CUAL EL FONDO EDUCATIVO PARA EDUCACION SUPERIOR FOCADES, ORDENA PAGAR CREDITOS CONDONABLES CORRESPONDIENTES A LOS BENEFICIARIOS QUE FUERON SELECCIONADOS EN LA CONVOCATORIA 2099, EN EL SEGUNDO SEMESTRE DEL 2026 EN LAS MODALIDADES DE SUEÑOS Y MÉRITOS EDUCATIVOS'
+    OR v_f->>'contrato'<>'RESOLUCION 1589 04112026' OR v_f->>'fuente_financiacion'<>'0004'
+    OR v_f->>'subconsecutivo'<>''
+    OR cardinality(public.errores_fila_rp(v_f,'completo'))>0 THEN RAISE EXCEPTION 'No aplico correctamente los datos generales o subconsecutivos opcionales'; END IF;
+  v_error:=FALSE;
+  BEGIN PERFORM public.guardar_rp_cargue(v_rp,v_ter,jsonb_build_array(v_f||'{"fuente_financiacion":"0003"}'),(v_r->>'editado_en')::TIMESTAMPTZ);
+    EXCEPTION WHEN raise_exception THEN v_error:=SQLERRM LIKE '%datos generales%'; END;
+  IF NOT v_error THEN RAISE EXCEPTION 'Permitio una fuente distinta a la cabecera del RP'; END IF;
+  v_r:=public.leer_rp_cargue(v_rp); v_f:=v_r->'filas'->0;
   v_filas:=public.obtener_rp_exportacion(v_rp);
   IF v_filas->0->>'valor'<>'9999999999999.99' OR v_filas->0->>'no_rp'<>'2099.ALC.01.000001' THEN RAISE EXCEPTION 'Perdio precision o ceros'; END IF;
   IF (SELECT estado FROM public.portal_documentos_cargue WHERE id=v_rp)<>'enviado_para_revision' THEN RAISE EXCEPTION 'Exportar aprobo'; END IF;

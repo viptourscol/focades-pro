@@ -5,6 +5,7 @@ import EditorDocumentoCargue from '../components/EditorDocumentoCargue'
 import BotonesFlujoCargue from '../components/BotonesFlujoCargue'
 import ValidacionesDisplay from '../components/ValidacionesDisplay'
 import DashboardPorRol from '../components/DashboardPorRol'
+import CargueOPDesdeRP from '../components/CargueOPDesdeRP'
 import { ArrowLeft, FileText, AlertCircle, CalendarDays, ClipboardList, FolderOpen, HelpCircle, Landmark, Users, Wallet } from 'lucide-react'
 
 const ROLES_VALIDOS = [
@@ -197,6 +198,7 @@ const AdminCargueDocumentos = () => {
         </header>
         <main className="mx-auto max-w-[1440px] space-y-6 px-4 py-6 sm:px-8 sm:py-8">
           <DashboardPorRol userRole={userRole} />
+          {convocatoriaId && userRole === 'admin_contabilidad' && <CargueOPDesdeRP key={convocatoriaId} convocatoriaId={convocatoriaId} />}
           {convocatoriaId ? (
             <DocumentosCargueIndex
               key={convocatoriaId}

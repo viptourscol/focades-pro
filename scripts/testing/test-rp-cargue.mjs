@@ -3,6 +3,25 @@ import assert from 'node:assert/strict'
 import ExcelJS from 'exceljs'
 import { CAMPOS_RP, contratoRP, descripcionAutomaticaRP, fechaFilaDesdeISO, fechaISODesdeFilaRP, formatearNumeroRP, modalidadesRP, nuevaFilaRP, validarDatosGeneralesRP, validarFilaRP, validacionesDocumentoRP, vistaPreviaNumeracionRP, fechaValidaRP, centavosRP } from '../../src/lib/rpCargue.js'
 import { crearExcelRP, descargarExcelRP } from '../../src/lib/exportarRP.js'
+import { crearExcelOP } from '../../src/lib/exportarOP.js'
+
+test('El Excel OP conserva datos del RP, aplica el consecutivo y la fecha común y respeta los opcionales', async () => {
+  const origen = {
+    id: 'primera', descripcion: 'RESOLUCION N°0884, "FOCADES"', no_rp: '2026.ALC.01.001249',
+    subconsecutivo_rp: '1', codigo_entidad: '9901', rubro_presupuestal: '2.3.2.02.02.009',
+    fuente_financiacion: '0875', valor: '1750905',
+  }
+  const segunda = { ...origen, id: 'segunda', no_rp: '2026.ALC.01.001250', subconsecutivo_rp: '0003', valor: '9999999999999.99' }
+  const datos = { fecha: '2026-07-06', no_op: '0009', subconsecutivo: '', opcionales: { segunda: { estado: 'P', clase: 'A' } } }
+  const libro = new ExcelJS.Workbook()
+  await libro.xlsx.load(await crearExcelOP([origen, segunda], datos))
+  const hoja = libro.getWorksheet('CargueInformacionOP')
+  assert.deepEqual(hoja.getRow(1).values.slice(1), ['No. OP', 'SubConsecutivo', 'Fecha', 'Descripción', 'No. RP', 'SubConsecutivo RP',
+    'Código de Entidad', 'Rubro Presupuestal', 'Fuente de Financiación', 'Valor', 'Estado', 'Clase'])
+  assert.deepEqual(hoja.getRow(2).values.slice(1), ['0009', '', '06072026', origen.descripcion, origen.no_rp, '1', '9901', origen.rubro_presupuestal, '0875', '1750905.00', '', ''])
+  assert.deepEqual(hoja.getRow(3).values.slice(1), ['0010', '', '06072026', origen.descripcion, segunda.no_rp, '0003', '9901', origen.rubro_presupuestal, '0875', segunda.valor, 'P', 'A'])
+  await assert.rejects(() => crearExcelOP([origen, segunda], { ...datos, no_op: '9999999999' }), /rango/)
+})
 
 const completa = () => ({
   ...nuevaFilaRP({ origen: 'tercero:prueba', identificacion: '000123456', nombre: 'Persona de prueba', modalidad: 'SUEÑOS' }),

@@ -44,6 +44,14 @@ Prueba transaccional: `supabase db query --linked --file scripts/testing/test-el
 Esta migracion no elimina documentos existentes; el usuario debe confirmar
 cada documento individualmente desde la interfaz.
 
+## OP: archivo de cargue desde un RP aprobado
+
+En `/admin/cargue-documentos`, Contabilidad elige la convocatoria y abre **Órdenes de pago desde RP aprobados**. Solo se ofrecen RP aprobados por Presupuesto (incluidos los finalizados que conservan la aprobación). Cada preparación queda vinculada a un único RP y no modifica sus filas.
+
+Selecciona la fecha común, digita el primer No. OP (hasta 10 dígitos) y revisa el rango consecutivo de la vista previa. El SubConsecutivo OP es opcional; el SubConsecutivo RP se copia del origen o usa `1` si está vacío. Estado y Clase comienzan vacíos y se pueden completar por fila. Guarda la preparación y descarga `CargueInformacionOP.xlsx`; la fecha sale como `DDMMYYYY` y el Valor conserva dos decimales. Descargar no importa ni aprueba la orden en el sistema receptor. La existencia de los códigos de entidad, rubro y fuente se debe verificar en ese sistema.
+
+El rol Contabilidad debe estar asignado desde `/admin/usuarios-roles`; el servidor valida el acceso activo y el rol en los metadatos administrativos, no en los editables por el usuario.
+
 ## RP: registro presupuestal de 16 columnas
 
 Educacion crea RP en `/admin/cargue-documentos` despues de la aprobacion de

@@ -24,7 +24,8 @@ export const numeroOP = (inicio, indice) => {
   if (!partes || !Number.isInteger(indice) || indice < 0) return ''
   const consecutivo = Number(partes.consecutivo) + indice
   if (consecutivo > 9999999999) return ''
-  return `${partes.prefijo}${String(consecutivo).padStart(partes.consecutivo.length, '0')}`
+  const numero = `${partes.prefijo}${String(consecutivo).padStart(partes.consecutivo.length, '0')}`
+  return numero.length <= 30 ? numero : ''
 }
 
 export const crearExcelOP = async (origen, datos) => {

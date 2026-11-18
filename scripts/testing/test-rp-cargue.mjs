@@ -4,6 +4,7 @@ import ExcelJS from 'exceljs'
 import { CAMPOS_RP, contratoRP, descripcionAutomaticaRP, fechaFilaDesdeISO, fechaISODesdeFilaRP, formatearNumeroRP, modalidadesRP, nuevaFilaRP, validarDatosGeneralesRP, validarFilaRP, validacionesDocumentoRP, vistaPreviaNumeracionRP, fechaValidaRP, centavosRP } from '../../src/lib/rpCargue.js'
 import { crearExcelRP, descargarExcelRP } from '../../src/lib/exportarRP.js'
 import { crearExcelOP, numeroOP } from '../../src/lib/exportarOP.js'
+import { COLUMNAS_CONTABILIZACION, crearExcelContabilizacionObligaciones } from '../../src/lib/exportarContabilizacionObligaciones.js'
 
 test('El Excel OP conserva datos del RP, aplica el consecutivo y la fecha común y respeta los opcionales', async () => {
   const origen = {
@@ -34,6 +35,22 @@ test('El No. OP acepta prefijo institucional y aumenta solo el consecutivo final
   assert.equal(numeroOP('001249', 1), '001250')
   assert.equal(numeroOP('2026.ALC.01.001249', 9999999999), '')
   assert.equal(numeroOP('2026..01.001249', 0), '')
+  assert.equal(numeroOP(`${'A'.repeat(28)}.9`, 1), '')
+})
+
+test('Contabilización exporta obligaciones aprobadas y aplica tipo y cuentas comunes', async () => {
+  const filas = [
+    { id: 'a', tipo: 'OP', no_obligacion: '2026.ALC.01.001585', subconsecutivo: '1', clase: '', codigo_entidad: '9901', rubro_presupuestal: '2.3.2.02.02.009', fuente_financiacion: '0875' },
+    { id: 'b', tipo: 'OP', no_obligacion: '2026.ALC.01.001586', subconsecutivo: '1', clase: 'A', codigo_entidad: '9901', rubro_presupuestal: '2.3.2.02.02.009', fuente_financiacion: '0875' },
+  ]
+  const datos = { tipo: 'OP', cuenta_debito: '14150701', cuenta_credito: '24903701' }
+  const libro = new ExcelJS.Workbook()
+  await libro.xlsx.load(await crearExcelContabilizacionObligaciones(filas, datos))
+  const hoja = libro.getWorksheet('ContabilizacionObligaciones')
+  assert.deepEqual(hoja.getRow(1).values.slice(1), COLUMNAS_CONTABILIZACION.map(([, nombre]) => nombre))
+  assert.deepEqual(hoja.getRow(2).values.slice(1), ['OP', filas[0].no_obligacion, '1', '', '9901', '2.3.2.02.02.009', '0875', '14150701', '24903701'])
+  assert.deepEqual(hoja.getRow(3).values.slice(1), ['OP', filas[1].no_obligacion, '1', 'A', '9901', '2.3.2.02.02.009', '0875', '14150701', '24903701'])
+  await assert.rejects(() => crearExcelContabilizacionObligaciones(filas, { ...datos, cuenta_debito: '' }), /cuentas/)
 })
 
 const completa = () => ({

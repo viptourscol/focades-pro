@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import ExcelJS from 'exceljs'
 import { CAMPOS_RP, contratoRP, descripcionAutomaticaRP, fechaFilaDesdeISO, fechaISODesdeFilaRP, formatearNumeroRP, modalidadesRP, nuevaFilaRP, validarDatosGeneralesRP, validarFilaRP, validacionesDocumentoRP, vistaPreviaNumeracionRP, fechaValidaRP, centavosRP } from '../../src/lib/rpCargue.js'
 import { crearExcelRP, descargarExcelRP } from '../../src/lib/exportarRP.js'
-import { crearExcelOP } from '../../src/lib/exportarOP.js'
+import { crearExcelOP, numeroOP } from '../../src/lib/exportarOP.js'
 
 test('El Excel OP conserva datos del RP, aplica el consecutivo y la fecha común y respeta los opcionales', async () => {
   const origen = {
@@ -20,7 +20,20 @@ test('El Excel OP conserva datos del RP, aplica el consecutivo y la fecha común
     'Código de Entidad', 'Rubro Presupuestal', 'Fuente de Financiación', 'Valor', 'Estado', 'Clase'])
   assert.deepEqual(hoja.getRow(2).values.slice(1), ['0009', '', '06072026', origen.descripcion, origen.no_rp, '1', '9901', origen.rubro_presupuestal, '0875', '1750905.00', '', ''])
   assert.deepEqual(hoja.getRow(3).values.slice(1), ['0010', '', '06072026', origen.descripcion, segunda.no_rp, '0003', '9901', origen.rubro_presupuestal, '0875', segunda.valor, 'P', 'A'])
+  const libroConFormato = new ExcelJS.Workbook()
+  await libroConFormato.xlsx.load(await crearExcelOP([origen, segunda], { ...datos, no_op: '2026.ALC.01.001249' }))
+  assert.deepEqual(libroConFormato.getWorksheet('CargueInformacionOP').getRow(2).values.slice(1, 2), ['2026.ALC.01.001249'])
+  assert.deepEqual(libroConFormato.getWorksheet('CargueInformacionOP').getRow(3).values.slice(1, 2), ['2026.ALC.01.001250'])
   await assert.rejects(() => crearExcelOP([origen, segunda], { ...datos, no_op: '9999999999' }), /rango/)
+})
+
+test('El No. OP acepta prefijo institucional y aumenta solo el consecutivo final', () => {
+  assert.equal(numeroOP('2026.ALC.01.001249', 0), '2026.ALC.01.001249')
+  assert.equal(numeroOP('2026.ALC.01.001249', 1), '2026.ALC.01.001250')
+  assert.equal(numeroOP('2026.ALC-01.001249', 2), '2026.ALC-01.001251')
+  assert.equal(numeroOP('001249', 1), '001250')
+  assert.equal(numeroOP('2026.ALC.01.001249', 9999999999), '')
+  assert.equal(numeroOP('2026..01.001249', 0), '')
 })
 
 const completa = () => ({

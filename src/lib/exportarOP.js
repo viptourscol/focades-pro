@@ -9,9 +9,22 @@ export const COLUMNAS_OP = [
   ['estado', 'Estado'], ['clase', 'Clase'],
 ]
 
+const separarConsecutivoOP = (inicio) => {
+  if (typeof inicio !== 'string' || inicio.length > 30) return null
+  const coincidencia = inicio.match(/^(?:([A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*[.-])([0-9]{1,10})|([0-9]{1,10}))$/)
+  if (!coincidencia) return null
+  return {
+    prefijo: coincidencia[1] || '',
+    consecutivo: coincidencia[2] || coincidencia[3],
+  }
+}
+
 export const numeroOP = (inicio, indice) => {
-  if (!/^[0-9]{1,10}$/.test(inicio) || Number(inicio) + indice > 9999999999) return ''
-  return String(Number(inicio) + indice).padStart(inicio.length, '0')
+  const partes = separarConsecutivoOP(inicio)
+  if (!partes || !Number.isInteger(indice) || indice < 0) return ''
+  const consecutivo = Number(partes.consecutivo) + indice
+  if (consecutivo > 9999999999) return ''
+  return `${partes.prefijo}${String(consecutivo).padStart(partes.consecutivo.length, '0')}`
 }
 
 export const crearExcelOP = async (origen, datos) => {

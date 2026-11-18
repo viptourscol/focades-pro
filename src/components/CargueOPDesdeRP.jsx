@@ -137,14 +137,14 @@ function FormularioOP({ rp, convocatoriaId, onGuardado }) {
           <input className={control} type="date" value={datos.fecha} onChange={(e) => editar('fecha', e.target.value)} required disabled={ocupado} />
         </label>
         <label className="space-y-1 text-sm font-semibold text-slate-700"><span>No. OP inicial</span>
-          <input className={control} inputMode="numeric" pattern="[0-9]{1,10}" maxLength={10} value={datos.no_op} onChange={(e) => editar('no_op', e.target.value)} required disabled={ocupado} />
+          <input className={control} type="text" inputMode="text" pattern="([A-Za-z0-9]+([.-][A-Za-z0-9]+)*[.-])?[0-9]{1,10}" maxLength={30} title="Usa solo dígitos o un formato como 2026.ALC.01.001249" placeholder="2026.ALC.01.001249" value={datos.no_op} onChange={(e) => editar('no_op', e.target.value.trim())} required disabled={ocupado} />
         </label>
         <label className="space-y-1 text-sm font-semibold text-slate-700"><span>SubConsecutivo OP (opcional)</span>
           <input className={control} inputMode="numeric" pattern="[0-9]{0,4}" maxLength={4} value={datos.subconsecutivo} onChange={(e) => editar('subconsecutivo', e.target.value)} disabled={ocupado} />
         </label>
       </div>
       <p className="rounded-lg bg-slate-50 p-3 text-sm tabular-nums text-slate-700">
-        {origen.length} filas · {ultimo ? `OP ${datos.no_op} a ${ultimo}` : 'Ingresa un No. OP inicial cuyo rango no supere 10 dígitos'}
+        {origen.length} filas · {ultimo ? `OP ${datos.no_op} a ${ultimo}` : 'Ingresa un consecutivo válido, por ejemplo 2026.ALC.01.001249'}
         {fecha && ` · Fecha en Excel: ${fecha}`}
       </p>
       <div role="region" aria-label="Vista previa del cargue OP" tabIndex={0} className="max-h-96 overflow-auto rounded-xl border border-slate-200">

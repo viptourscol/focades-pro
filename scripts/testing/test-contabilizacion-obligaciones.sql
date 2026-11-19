@@ -11,6 +11,9 @@ DECLARE
   v_contabilizacion JSONB;
   v_opcionales JSONB;
   v_clases JSONB;
+  v_error BOOLEAN;
+  v_metadatos JSONB;
+  v_archivos JSONB;
 BEGIN
   SELECT u.id INTO v_contabilidad
   FROM auth.users u
@@ -35,6 +38,7 @@ BEGIN
     RAISE EXCEPTION 'No hay un RP aprobado con filas para probar la contabilización.';
   END IF;
 
+  SELECT raw_app_meta_data INTO v_metadatos FROM auth.users WHERE id = v_contabilidad;
   PERFORM set_config('request.jwt.claim.sub', v_contabilidad::TEXT, TRUE);
   PERFORM set_config('request.jwt.claims',
     jsonb_build_object('sub', v_contabilidad, 'role', 'authenticated')::TEXT, TRUE);
@@ -80,6 +84,13 @@ BEGIN
   SELECT COALESCE(jsonb_object_agg(f->>'id', '""'::JSONB), '{}'::JSONB)
   INTO v_clases
   FROM jsonb_array_elements(v_contabilizacion->'filas') AS filas(f);
+  v_error := FALSE;
+  BEGIN
+    PERFORM public.aprobar_contabilizacion_op(v_convocatoria, v_rp_id, NULL);
+  EXCEPTION WHEN raise_exception THEN
+    v_error := SQLERRM = 'Guarda la contabilización antes de aprobarla.';
+  END;
+  IF NOT v_error THEN RAISE EXCEPTION 'Aprobó contabilización sin guardar.'; END IF;
   v_editado_en := public.guardar_contabilizacion_op(
     v_convocatoria, v_rp_id, 'OP', '14150701', '24903701', v_clases, NULL
   );
@@ -91,7 +102,84 @@ BEGIN
   END IF;
 
   RESET ROLE;
+  UPDATE auth.users SET raw_app_meta_data = (COALESCE(raw_app_meta_data, '{}'::JSONB) - 'role')
+    || '{"roles":["admin_pagos"]}'::JSONB WHERE id = v_contabilidad;
+  SET LOCAL ROLE authenticated;
+  IF EXISTS (
+    SELECT 1 FROM jsonb_array_elements(public.listar_contabilizaciones_para_pagos(v_convocatoria)) f
+    WHERE f->>'rp_id' = v_rp_id::TEXT
+  ) THEN RAISE EXCEPTION 'Pagos vio un borrador en su bandeja.'; END IF;
+  v_error := FALSE;
+  BEGIN
+    PERFORM public.leer_archivos_aprobados_pagos(v_convocatoria, v_rp_id);
+  EXCEPTION WHEN raise_exception THEN
+    v_error := SQLERRM = 'El archivo no está aprobado para Pagos en esta convocatoria.';
+  END;
+  IF NOT v_error THEN RAISE EXCEPTION 'Pagos leyó un borrador por ID.'; END IF;
+  v_error := FALSE;
+  BEGIN
+    PERFORM public.aprobar_contabilizacion_op(v_convocatoria, v_rp_id, v_editado_en);
+  EXCEPTION WHEN insufficient_privilege THEN v_error := TRUE;
+  END;
+  IF NOT v_error THEN RAISE EXCEPTION 'Pagos aprobó contabilización.'; END IF;
+
+  RESET ROLE;
+  UPDATE auth.users SET raw_app_meta_data = v_metadatos WHERE id = v_contabilidad;
+  SET LOCAL ROLE authenticated;
+  v_error := FALSE;
+  BEGIN
+    PERFORM public.aprobar_contabilizacion_op(v_convocatoria, v_rp_id, v_editado_en - INTERVAL '1 second');
+  EXCEPTION WHEN raise_exception THEN
+    v_error := SQLERRM LIKE 'La contabilización cambió%';
+  END;
+  IF NOT v_error THEN RAISE EXCEPTION 'Aprobó versión desactualizada.'; END IF;
+  v_aprobacion := public.aprobar_contabilizacion_op(v_convocatoria, v_rp_id, v_editado_en);
+  IF v_aprobacion->>'estado' IS DISTINCT FROM 'aprobado'
+    OR public.leer_contabilizacion_op(v_convocatoria, v_rp_id)->>'estado' IS DISTINCT FROM 'aprobado' THEN
+    RAISE EXCEPTION 'No persistió la aprobación contable.';
+  END IF;
+  v_error := FALSE;
+  BEGIN
+    PERFORM public.guardar_contabilizacion_op(v_convocatoria, v_rp_id, 'OP', 'OTRA', '24903701', v_clases, v_editado_en);
+  EXCEPTION WHEN raise_exception THEN
+    v_error := SQLERRM = 'La contabilización aprobada no se puede modificar ni eliminar.';
+  END;
+  IF NOT v_error THEN RAISE EXCEPTION 'Modificó contabilización aprobada.'; END IF;
+
+  RESET ROLE;
+  UPDATE auth.users SET raw_app_meta_data = (COALESCE(raw_app_meta_data, '{}'::JSONB) - 'role')
+    || '{"roles":["admin_pagos"]}'::JSONB WHERE id = v_contabilidad;
+  SET LOCAL ROLE authenticated;
+  v_archivos := public.leer_archivos_aprobados_pagos(v_convocatoria, v_rp_id);
+  IF v_archivos->'contabilidad'->'filas' IS DISTINCT FROM v_contabilizacion->'filas'
+    OR v_archivos->'op'->'filas' IS DISTINCT FROM v_op->'filas'
+    OR v_archivos->'op'->'datos'->>'no_op' IS DISTINCT FROM '2026.ALC.01.001249' THEN
+    RAISE EXCEPTION 'Pagos no recibió ambos archivos aprobados intactos.';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM jsonb_array_elements(public.listar_contabilizaciones_para_pagos(v_convocatoria)) f
+    WHERE f->>'rp_id' = v_rp_id::TEXT
+  ) THEN RAISE EXCEPTION 'No apareció la aprobación en Pagos.'; END IF;
+  v_error := FALSE;
+  BEGIN
+    PERFORM public.leer_archivos_aprobados_pagos(gen_random_uuid(), v_rp_id);
+  EXCEPTION WHEN raise_exception THEN
+    v_error := SQLERRM = 'El archivo no está aprobado para Pagos en esta convocatoria.';
+  END;
+  IF NOT v_error THEN RAISE EXCEPTION 'Cruzó convocatorias al consultar archivos.'; END IF;
+  RESET ROLE;
+  UPDATE auth.users SET raw_app_meta_data = v_metadatos WHERE id = v_contabilidad;
+  PERFORM set_config('request.jwt.claim.sub', '', TRUE);
+  PERFORM set_config('request.jwt.claims', '{"role":"authenticated"}', TRUE);
+  SET LOCAL ROLE authenticated;
+  v_error := FALSE;
+  BEGIN
+    PERFORM public.listar_contabilizaciones_para_pagos(v_convocatoria);
+  EXCEPTION WHEN insufficient_privilege THEN v_error := TRUE;
+  END;
+  IF NOT v_error THEN RAISE EXCEPTION 'Un usuario sin rol accedió a Pagos.'; END IF;
+  RESET ROLE;
 END;
 $$;
-SELECT 'OK contabilización: bloqueo hasta aprobar OP, precarga y guardado. Todo revertido.' AS resultado;
+SELECT 'OK: OP, contabilización, aprobación, bloqueo, permisos y entrega de ambos archivos a Pagos. Todo revertido.' AS resultado;
 ROLLBACK;

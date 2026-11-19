@@ -3,6 +3,7 @@ import { AlertCircle, ArrowDownToLine, Check, History, List, Plus, Save, Search,
 import { supabase } from '../lib/supabase'
 import { CAMPOS_RP, FIJOS_RP, contratoRP, descripcionAutomaticaRP, fechaFilaDesdeISO, fechaISODesdeFilaRP, modalidadesRP, nuevaFilaRP, validarDatosGeneralesRP, validarFilaRP, validacionesDocumentoRP, vistaPreviaNumeracionRP } from '../lib/rpCargue'
 import { descargarExcelRP } from '../lib/exportarRP'
+import ActualizacionesRP, { AlertasActualizacionesRP } from './ActualizacionesRP'
 
 const claveFila = (fila) => fila.id ?? fila.origen
 const control = 'min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-100 disabled:text-slate-600'
@@ -34,6 +35,7 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
   const [filtro, setFiltro] = useState('')
   const [seleccion, setSeleccion] = useState([])
   const [ocupado, setOcupado] = useState(true)
+  const [incorporando, setIncorporando] = useState(false)
   const [error, setError] = useState(null)
   const [exito, setExito] = useState(null)
   const [tabla, setTabla] = useState(false)
@@ -58,10 +60,14 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
       setError(null)
       if (fallo) throw fallo
       if (!data || !Array.isArray(data.filas) || !Array.isArray(data.historial)) throw new Error('No se pudo leer el documento RP completo.')
-      const { data: fuentes, error: falloFuentes } = await supabase.from('portal_documentos_cargue')
-        .select('id,creado_en,cantidad_registros').eq('tipo_documento', 'terceros').eq('convocatoria_id', data.convocatoria_id)
-        .in('estado', ['aprobado', 'finalizado']).not('aprobado_por', 'is', null).order('creado_en', { ascending: false })
-      if (falloFuentes) throw falloFuentes
+      let fuentes = []
+      if (data.origen_rp !== 'actualizaciones') {
+        const { data: lista, error: falloFuentes } = await supabase.from('portal_documentos_cargue')
+          .select('id,creado_en,cantidad_registros').eq('tipo_documento', 'terceros').eq('convocatoria_id', data.convocatoria_id)
+          .in('estado', ['aprobado', 'finalizado']).not('aprobado_por', 'is', null).order('creado_en', { ascending: false })
+        if (falloFuentes) throw falloFuentes
+        fuentes = lista || []
+      }
       const primeraFila = data.filas[0] || {}
       const fechaComun = data.filas.length > 0 && data.filas.every((fila) => fila.fecha === primeraFila.fecha)
         ? fechaISODesdeFilaRP(primeraFila.fecha) : ''
@@ -86,7 +92,10 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
       setGuardadas(JSON.stringify(filasConDatos))
       setDatosGenerales(generales)
       const generalesGuardadosDesdeServidor = { ...generales }
-      if (!Object.hasOwn(datosPrevios, 'fecha_rp')) delete generalesGuardadosDesdeServidor.fecha_rp
+      if (!Object.hasOwn(datosPrevios, 'fecha_rp') &&
+        !(data.origen_rp === 'actualizaciones' && userRole === 'admin_educacion' && data.estado === 'borrador')) {
+        delete generalesGuardadosDesdeServidor.fecha_rp
+      }
       setGeneralesGuardados(JSON.stringify(generalesGuardadosDesdeServidor))
       setTercerosId(data.terceros_id || '')
       setOpciones(fuentes)
@@ -94,19 +103,19 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
       setSeleccion([])
       setPrevia(null)
     }).catch((e) => setError(e.message)).finally(() => setOcupado(false))
-  }, [documentoId])
+  }, [documentoId, userRole])
 
   useEffect(() => { cargar() }, [cargar])
   useEffect(() => {
-    onCambiosPendientes?.(pendiente)
+    onCambiosPendientes?.(pendiente || incorporando)
     return () => onCambiosPendientes?.(false)
-  }, [pendiente, onCambiosPendientes])
+  }, [pendiente, incorporando, onCambiosPendientes])
   useEffect(() => {
-    if (!pendiente) return
+    if (!pendiente && !incorporando) return
     const avisar = (e) => { e.preventDefault(); e.returnValue = '' }
     window.addEventListener('beforeunload', avisar)
     return () => window.removeEventListener('beforeunload', avisar)
-  }, [pendiente])
+  }, [pendiente, incorporando])
 
   const ejecutar = async (accion) => {
     setOcupado(true); setError(null); setExito(null)
@@ -250,7 +259,13 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
     </header>
     {error && <p role="alert" className="flex items-start gap-2 whitespace-pre-wrap rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"><AlertCircle size={18} className="shrink-0" />{error}</p>}
     {exito && <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{exito}</p>}
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+    {documento.origen_rp === 'actualizaciones' && <>
+      <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">Origen: actualizaciones aprobadas · período {documento.ventana_nombre || documento.ventana_id}. Presupuesto debe verificar los terceros y códigos en el sistema externo.</p>
+      <AlertasActualizacionesRP rpId={documentoId} />
+      {educacion && <ActualizacionesRP documento={{ ...documento, id: documentoId }} pendiente={pendiente} ocupadoEditor={ocupado} onIncorporado={cargar}
+        onProcesando={(valor) => { setIncorporando(valor); setOcupado(valor) }} />}
+    </>}
+    {documento.origen_rp !== 'actualizaciones' && <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
       <label htmlFor="rp-origen" className="text-xs font-bold uppercase tracking-wide text-slate-600">Documento TERCEROS aprobado de origen</label>
       <div className="mt-2 flex flex-wrap gap-2"><select id="rp-origen" className={`${control} !w-auto min-w-0 flex-1`} value={tercerosId} disabled={!educacion || ocupado || Boolean(documento.terceros_id)}
         onChange={(e) => { setTercerosId(e.target.value); setPrevia(null) }}>
@@ -258,8 +273,8 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
         {opciones.map((o) => <option key={o.id} value={o.id}>{o.id.slice(0, 8)} · {new Date(o.creado_en).toLocaleDateString('es-CO')} · {o.cantidad_registros} personas</option>)}
       </select>{educacion && <button className={boton} disabled={ocupado || !tercerosId} onClick={incorporar}><Plus size={16} />Incorporar personas</button>}</div>
       <p className="mt-2 text-xs leading-5 text-slate-500">Se copian los datos, no se modifican los perfiles originales. Los importes se digitan y confirman, sin calcular salarios mínimos. La búsqueda adicional permite otras convocatorias; Presupuesto verifica su existencia y los códigos en el programa externo.</p>
-    </div>
-    {educacion && <div className="space-y-3 rounded-xl border border-slate-200 p-4">
+    </div>}
+    {educacion && documento.origen_rp !== 'actualizaciones' && <div className="space-y-3 rounded-xl border border-slate-200 p-4">
       <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); buscar() }}>
         <label className="min-w-0 flex-1"><span className="mb-1 block text-xs font-semibold text-slate-600">Agregar desde la base de datos (todas las convocatorias)</span>
           <input className={control} value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Nombre o identificación, mínimo 3 caracteres" /></label>

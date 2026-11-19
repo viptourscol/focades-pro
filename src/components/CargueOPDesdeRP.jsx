@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { COLUMNAS_OP, descargarExcelOP, numeroOP } from '../lib/exportarOP'
 import { fechaFilaDesdeISO } from '../lib/rpCargue'
 import CargueContabilizacionObligaciones from './CargueContabilizacionObligaciones'
+import { AlertasActualizacionesRP } from './ActualizacionesRP'
 
 const control = 'min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 focus-visible:outline-emerald-700 disabled:opacity-60'
 const boton = 'inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold disabled:opacity-50'
@@ -104,8 +105,8 @@ export default function CargueOPDesdeRP({ convocatoriaId }) {
             </div>
           </div>}
         </>}
-        {rp && <FormularioOP key={rp.id} rp={rp} convocatoriaId={convocatoriaId}
-          onActualizado={(cambios) => setLista((actual) => actual?.map((item) => item.id === rp.id ? { ...item, ...cambios, preparado: true } : item) ?? null)} />}
+        {rp && <><AlertasActualizacionesRP key={rp.id} rpId={rp.id} /><FormularioOP key={rp.id} rp={rp} convocatoriaId={convocatoriaId}
+          onActualizado={(cambios) => setLista((actual) => actual?.map((item) => item.id === rp.id ? { ...item, ...cambios, preparado: true } : item) ?? null)} /></>}
       </div>
     </section>
   )

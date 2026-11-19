@@ -60,7 +60,46 @@ El rol Contabilidad debe estar asignado desde `/admin/usuarios-roles`; el servid
 
 ## RP: registro presupuestal de 16 columnas
 
-Educacion crea RP en `/admin/cargue-documentos` despues de la aprobacion de
+En `/admin/cargue-documentos`, Educación puede crear RP desde dos orígenes:
+TERCEROS aprobados para nuevos beneficiarios o actualizaciones semestrales
+aprobadas para beneficiarios existentes. Ambos continúan por la misma revisión
+de Presupuesto y el mismo proceso OP, contabilización y Pagos.
+
+### RP desde actualizaciones semestrales
+
+Selecciona la convocatoria de origen, **Nuevo Documento**, el origen
+**Actualizaciones de beneficiarios** y el período de actualización. El RP
+conserva esa convocatoria y ventana. El editor presenta las actualizaciones
+aprobadas de beneficiarios activos y no eliminados; usa la convocatoria del
+beneficiario y, si falta, la convocatoria de su inscripción vinculada. Si hay
+varias actualizaciones aprobadas de una misma persona y ventana, se elige la
+más reciente de forma estable. Las identificaciones o nombres inválidos se
+muestran como incidencias y deben corregirse en el perfil.
+
+Educación selecciona las personas y captura un importe para Sueños y otro para
+Mérito. Se precargan únicamente en las filas nuevas, con Liquidación igual a
+Valor, y cada importe debe confirmarse individualmente. Una modalidad no
+reconocida se incorpora sin importe para completarlo manualmente. El sistema no
+calcula salarios mínimos ni usa importes de pagos anteriores. Para incorporar,
+primero guarda o descarta cualquier cambio pendiente del editor.
+
+La lista identifica RP anteriores para la misma persona y ventana, incluidos los
+rechazados. Para incorporarlos nuevamente se exige confirmación; el servidor
+revalida la elegibilidad y los documentos y estados advertidos. Cada fila
+conserva su actualización, beneficiario y ventana. Si cambia el estado de la
+actualización, se registra el RP en la bitácora y se muestra una alerta a
+Educación, Presupuesto, Contabilidad y Pagos; no se bloquea el proceso ni se
+modifican los archivos aprobados. No crear TERCEROS no certifica que exista en
+el sistema externo: Presupuesto debe verificar el tercero y los códigos.
+
+Migración: `supabase/migrations/20261119110000_rp_actualizaciones_semestrales.sql`.
+La regresión `scripts/testing/test-rp-actualizaciones.sql` debe ejecutarse
+después de la migración dentro de una transacción con reversión; utiliza datos
+sintéticos y cubre la continuidad hasta Pagos.
+
+### RP desde TERCEROS
+
+Educacion crea RP despues de la aprobacion de
 TERCEROS de la misma convocatoria. En el editor selecciona el documento aprobado
 y pulsa **Incorporar personas**. Se conserva `rp_terceros_id` y una copia de la
 identidad, nombre y modalidad disponible. No se vuelve a filtrar por `admitido`.

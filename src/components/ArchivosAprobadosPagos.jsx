@@ -3,6 +3,7 @@ import { Download, FileCheck2, RefreshCw, Search } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { descargarExcelOP } from '../lib/exportarOP'
 import { descargarExcelContabilizacionObligaciones } from '../lib/exportarContabilizacionObligaciones'
+import { AlertasActualizacionesRP } from './ActualizacionesRP'
 
 const boton = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50'
 
@@ -39,6 +40,12 @@ export default function ArchivosAprobadosPagos({ convocatoriaId }) {
       if (fallo) throw fallo
       if (!data?.op?.datos || !data?.contabilidad?.datos) throw new Error('No se recibieron los archivos aprobados completos.')
       setSeleccion({ ...data, rpId })
+      if (tipo) {
+        const { data: alertas, error: falloAlertas } = await supabase.rpc('alertas_actualizaciones_rp', { p_rp_id: rpId })
+        if (falloAlertas) throw falloAlertas
+        if (!Array.isArray(alertas)) throw new Error('No se pudo verificar si hay cambios en las actualizaciones.')
+        if (alertas.length && !window.confirm(`Hay ${alertas.length} cambios de estado en las actualizaciones del RP. Consulta el detalle de la alerta antes de continuar. ¿Descargar de todos modos?`)) return
+      }
       if (tipo === 'op') await descargarExcelOP(data.op.filas, data.op.datos)
       if (tipo === 'contabilidad') await descargarExcelContabilizacionObligaciones(data.contabilidad.filas, data.contabilidad.datos)
     } catch (fallo) {
@@ -92,6 +99,7 @@ export default function ArchivosAprobadosPagos({ convocatoriaId }) {
         </div>}
       </>}
       {seleccion && <div className="space-y-3 border-t border-slate-200 pt-4">
+        <AlertasActualizacionesRP key={seleccion.rpId} rpId={seleccion.rpId} />
         <h3 className="font-bold text-slate-900">Consulta OP {seleccion.op.datos.no_op} · Solo lectura</h3>
         <p className="text-xs text-slate-600">Fecha OP: {seleccion.op.datos.fecha} · Débito: {seleccion.contabilidad.datos.cuenta_debito} · Crédito: {seleccion.contabilidad.datos.cuenta_credito}</p>
         <div role="region" aria-label="Obligaciones aprobadas para Pagos" tabIndex={0} className="max-h-96 overflow-auto">

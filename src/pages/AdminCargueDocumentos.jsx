@@ -39,6 +39,9 @@ const AdminCargueDocumentos = () => {
   const [documentoTipo, setDocumentoTipo] = useState(null)
   const [creando, setCreando] = useState(false)
   const [errorCreacion, setErrorCreacion] = useState(null)
+  const [origenRP, setOrigenRP] = useState('terceros')
+  const [ventanas, setVentanas] = useState([])
+  const [ventanaId, setVentanaId] = useState('')
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState(null)
   const [activeTab, setActiveTab] = useState('editor') // 'editor' | 'validaciones' | 'historial'
@@ -47,6 +50,18 @@ const AdminCargueDocumentos = () => {
   useEffect(() => {
     cargarUsuario()
   }, [])
+
+  useEffect(() => {
+    if (documentoSeleccionado !== 'nuevo' || userRole !== 'admin_educacion') return
+    let activo = true
+    supabase.from('portal_ventanas_actualizacion').select('id,nombre,fecha_inicio,fecha_fin')
+      .order('fecha_inicio', { ascending: false }).then(({ data, error: fallo }) => {
+        if (!activo) return
+        if (fallo) setErrorCreacion(`No se pudieron consultar los períodos de actualización: ${fallo.message}`)
+        else setVentanas(data || [])
+      })
+    return () => { activo = false }
+  }, [documentoSeleccionado, userRole])
 
   useEffect(() => {
     let activo = true
@@ -110,8 +125,11 @@ const AdminCargueDocumentos = () => {
   }
 
   const crearDocumento = async (tipo) => {
-    // RP es Registro Presupuestal y requiere la aprobación previa de TERCEROS.
-    if (tipo === 'rp') {
+    if (tipo === 'rp' && origenRP === 'actualizaciones' && !ventanaId) {
+      setErrorCreacion('Selecciona el período de actualización antes de crear el RP.')
+      return
+    }
+    if (tipo === 'rp' && origenRP === 'terceros') {
       try {
         setErrorCreacion(null)
         const { data, error: errorRequisito } = await supabase.from('portal_documentos_cargue')
@@ -133,11 +151,11 @@ const AdminCargueDocumentos = () => {
     try {
       setCreando(true)
       setErrorCreacion(null)
-      const { data: nuevoId, error: errorRpc } = await supabase.rpc('fn_crear_documento_cargue', {
-        p_convocatoria_id: convocatoriaId,
-        p_tipo_documento: tipo,
-        p_cantidad_registros: 0
-      })
+      const { data: nuevoId, error: errorRpc } = tipo === 'rp' && origenRP === 'actualizaciones'
+        ? await supabase.rpc('crear_rp_actualizaciones', { p_convocatoria_id: convocatoriaId, p_ventana_id: Number(ventanaId) })
+        : await supabase.rpc('fn_crear_documento_cargue', {
+          p_convocatoria_id: convocatoriaId, p_tipo_documento: tipo, p_cantidad_registros: 0
+        })
       if (errorRpc) throw errorRpc
 
       nuevoDocumentoId = nuevoId
@@ -268,7 +286,22 @@ const AdminCargueDocumentos = () => {
         )}
         {documentoSeleccionado === 'nuevo' ? (
           // Selector de tipo de documento
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-5">
+            {userRole === 'admin_educacion' && <fieldset className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5">
+              <legend className="px-1 text-sm font-bold text-emerald-900">Origen para un nuevo RP</legend>
+              <div className="flex flex-wrap gap-5 text-sm font-semibold text-slate-800">
+                <label className="flex items-center gap-2"><input type="radio" name="origen-rp" checked={origenRP === 'terceros'} onChange={() => setOrigenRP('terceros')} /> TERCEROS aprobados</label>
+                <label className="flex items-center gap-2"><input type="radio" name="origen-rp" checked={origenRP === 'actualizaciones'} onChange={() => setOrigenRP('actualizaciones')} /> Actualizaciones de beneficiarios</label>
+              </div>
+              {origenRP === 'actualizaciones' && <label className="block max-w-xl text-xs font-bold text-slate-700">Período de actualización
+                <select className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm" value={ventanaId} onChange={(e) => setVentanaId(e.target.value)}>
+                  <option value="">Seleccionar período…</option>
+                  {ventanas.map((ventana) => <option key={ventana.id} value={ventana.id}>{ventana.nombre} · {new Date(ventana.fecha_inicio).toLocaleDateString('es-CO')}–{new Date(ventana.fecha_fin).toLocaleDateString('es-CO')}</option>)}
+                </select>
+              </label>}
+              <p className="text-xs leading-5 text-slate-600">Convocatoria: <strong>{convocatorias.find((c) => c.id === convocatoriaId)?.nombre || 'Sin seleccionar'}</strong>. Las actualizaciones aprobadas no requieren un nuevo cargue TERCEROS; Presupuesto deberá verificar los terceros en el sistema externo.</p>
+            </fieldset>}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {['terceros', 'rp', 'op', 'contabilidad', 'siafe'].map((tipo) => {
               // Solo mostrar tipos permitidos para el rol
               const tiposPermitidos = {
@@ -307,6 +340,7 @@ const AdminCargueDocumentos = () => {
                 </button>
               )
             })}
+            </div>
           </div>
         ) : (
           // Editor de documento
@@ -416,7 +450,7 @@ const AdminCargueDocumentos = () => {
                     <li>Descargar no aprueba: usa Aprobar o Rechazar.</li>
                     <li>La aprobación habilita RP de esta convocatoria.</li>
                   </ul> : documentoTipo === 'rp' ? <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
-                    <li>Selecciona el documento TERCEROS aprobado de origen.</li>
+                    <li>Selecciona TERCEROS aprobados o actualizaciones aprobadas como origen.</li>
                     <li>Educación digita y confirma el valor por persona.</li>
                     <li>Presupuesto completa sus campos durante la revisión.</li>
                     <li>Los consecutivos requieren vista previa y confirmación.</li>

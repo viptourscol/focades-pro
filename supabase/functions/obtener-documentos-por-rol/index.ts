@@ -74,15 +74,14 @@ serve(async (req: Request) => {
       }
     }
 
-    const { convocatoria_id, tipo_documento, tipo_filtro } = params;
+    const { convocatoria_id, todas_convocatorias, tipo_documento, tipo_filtro } = params;
 
     console.log("📋 Params received:", { convocatoria_id, tipo_documento, tipo_filtro });
 
-    // Validar inputs - solo convocatoria_id es requerido
-    if (!convocatoria_id) {
+    if ((!convocatoria_id && todas_convocatorias !== true) || (convocatoria_id && todas_convocatorias === true)) {
       return new Response(
         JSON.stringify({
-          error: "Missing required parameter: convocatoria_id",
+          error: "Indique convocatoria_id o todas_convocatorias: true, no ambos",
           received: params
         }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -123,6 +122,7 @@ serve(async (req: Request) => {
       .select(
         `
       id, 
+      convocatoria_id,
       tipo_documento, 
       estado, 
       version, 
@@ -136,9 +136,13 @@ serve(async (req: Request) => {
       comentarios_rechazo
     `
       )
-      .eq("convocatoria_id", convocatoria_id)
       .in("tipo_documento", tipos_permitidos)
-      .order("creado_en", { ascending: false });
+      .order("creado_en", { ascending: false })
+      .order("id", { ascending: false });
+
+    if (convocatoria_id) {
+      query = query.eq("convocatoria_id", convocatoria_id);
+    }
 
     // Aplicar filtros adicionales
     if (tipo_filtro) {
@@ -166,7 +170,8 @@ serve(async (req: Request) => {
       JSON.stringify({
         success: true,
         rol,
-        convocatoria_id,
+        convocatoria_id: convocatoria_id || null,
+        todas_convocatorias: todas_convocatorias === true,
         documentos_encontrados: documentos?.length || 0,
         documentos: documentos || [],
       }),

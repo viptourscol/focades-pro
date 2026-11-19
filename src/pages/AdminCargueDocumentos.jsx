@@ -36,6 +36,7 @@ const AdminCargueDocumentos = () => {
   const [errorDetalle, setErrorDetalle] = useState(null)
   const [convocatorias, setConvocatorias] = useState([])
   const [convocatoriaId, setConvocatoriaId] = useState('')
+  const [convocatoriaCreacionId, setConvocatoriaCreacionId] = useState('')
   const [documentoTipo, setDocumentoTipo] = useState(null)
   const [creando, setCreando] = useState(false)
   const [errorCreacion, setErrorCreacion] = useState(null)
@@ -113,9 +114,10 @@ const AdminCargueDocumentos = () => {
         .from('convocatorias')
         .select('id, nombre, anio')
         .order('anio', { ascending: false })
+        .order('nombre', { ascending: false })
+        .order('id')
       if (convError) throw convError
       setConvocatorias(listaConvocatorias || [])
-      if (listaConvocatorias?.[0]) setConvocatoriaId(listaConvocatorias[0].id)
 
     } catch (err) {
       setError(err.message)
@@ -125,6 +127,10 @@ const AdminCargueDocumentos = () => {
   }
 
   const crearDocumento = async (tipo) => {
+    if (!convocatoriaCreacionId) {
+      setErrorCreacion('Selecciona la convocatoria del documento antes de crearlo.')
+      return
+    }
     if (tipo === 'rp' && origenRP === 'actualizaciones' && !ventanaId) {
       setErrorCreacion('Selecciona el período de actualización antes de crear el RP.')
       return
@@ -133,7 +139,7 @@ const AdminCargueDocumentos = () => {
       try {
         setErrorCreacion(null)
         const { data, error: errorRequisito } = await supabase.from('portal_documentos_cargue')
-          .select('id').eq('convocatoria_id', convocatoriaId).eq('tipo_documento', 'terceros')
+          .select('id').eq('convocatoria_id', convocatoriaCreacionId).eq('tipo_documento', 'terceros')
           .in('estado', ['aprobado', 'finalizado']).not('aprobado_por', 'is', null).limit(1)
         if (errorRequisito) throw errorRequisito
         if (!data?.length) throw new Error('Presupuesto debe aprobar un documento TERCEROS de esta convocatoria antes de crear RP.')
@@ -152,9 +158,9 @@ const AdminCargueDocumentos = () => {
       setCreando(true)
       setErrorCreacion(null)
       const { data: nuevoId, error: errorRpc } = tipo === 'rp' && origenRP === 'actualizaciones'
-        ? await supabase.rpc('crear_rp_actualizaciones', { p_convocatoria_id: convocatoriaId, p_ventana_id: Number(ventanaId) })
+        ? await supabase.rpc('crear_rp_actualizaciones', { p_convocatoria_id: convocatoriaCreacionId, p_ventana_id: Number(ventanaId) })
         : await supabase.rpc('fn_crear_documento_cargue', {
-          p_convocatoria_id: convocatoriaId, p_tipo_documento: tipo, p_cantidad_registros: 0
+          p_convocatoria_id: convocatoriaCreacionId, p_tipo_documento: tipo, p_cantidad_registros: 0
         })
       if (errorRpc) throw errorRpc
 
@@ -206,10 +212,10 @@ const AdminCargueDocumentos = () => {
               <p className="mt-2 text-sm leading-6 text-slate-500">Información organizada, revisión trazable y continuidad del proceso.</p>
             </div>
             <div className="w-full sm:w-72">
-              <label htmlFor="select-convocatoria" className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500"><CalendarDays size={13} aria-hidden="true" />Convocatoria activa en la vista</label>
+              <label htmlFor="select-convocatoria" className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500"><CalendarDays size={13} aria-hidden="true" />Filtrar bandeja por convocatoria</label>
               <select id="select-convocatoria" value={convocatoriaId} onChange={(e) => setConvocatoriaId(e.target.value)}
                 className="min-h-12 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none transition focus-visible:border-emerald-600 focus-visible:ring-2 focus-visible:ring-emerald-100">
-                <option value="">Seleccionar convocatoria…</option>
+                <option value="">Todas las convocatorias</option>
                 {convocatorias.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
             </div>
@@ -219,25 +225,23 @@ const AdminCargueDocumentos = () => {
           <DashboardPorRol userRole={userRole} />
           {convocatoriaId && userRole === 'admin_contabilidad' && <CargueOPDesdeRP key={convocatoriaId} convocatoriaId={convocatoriaId} />}
           {convocatoriaId && userRole === 'admin_pagos' && <ArchivosAprobadosPagos key={convocatoriaId} convocatoriaId={convocatoriaId} />}
-          {convocatoriaId ? (
-            <DocumentosCargueIndex
-              key={convocatoriaId}
+          {!convocatoriaId && ['admin_contabilidad', 'admin_pagos'].includes(userRole) && <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">La bandeja muestra todas las convocatorias. Selecciona una convocatoria en el filtro superior para consultar los RP aprobados y sus archivos de Contabilidad o Pagos.</p>}
+          <DocumentosCargueIndex
+              key={convocatoriaId || 'todas'}
               onSelectDocumento={(id, tipo) => {
                 setDocumentoDetalle(null)
                 setErrorDetalle(null)
+                if (id === 'nuevo') {
+                  setConvocatoriaCreacionId(convocatoriaId)
+                  setErrorCreacion(null)
+                }
                 setDocumentoTipo(tipo)
                 setDocumentoSeleccionado(id)
               }}
               userRole={userRole}
               convocatoriaId={convocatoriaId}
-            />
-          ) : (
-            <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
-              <CalendarDays size={28} className="text-slate-400" aria-hidden="true" />
-              <h2 className="font-bold text-slate-800">Selecciona una convocatoria</h2>
-              <p className="text-sm text-slate-500">Usa el selector superior para consultar sus documentos y estados.</p>
-            </div>
-          )}
+              convocatorias={convocatorias}
+          />
         </main>
       </div>
     )
@@ -287,6 +291,13 @@ const AdminCargueDocumentos = () => {
         {documentoSeleccionado === 'nuevo' ? (
           // Selector de tipo de documento
           <div className="space-y-5">
+            {!(userRole === 'admin_educacion' && origenRP === 'actualizaciones') && <label className="block max-w-xl text-xs font-bold text-slate-700">Convocatoria del documento
+              <select className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm" value={convocatoriaCreacionId}
+                disabled={creando} onChange={(e) => { setConvocatoriaCreacionId(e.target.value); setErrorCreacion(null) }}>
+                <option value="">Seleccionar convocatoria…</option>
+                {convocatorias.map((convocatoria) => <option key={convocatoria.id} value={convocatoria.id}>{convocatoria.nombre}</option>)}
+              </select>
+            </label>}
             {userRole === 'admin_educacion' && <fieldset className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5">
               <legend className="px-1 text-sm font-bold text-emerald-900">Origen para un nuevo RP</legend>
               <div className="flex flex-wrap gap-5 text-sm font-semibold text-slate-800">
@@ -300,15 +311,15 @@ const AdminCargueDocumentos = () => {
                 </select>
               </label>
                 <label className="block text-xs font-bold text-slate-700">Convocatoria de los beneficiarios
-                  <select className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm disabled:bg-slate-100" value={convocatoriaId}
-                    disabled={!ventanaId || creando} onChange={(e) => { setConvocatoriaId(e.target.value); setErrorCreacion(null) }}>
+                  <select className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm disabled:bg-slate-100" value={convocatoriaCreacionId}
+                    disabled={!ventanaId || creando} onChange={(e) => { setConvocatoriaCreacionId(e.target.value); setErrorCreacion(null) }}>
                     <option value="">Seleccionar convocatoria…</option>
                     {convocatorias.map((convocatoria) => <option key={convocatoria.id} value={convocatoria.id}>{convocatoria.nombre}</option>)}
                   </select>
                 </label>
-                <p className="text-xs leading-5 text-slate-600 sm:col-span-2">El período y la convocatoria son independientes: puedes seleccionar, por ejemplo, actualizaciones de 2026-2 para beneficiarios de una convocatoria anterior. Al volver, la bandeja mostrará la convocatoria elegida.</p>
+                <p className="text-xs leading-5 text-slate-600 sm:col-span-2">El período y la convocatoria son independientes: puedes seleccionar, por ejemplo, actualizaciones de 2026-2 para beneficiarios de una convocatoria anterior. Esta selección no cambia el filtro de la bandeja.</p>
               </div>}
-              <p className="text-xs leading-5 text-slate-600">Convocatoria: <strong>{convocatorias.find((c) => c.id === convocatoriaId)?.nombre || 'Sin seleccionar'}</strong>. Las actualizaciones aprobadas no requieren un nuevo cargue TERCEROS; Presupuesto deberá verificar los terceros en el sistema externo.</p>
+              <p className="text-xs leading-5 text-slate-600">Convocatoria: <strong>{convocatorias.find((c) => c.id === convocatoriaCreacionId)?.nombre || 'Sin seleccionar'}</strong>. Las actualizaciones aprobadas no requieren un nuevo cargue TERCEROS; Presupuesto deberá verificar los terceros en el sistema externo.</p>
             </fieldset>}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {['terceros', 'rp', 'op', 'contabilidad', 'siafe'].map((tipo) => {
@@ -340,7 +351,7 @@ const AdminCargueDocumentos = () => {
                 <button
                   key={tipo}
                   onClick={() => crearDocumento(tipo)}
-                  disabled={creando || !convocatoriaId || (tipo === 'rp' && origenRP === 'actualizaciones' && !ventanaId)}
+                  disabled={creando || !convocatoriaCreacionId || (tipo === 'rp' && origenRP === 'actualizaciones' && !ventanaId)}
                   className="rounded-2xl border border-slate-200 bg-white p-6 text-left transition hover:border-emerald-700 hover:shadow-sm focus-visible:outline-emerald-700 disabled:opacity-50"
                 >
                   <span className="mb-4 inline-flex rounded-xl bg-emerald-50 p-3 text-emerald-800"><Icono size={26} aria-hidden="true" /></span>

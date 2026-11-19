@@ -19,7 +19,9 @@ const documentos = [
   { id: 'tercero-enviado', convocatoria_id: '2026', tipo_documento: 'terceros', estado: 'enviado_para_revision' },
   { id: 'rp-2026', convocatoria_id: '2026', tipo_documento: 'rp', estado: 'borrador' },
   { id: 'op-2026', convocatoria_id: '2026', tipo_documento: 'op', estado: 'borrador' },
-  { id: 'tercero-2025', convocatoria_id: '2025', tipo_documento: 'terceros', estado: 'aprobado' }
+  { id: 'tercero-2025', convocatoria_id: '2025', tipo_documento: 'terceros', estado: 'aprobado' },
+  { id: 'rp-2022-borrador', convocatoria_id: '2022', tipo_documento: 'rp', estado: 'borrador' },
+  { id: 'rp-2022-revision', convocatoria_id: '2022', tipo_documento: 'rp', estado: 'enviado_para_revision' }
 ]
 
 const createClient = (_url, _key, opciones) => {
@@ -87,11 +89,42 @@ test('conserva filtros opcionales sin ampliar tipos permitidos', async () => {
   assert.deepEqual((await prohibido.json()).documentos, [])
 })
 
+test('todas las convocatorias incluye borradores y revisiones anteriores sin cambiar el alcance por rol', async () => {
+  const respuesta = await solicitar('presupuesto', { todas_convocatorias: true })
+  assert.equal(respuesta.status, 200)
+  const datos = await respuesta.json()
+  assert.equal(datos.todas_convocatorias, true)
+  assert.equal(datos.convocatoria_id, null)
+  assert.equal(datos.documentos_encontrados, 5)
+  assert.deepEqual(datos.documentos.map((fila) => [fila.id, fila.convocatoria_id]), [
+    ['tercero-enviado', '2026'], ['rp-2026', '2026'], ['tercero-2025', '2025'],
+    ['rp-2022-borrador', '2022'], ['rp-2022-revision', '2022']
+  ])
+  const contabilidad = await solicitar('contabilidad', { todas_convocatorias: true })
+  assert.deepEqual((await contabilidad.json()).documentos.map((fila) => fila.id), ['op-2026'])
+  const filtrado = await solicitar('presupuesto', { todas_convocatorias: true, tipo_filtro: 'rp' })
+  assert.deepEqual((await filtrado.json()).documentos.map((fila) => fila.id), ['rp-2026', 'rp-2022-borrador', 'rp-2022-revision'])
+})
+
+test('alternar entre todas y una convocatoria no mezcla los resultados ni oculta documentos de otras solicitudes', async () => {
+  const [todas, actual, anterior] = await Promise.all([
+    solicitar('educacion', { todas_convocatorias: true }),
+    solicitar('educacion', { convocatoria_id: '2026' }),
+    solicitar('educacion', { convocatoria_id: '2022' })
+  ])
+  assert.equal((await todas.json()).documentos.length, 6)
+  assert.deepEqual((await actual.json()).documentos.map((fila) => fila.id), ['tercero-enviado', 'rp-2026', 'op-2026'])
+  assert.deepEqual((await anterior.json()).documentos.map((fila) => fila.id), ['rp-2022-borrador', 'rp-2022-revision'])
+})
+
 test('sin sesion, token invalido, rol ausente y convocatoria ausente son errores explicitos', async () => {
   assert.equal((await solicitar()).status, 401)
   assert.equal((await solicitar('invalido')).status, 401)
   assert.equal((await solicitar('sin_rol')).status, 403)
   assert.equal((await solicitar('presupuesto', {})).status, 400)
+  assert.equal((await solicitar('presupuesto', { todas_convocatorias: 'true' })).status, 400)
+  assert.equal((await solicitar('presupuesto', { todas_convocatorias: true, convocatoria_id: '2026' })).status, 400)
+  assert.equal((await solicitar('sin_rol', { todas_convocatorias: true })).status, 403)
 })
 
 test('un fallo de base de datos no se presenta como una lista vacia exitosa', async () => {

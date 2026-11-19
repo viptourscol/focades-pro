@@ -4,19 +4,29 @@ Actualizado: 2026-11-13.
 
 ## Bandeja de trabajo
 
-La pantalla `/admin/cargue-documentos` organiza la convocatoria en el encabezado,
+La pantalla `/admin/cargue-documentos` organiza el filtro de convocatoria en el encabezado,
 una guia compacta del rol y la bandeja a todo el ancho disponible. Todos sus
 indicadores graficos (incluidos selector de creacion y validaciones) usan iconos
 SVG de Lucide, no emojis.
 
+- Al entrar se muestran **Todas las convocatorias**. Antes se elegia la primera
+  convocatoria del año mas reciente y quedaban fuera los borradores y revisiones
+  de convocatorias anteriores. La columna Convocatoria y la referencia de cada
+  documento permiten distinguirlos. El filtro superior limita la consulta
+  solo si se elige una convocatoria concreta, siempre bajo los mismos permisos.
 - Un unico resumen muestra documentos totales, en revision, aprobados y
-  borradores de la convocatoria, segun la lista autorizada del usuario.
+  borradores del alcance seleccionado, segun la lista autorizada del usuario.
   Pulsar una tarjeta filtra por estado; los contadores no dependen del filtro.
+- La cabecera indica cuantos documentos se muestran de los consultados. Si hay
+  filtros de tipo o estado, se muestra un aviso y el boton Limpiar filtros.
 - No se muestran estadisticas ficticias ni tarjetas que aparenten acciones sin
   ejecutarlas. Durante la consulta o ante un error los contadores muestran una
   raya, no un cero que pueda confundirse con un resultado.
 - Los filtros de tipo/estado, Actualizar y la paginacion se concentran en la
   bandeja. Actualizar conserva los filtros; cambiar convocatoria los reinicia.
+- La convocatoria de un documento nuevo se selecciona por separado y no cambia
+  el filtro de la bandeja. Contabilidad y Pagos siguen seleccionando una
+  convocatoria concreta para consultar sus archivos derivados.
 - Abrir conserva el flujo de edicion/revision y sus permisos. Solo Educacion
   ve Nuevo Documento. La tabla permite desplazamiento horizontal en movil sin
   desbordar la pagina.
@@ -81,7 +91,7 @@ Selecciona la convocatoria de origen, **Nuevo Documento**, el origen
 la **Convocatoria de los beneficiarios**. El selector permite elegir cualquiera
 de las convocatorias, independientemente del año del período; no se limita a
 la convocatoria que estaba seleccionada al abrir la bandeja. Al volver, la
-bandeja muestra la convocatoria elegida. El RP
+bandeja conserva su filtro anterior, independiente de la creacion. El RP
 conserva esa convocatoria y ventana. El editor presenta las actualizaciones
 aprobadas de beneficiarios activos y no eliminados; usa la convocatoria del
 beneficiario y, si falta, la convocatoria de su inscripción vinculada. Si hay

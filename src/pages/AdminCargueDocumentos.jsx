@@ -293,12 +293,21 @@ const AdminCargueDocumentos = () => {
                 <label className="flex items-center gap-2"><input type="radio" name="origen-rp" checked={origenRP === 'terceros'} onChange={() => setOrigenRP('terceros')} /> TERCEROS aprobados</label>
                 <label className="flex items-center gap-2"><input type="radio" name="origen-rp" checked={origenRP === 'actualizaciones'} onChange={() => setOrigenRP('actualizaciones')} /> Actualizaciones de beneficiarios</label>
               </div>
-              {origenRP === 'actualizaciones' && <label className="block max-w-xl text-xs font-bold text-slate-700">Período de actualización
+              {origenRP === 'actualizaciones' && <div className="grid gap-4 sm:grid-cols-2"><label className="block text-xs font-bold text-slate-700">Período de actualización
                 <select className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm" value={ventanaId} onChange={(e) => setVentanaId(e.target.value)}>
                   <option value="">Seleccionar período…</option>
                   {ventanas.map((ventana) => <option key={ventana.id} value={ventana.id}>{ventana.nombre} · {new Date(ventana.fecha_inicio).toLocaleDateString('es-CO')}–{new Date(ventana.fecha_fin).toLocaleDateString('es-CO')}</option>)}
                 </select>
-              </label>}
+              </label>
+                <label className="block text-xs font-bold text-slate-700">Convocatoria de los beneficiarios
+                  <select className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm disabled:bg-slate-100" value={convocatoriaId}
+                    disabled={!ventanaId || creando} onChange={(e) => { setConvocatoriaId(e.target.value); setErrorCreacion(null) }}>
+                    <option value="">Seleccionar convocatoria…</option>
+                    {convocatorias.map((convocatoria) => <option key={convocatoria.id} value={convocatoria.id}>{convocatoria.nombre}</option>)}
+                  </select>
+                </label>
+                <p className="text-xs leading-5 text-slate-600 sm:col-span-2">El período y la convocatoria son independientes: puedes seleccionar, por ejemplo, actualizaciones de 2026-2 para beneficiarios de una convocatoria anterior. Al volver, la bandeja mostrará la convocatoria elegida.</p>
+              </div>}
               <p className="text-xs leading-5 text-slate-600">Convocatoria: <strong>{convocatorias.find((c) => c.id === convocatoriaId)?.nombre || 'Sin seleccionar'}</strong>. Las actualizaciones aprobadas no requieren un nuevo cargue TERCEROS; Presupuesto deberá verificar los terceros en el sistema externo.</p>
             </fieldset>}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -331,7 +340,7 @@ const AdminCargueDocumentos = () => {
                 <button
                   key={tipo}
                   onClick={() => crearDocumento(tipo)}
-                  disabled={creando}
+                  disabled={creando || !convocatoriaId || (tipo === 'rp' && origenRP === 'actualizaciones' && !ventanaId)}
                   className="rounded-2xl border border-slate-200 bg-white p-6 text-left transition hover:border-emerald-700 hover:shadow-sm focus-visible:outline-emerald-700 disabled:opacity-50"
                 >
                   <span className="mb-4 inline-flex rounded-xl bg-emerald-50 p-3 text-emerald-800"><Icono size={26} aria-hidden="true" /></span>

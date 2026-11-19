@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
-const EliminarTercerosDialog = ({ documento, onCancelado, onEliminado }) => {
+const EliminarDocumentoCargueDialog = ({ documento, onCancelado, onEliminado }) => {
+  const tipo = documento.tipo_documento === 'rp' ? 'RP' : 'TERCEROS'
   const dialogo = useRef(null)
   const cancelar = useRef(null)
   const [confirmacion, setConfirmacion] = useState('')
@@ -20,7 +21,7 @@ const EliminarTercerosDialog = ({ documento, onCancelado, onEliminado }) => {
     setEliminando(true)
     setError(null)
     try {
-      const { data, error: errorEliminacion } = await supabase.rpc('eliminar_terceros_educacion', {
+      const { data, error: errorEliminacion } = await supabase.rpc(documento.tipo_documento === 'rp' ? 'eliminar_rp_educacion' : 'eliminar_terceros_educacion', {
         p_documento_id: documento.id, p_estado: documento.estado, p_editado_en: documento.editado_en
       })
       if (errorEliminacion) throw errorEliminacion
@@ -32,20 +33,21 @@ const EliminarTercerosDialog = ({ documento, onCancelado, onEliminado }) => {
     }
   }
   return (
-    <dialog ref={dialogo} aria-labelledby="eliminar-terceros-titulo" aria-describedby="eliminar-terceros-aviso"
+    <dialog ref={dialogo} aria-labelledby="eliminar-documento-titulo" aria-describedby="eliminar-documento-aviso"
       onCancel={(evento) => { evento.preventDefault(); if (!eliminando) onCancelado() }}
       className="fixed inset-0 m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white p-0 text-slate-800 shadow-xl backdrop:bg-slate-950/50">
       <form onSubmit={eliminar} className="space-y-5 p-6">
         <span className="inline-flex rounded-xl bg-rose-50 p-3 text-rose-700"><AlertTriangle size={24} aria-hidden="true" /></span>
         <div>
-          <h2 id="eliminar-terceros-titulo" className="text-xl font-bold">Eliminar documento TERCEROS</h2>
+          <h2 id="eliminar-documento-titulo" className="text-xl font-bold">Eliminar documento {tipo}</h2>
           <p className="mt-2 break-all text-xs text-slate-500">Documento: {documento.id}</p>
           <p className="mt-2 text-sm font-semibold">Estado: {documento.estado === 'borrador' ? 'Borrador' : 'En revisión'} · {documento.cantidad_registros ?? 0} registros</p>
         </div>
-        <p id="eliminar-terceros-aviso" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-900">
+        <p id="eliminar-documento-aviso" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-900">
           Esta acción es permanente. Se eliminarán el documento, sus filas, validaciones e historial de revisión y correcciones.
           {documento.estado === 'enviado_para_revision' && ' También dejará de estar disponible para Presupuesto.'}
           {' '}No se eliminarán aspirantes, beneficiarios ni sus perfiles originales.
+          {documento.tipo_documento === 'rp' && ' Tampoco se eliminarán las actualizaciones ni los TERCEROS de origen. No se permite borrar un RP aprobado o vinculado a etapas posteriores.'}
         </p>
         <label className="block space-y-2 text-sm font-semibold">
           <span>Escribe ELIMINAR para confirmar</span>
@@ -62,4 +64,4 @@ const EliminarTercerosDialog = ({ documento, onCancelado, onEliminado }) => {
   )
 }
 
-export default EliminarTercerosDialog
+export default EliminarDocumentoCargueDialog

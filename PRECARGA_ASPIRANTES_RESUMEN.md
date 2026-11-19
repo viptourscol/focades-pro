@@ -21,10 +21,10 @@ SVG de Lucide, no emojis.
   ve Nuevo Documento. La tabla permite desplazamiento horizontal en movil sin
   desbordar la pagina.
 
-### Eliminar documentos TERCEROS
+### Eliminar documentos TERCEROS y RP
 
-Educacion dispone del icono de papelera en la bandeja para TERCEROS en
-`borrador` o `enviado_para_revision`. No se ofrece para RP, rechazados,
+Educacion dispone del boton **Borrar**, con icono de papelera, en la bandeja
+para TERCEROS y RP en `borrador` o `enviado_para_revision`. No se ofrece para rechazados,
 aprobados ni finalizados; los demas roles no pueden eliminar.
 
 - La confirmacion muestra documento, estado y cantidad de filas. Exige escribir
@@ -36,6 +36,11 @@ aprobados ni finalizados; los demas roles no pueden eliminar.
   esta abierto, se rechaza el borrado y se debe actualizar/revisar otra vez.
 - El borrado es atomico mediante las relaciones `ON DELETE CASCADE`.
   La proteccion de documentos aprobados/finalizados se conserva.
+- Para RP, `eliminar_rp_educacion` valida administrador activo, rol, estado y
+  version; rechaza documentos con aprobacion registrada o con OP asociado,
+  incluso si el OP sigue en borrador. Borra las filas y sus asociaciones, no
+  los TERCEROS, actualizaciones ni perfiles de origen. La eliminacion exige
+  usar el RPC confirmado, no una peticion directa de borrado.
 - La bandeja vuelve a consultar sus documentos despues de confirmar el borrado,
   actualiza contadores y conserva los filtros.
 
@@ -43,6 +48,10 @@ Migracion: `supabase/migrations/20261113200000_eliminar_terceros_educacion.sql`.
 Prueba transaccional: `supabase db query --linked --file scripts/testing/test-eliminar-terceros.sql`.
 Esta migracion no elimina documentos existentes; el usuario debe confirmar
 cada documento individualmente desde la interfaz.
+La ampliacion para RP corresponde a
+`supabase/migrations/20261119160000_eliminar_rp_educacion.sql`; se prueba con
+`scripts/testing/test-rp-actualizaciones.sql` y `scripts/testing/test-eliminar-terceros.sql`
+dentro de una transaccion con reversion.
 
 ## OP: archivo de cargue desde un RP aprobado
 
@@ -68,7 +77,11 @@ de Presupuesto y el mismo proceso OP, contabilización y Pagos.
 ### RP desde actualizaciones semestrales
 
 Selecciona la convocatoria de origen, **Nuevo Documento**, el origen
-**Actualizaciones de beneficiarios** y el período de actualización. El RP
+**Actualizaciones de beneficiarios**, el período de actualización y, a su lado,
+la **Convocatoria de los beneficiarios**. El selector permite elegir cualquiera
+de las convocatorias, independientemente del año del período; no se limita a
+la convocatoria que estaba seleccionada al abrir la bandeja. Al volver, la
+bandeja muestra la convocatoria elegida. El RP
 conserva esa convocatoria y ventana. El editor presenta las actualizaciones
 aprobadas de beneficiarios activos y no eliminados; usa la convocatoria del
 beneficiario y, si falta, la convocatoria de su inscripción vinculada. Si hay

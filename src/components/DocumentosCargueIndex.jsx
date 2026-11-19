@@ -1,7 +1,7 @@
 import { createElement, useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { AlertCircle, ArrowRight, CheckCircle, ChevronLeft, ChevronRight, Clock, Download, FileCheck2, FileText, FolderOpen, Landmark, ListFilter, Plus, RefreshCw, Trash2, Users, Wallet } from 'lucide-react'
-import EliminarTercerosDialog from './EliminarTercerosDialog'
+import EliminarDocumentoCargueDialog from './EliminarDocumentoCargueDialog'
 
 const ESTADOS = {
   borrador: { label: 'Borrador', estilo: 'bg-slate-100 text-slate-600', punto: 'bg-slate-400' },
@@ -86,10 +86,10 @@ const DocumentosCargueIndex = ({ onSelectDocumento, userRole, convocatoriaId }) 
   }
   return (
     <section aria-label="Bandeja de documentos" className="min-w-0 space-y-6">
-      {documentoEliminar && <EliminarTercerosDialog documento={documentoEliminar} onCancelado={() => setDocumentoEliminar(null)}
+      {documentoEliminar && <EliminarDocumentoCargueDialog documento={documentoEliminar} onCancelado={() => setDocumentoEliminar(null)}
         onEliminado={() => {
           setDocumentoEliminar(null)
-          setExito('Documento TERCEROS eliminado correctamente. Los perfiles originales se conservaron.')
+          setExito(`Documento ${documentoEliminar.tipo_documento.toUpperCase()} eliminado correctamente. Los perfiles originales se conservaron.`)
           cargarDocumentos()
         }} />}
       {exito && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">{exito}</p>}
@@ -170,10 +170,10 @@ const DocumentosCargueIndex = ({ onSelectDocumento, userRole, convocatoriaId }) 
                         <button type="button" onClick={() => onSelectDocumento(doc.id, doc.tipo_documento)} title="Ver detalles" aria-label={`Abrir documento ${tipo.label} ${String(doc.id).slice(0, 8)}`}
                           className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-emerald-700 hover:text-emerald-800 focus-visible:outline-emerald-700">Abrir<ArrowRight size={14} aria-hidden="true" /></button>
                         {doc.archivo_url && <a href={doc.archivo_url} download title="Descargar archivo" aria-label={`Descargar archivo ${tipo.label} ${String(doc.id).slice(0, 8)}`} className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-xl border border-slate-200 text-emerald-800 hover:bg-emerald-50"><Download size={16} aria-hidden="true" /></a>}
-                        {userRole === 'admin_educacion' && doc.tipo_documento === 'terceros' && ['borrador','enviado_para_revision'].includes(doc.estado) && <button type="button"
-                          aria-label={`Eliminar documento TERCEROS ${String(doc.id).slice(0, 8)}`} title="Eliminar documento"
+                        {userRole === 'admin_educacion' && ['terceros', 'rp'].includes(doc.tipo_documento) && ['borrador','enviado_para_revision'].includes(doc.estado) && <button type="button"
+                          aria-label={`Eliminar documento ${tipo.label} ${String(doc.id).slice(0, 8)}`} title="Borrar documento"
                           onClick={() => { setExito(null); setDocumentoEliminar(doc) }}
-                          className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-xl border border-rose-200 text-rose-700 transition hover:bg-rose-50 focus-visible:outline-rose-700"><Trash2 size={16} aria-hidden="true" /></button>}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-rose-200 px-3 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 focus-visible:outline-rose-700"><Trash2 size={16} aria-hidden="true" />Borrar</button>}
                       </div></td>
                     </tr>
                   })}

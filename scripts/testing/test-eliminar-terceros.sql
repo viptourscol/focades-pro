@@ -96,6 +96,10 @@ BEGIN
   BEGIN PERFORM public.eliminar_terceros_educacion(v_rp,'borrador',(SELECT editado_en FROM public.portal_documentos_cargue WHERE id=v_rp));
   EXCEPTION WHEN raise_exception THEN v_error := TRUE; END;
   IF NOT v_error THEN RAISE EXCEPTION 'El endpoint de terceros elimino RP'; END IF;
+  v_r := public.eliminar_rp_educacion(v_rp,'borrador',(SELECT editado_en FROM public.portal_documentos_cargue WHERE id=v_rp));
+  IF v_r->>'success' <> 'true' OR EXISTS(SELECT 1 FROM public.portal_documentos_cargue WHERE id=v_rp) THEN
+    RAISE EXCEPTION 'El endpoint RP no eliminó el borrador con origen TERCEROS';
+  END IF;
   v_error := FALSE;
   BEGIN PERFORM public.eliminar_terceros_educacion(v_doc,'enviado_para_revision',v_revision);
   EXCEPTION WHEN raise_exception THEN v_error := TRUE; END;

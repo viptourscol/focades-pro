@@ -99,6 +99,11 @@ BEGIN
   v_error:=FALSE;
   BEGIN PERFORM public.crear_rp_actualizaciones(v_conv,v_ventana); EXCEPTION WHEN insufficient_privilege THEN v_error:=TRUE; END;
   IF NOT v_error THEN RAISE EXCEPTION 'Presupuesto pudo crear RP de actualizaciones'; END IF;
+  v_error:=FALSE;
+  BEGIN PERFORM public.eliminar_rp_educacion(v_otro,'borrador',
+    (public.leer_rp_cargue(v_otro)->>'editado_en')::TIMESTAMPTZ);
+    EXCEPTION WHEN insufficient_privilege THEN v_error:=TRUE; END;
+  IF NOT v_error THEN RAISE EXCEPTION 'Presupuesto pudo borrar RP'; END IF;
   IF jsonb_array_length(public.alertas_actualizaciones_rp(v_rp))<>1 THEN RAISE EXCEPTION 'Presupuesto no ve alerta'; END IF;
   v_r:=public.leer_rp_cargue(v_rp);
   SELECT jsonb_agg(f || jsonb_build_object('no_rp','2026.ALC.01.001249','no_cdp','2026.ALC.01.001100',
@@ -130,6 +135,66 @@ BEGIN
   IF public.leer_archivos_aprobados_pagos(v_conv,v_rp) IS DISTINCT FROM v_archivos
     OR jsonb_array_length(public.alertas_actualizaciones_rp(v_rp))<>2 THEN
     RAISE EXCEPTION 'Un cambio posterior alteró snapshots o no dejó alerta';
+  END IF;
+  RESET ROLE;
+  PERFORM set_config('request.jwt.claim.sub',v_edu::TEXT,TRUE);
+  SET LOCAL ROLE authenticated;
+  v_error:=FALSE;
+  BEGIN PERFORM public.eliminar_rp_educacion(v_rp,'borrador',(public.leer_rp_cargue(v_rp)->>'editado_en')::TIMESTAMPTZ);
+    EXCEPTION WHEN raise_exception THEN v_error:=TRUE; END;
+  IF NOT v_error THEN RAISE EXCEPTION 'Borró RP aprobado y vinculado a Pagos'; END IF;
+  v_r:=public.leer_rp_cargue(v_otro);
+  v_error:=FALSE;
+  BEGIN PERFORM public.eliminar_rp_educacion(v_otro,'borrador',(v_r->>'editado_en')::TIMESTAMPTZ-INTERVAL '1 second');
+    EXCEPTION WHEN raise_exception THEN v_error:=SQLERRM LIKE '%cambió%'; END;
+  IF NOT v_error THEN RAISE EXCEPTION 'Borró RP con versión desactualizada'; END IF;
+  v_error:=FALSE;
+  BEGIN PERFORM public.eliminar_rp_educacion(v_otro,'enviado_para_revision',(v_r->>'editado_en')::TIMESTAMPTZ);
+    EXCEPTION WHEN raise_exception THEN v_error:=SQLERRM LIKE '%cambió%'; END;
+  IF NOT v_error THEN RAISE EXCEPTION 'Borró RP con estado desactualizado'; END IF;
+  RESET ROLE;
+  INSERT INTO public.portal_archivos_op(rp_id,datos,editado_por) VALUES(v_otro,'{}'::JSONB,v_edu);
+  SET LOCAL ROLE authenticated;
+  v_error:=FALSE;
+  BEGIN PERFORM public.eliminar_rp_educacion(v_otro,'borrador',(v_r->>'editado_en')::TIMESTAMPTZ);
+    EXCEPTION WHEN raise_exception THEN v_error:=SQLERRM LIKE '%vinculado%'; END;
+  IF NOT v_error THEN RAISE EXCEPTION 'Borró RP vinculado a OP'; END IF;
+  RESET ROLE;
+  DELETE FROM public.portal_archivos_op WHERE rp_id=v_otro;
+  SET LOCAL ROLE authenticated;
+  PERFORM public.eliminar_rp_educacion(v_otro,'borrador',(v_r->>'editado_en')::TIMESTAMPTZ);
+  IF EXISTS(SELECT 1 FROM public.portal_documentos_cargue WHERE id=v_otro)
+    OR EXISTS(SELECT 1 FROM public.portal_valores_cargue WHERE documento_id=v_otro)
+    OR EXISTS(SELECT 1 FROM public.portal_transiciones_documento WHERE documento_id=v_otro) THEN
+    RAISE EXCEPTION 'Borrado de RP en borrador incompleto';
+  END IF;
+  RESET ROLE;
+  IF EXISTS(SELECT 1 FROM public.portal_rp_actualizaciones WHERE rp_id=v_otro) THEN
+    RAISE EXCEPTION 'Borrado no retiró vínculos de actualizaciones';
+  END IF;
+  SET LOCAL ROLE authenticated;
+  v_otro:=public.crear_rp_actualizaciones(v_conv,v_ventana);
+  v_lista:=public.listar_actualizaciones_rp(v_otro);
+  v_r:=public.incorporar_actualizaciones_rp(v_otro,(public.leer_rp_cargue(v_otro)->>'editado_en')::TIMESTAMPTZ,
+    jsonb_build_array(jsonb_build_object('id',v_a1,'anteriores',
+      (SELECT f->'anteriores' FROM jsonb_array_elements(v_lista) f WHERE (f->>'id')::BIGINT=v_a1),'confirmado',TRUE)),'100','200');
+  v_r:=public.guardar_rp_cargue(v_otro,NULL,
+    (SELECT jsonb_agg(f||'{"valor_confirmado":true}'::JSONB) FROM jsonb_array_elements(v_r->'filas') f),
+    (v_r->>'editado_en')::TIMESTAMPTZ);
+  PERFORM public.transicionar_documento_presupuesto(v_otro,'enviar','Prueba borrado en revisión');
+  PERFORM public.eliminar_rp_educacion(v_otro,'enviado_para_revision',
+    (public.leer_rp_cargue(v_otro)->>'editado_en')::TIMESTAMPTZ);
+  IF EXISTS(SELECT 1 FROM public.portal_documentos_cargue WHERE id=v_otro) THEN
+    RAISE EXCEPTION 'No borró RP en revisión';
+  END IF;
+  RESET ROLE;
+  IF NOT EXISTS(SELECT 1 FROM public.portal_actualizaciones WHERE id=v_a1 AND estado='aprobada')
+    OR NOT EXISTS(SELECT 1 FROM public.portal_beneficiarios WHERE id=v_b1)
+    OR EXISTS(SELECT 1 FROM public.portal_rp_actualizaciones WHERE rp_id=v_otro) THEN
+    RAISE EXCEPTION 'Borrado no conservó fuentes o no limpió asociaciones';
+  END IF;
+  IF has_function_privilege('anon','public.eliminar_rp_educacion(uuid,text,timestamptz)','EXECUTE') THEN
+    RAISE EXCEPTION 'Anon puede eliminar RP';
   END IF;
 END;
 $$;

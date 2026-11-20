@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { descargarExcelOP } from '../lib/exportarOP'
 import { descargarExcelContabilizacionObligaciones } from '../lib/exportarContabilizacionObligaciones'
 import { AlertasActualizacionesRP } from './ActualizacionesRP'
+import { ConfirmacionEgresos } from './TrazabilidadPagos'
 
 const boton = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50'
 
@@ -116,6 +117,7 @@ export default function ArchivosAprobadosPagos({ convocatoriaId }) {
             })}</tbody>
           </table>
         </div>
+        <ConfirmacionEgresos key={seleccion.rpId} convocatoriaId={convocatoriaId} rpId={seleccion.rpId} />
       </div>}
     </section>
   )

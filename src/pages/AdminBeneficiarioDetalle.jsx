@@ -7,6 +7,7 @@ import { getSafeSession, supabase } from '../lib/supabase';
 import { getPublicUrlR2 } from '../lib/r2-secure';
 import DocViewerModal from '../components/DocViewerModal';
 import BitacoraTimeline from '../components/BitacoraTimeline';
+import { SoportesPago } from '../components/TrazabilidadPagos';
 
 const PAYMENT_RIGHTS_RPC_SESSION_KEY = 'focades-payment-rights-rpc-unavailable';
 const ADMIN_PAYMENT_RIGHTS_RPC = 'admin_beneficiario_payment_rights';
@@ -164,6 +165,8 @@ const AdminBeneficiarioDetalle = () => {
   const [documentsByUpdate, setDocumentsByUpdate] = useState({});
   const [stateHistory, setStateHistory] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [paymentTrace, setPaymentTrace] = useState([]);
+  const [paymentTraceError, setPaymentTraceError] = useState('');
   const [paymentRights, setPaymentRights] = useState(null);
   const [paymentRightsNotice, setPaymentRightsNotice] = useState('');
   const [tickets, setTickets] = useState([]);
@@ -298,15 +301,26 @@ const AdminBeneficiarioDetalle = () => {
   const loadPagosData = async () => {
     setTabLoading('pagos', true);
     try {
-      const { data } = await supabase
+      const { data, error: paymentError } = await supabase
         .from('portal_beneficiario_pagos')
         .select('*')
         .eq('beneficiario_id', beneficiarioId)
         .order('created_at', { ascending: false });
+      if (paymentError) throw paymentError;
       const paymentRows = Array.isArray(data) ? data : [];
       setPayments(paymentRows);
+      const { data: trazabilidad, error: traceError } = await supabase.rpc('trazabilidad_beneficiario', {
+        p_beneficiario_id: beneficiarioId,
+      });
+      if (traceError) throw traceError;
+      if (!Array.isArray(trazabilidad)) throw new Error('No se recibió una trazabilidad válida.');
+      setPaymentTrace(trazabilidad);
+      setPaymentTraceError('');
       await loadPaymentRights(beneficiarioId, beneficiario, paymentRows);
       markTabLoaded('pagos');
+    } catch (error) {
+      setPaymentTrace([]);
+      setPaymentTraceError(error.message || 'No se pudo consultar la información de pagos.');
     } finally {
       setTabLoading('pagos', false);
     }
@@ -1628,6 +1642,7 @@ const AdminBeneficiarioDetalle = () => {
           </button>
 
           <div className="space-y-2 pt-2">
+            {paymentTraceError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{paymentTraceError}</p>}
             {stateHistory.length === 0 ? (
               <p className="text-sm text-slate-500">Aún no hay cambios de estado registrados.</p>
             ) : (
@@ -2696,15 +2711,16 @@ const AdminBeneficiarioDetalle = () => {
                     <p className="font-semibold text-slate-800">{item.concepto}</p>
                     <p className="text-sm text-slate-600 mt-1">{formatMoney(item.monto)} · {item.periodo || 'Sin periodo'} · Ref. {item.referencia || 'N/D'}</p>
                     <p className="text-xs text-slate-500 mt-1">Programado: {formatDate(item.fecha_programada)} · Efectivo: {formatDate(item.fecha_efectiva)}</p>
+                    {!paymentTraceError && <SoportesPago soporte={paymentTrace.find((trace) => trace.pago_id === item.id)} />}
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${estadoClassName(item.estado)}`}>
                       {item.estado}
                     </span>
-                    <button type="button" onClick={() => editPayment(item)} className="px-3 py-2 rounded-xl border border-slate-200 text-sm font-bold text-secondary hover:bg-slate-50">
+                    <button type="button" onClick={() => editPayment(item)} disabled={!!paymentTraceError || paymentTrace.some((trace) => trace.pago_id === item.id)} className="px-3 py-2 rounded-xl border border-slate-200 text-sm font-bold text-secondary hover:bg-slate-50 disabled:opacity-50" title="Los pagos con trazabilidad requieren corrección controlada">
                       Editar
                     </button>
-                    <button type="button" onClick={() => deletePayment(item.id)} className="px-3 py-2 rounded-xl border border-red-200 text-sm font-bold text-red-600 hover:bg-red-50">
+                    <button type="button" onClick={() => deletePayment(item.id)} disabled={!!paymentTraceError || paymentTrace.some((trace) => trace.pago_id === item.id)} className="px-3 py-2 rounded-xl border border-red-200 text-sm font-bold text-red-600 hover:bg-red-50 disabled:opacity-50" title="Los pagos con trazabilidad requieren corrección controlada">
                       Eliminar
                     </button>
                   </div>

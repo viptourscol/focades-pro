@@ -1,5 +1,26 @@
 # ESTRATEGIA COMPLETA DE MIGRACIÓN DE BENEFICIARIOS
 
+## Piloto de pagos históricos con ficha existente
+
+El [piloto SQL](../../../supabase/migrations/20261120143000_piloto_pagos_historicos.sql) admite hasta 10 pagos conciliados por lote. No crea ni edita fichas existentes. La excepción de elegibilidad se aplica solo al insertar pagos identificados por el registro privado de importación; los pagos ordinarios conservan sus validaciones. Cada pago histórico genera una condonación pendiente sin promedio ni actualización académica asociada. El ajuste de cupo se registra por beneficiario y lote, solo si hace falta para cubrir sus pagos efectuados.
+
+- Antes de desplegar o cargar, verificar un respaldo recuperable del proyecto y probar la carga en un entorno aislado. No usar `db push` sin revisar el conjunto de migraciones pendientes.
+- Aprobar las filas exactas y su monto total. El piloto solo admite fichas previamente identificadas y pagos con fecha y número de egreso validados. Conservar la huella SHA-256 del archivo, los números de fila y los soportes del lote, sin versionar datos personales.
+- Aplicar desde una conexión administrativa autorizada en una sola transacción. El UUID del lote y el manifiesto deben mantenerse sin cambios al reintentar. Una coincidencia financiera dudosa, una ficha ambigua o un error revierten el lote.
+- Verificar pagos y monto, un pendiente sin promedio por pago, los ajustes de cupo por lote y que repetir la operación con el mismo manifiesto no inserte registros. La creación de fichas nuevas y la carga masiva quedan fuera del piloto.
+
+La [prueba de integración](../../../scripts/testing/test-piloto-pagos-historicos.cjs) utiliza PostgreSQL aislado mediante PGlite. Ejecutarla con `PGLITE_PATH=/ruta/a/@electric-sql/pglite node --no-opt scripts/testing/test-piloto-pagos-historicos.cjs`; no lee credenciales ni se conecta a producción.
+
+## Trazabilidad de RP, OP y egreso
+
+La migración `20261120170000_trazabilidad_pagos.sql` habilita la consulta de soportes por pago en la ficha administrativa y, para los roles activos de Presupuesto, Contabilidad y Pagos, por documento en Hacienda. Los soportes históricos conservan su origen y números originales; no se crean RP, OP ni egresos ficticios.
+
+Pagos puede confirmar un egreso real desde una contabilización aprobada. El sistema toma RP, OP y valor bruto de los archivos aprobados, y el período de la ventana académica vinculada o, si no existe, del dato proporcionado por Pagos. Si ya hay pagos en ese período, exige seleccionar uno compatible o conciliar la diferencia. Solo se crea un pago nuevo cuando no hay coincidencias; se mantienen las reglas ordinarias de elegibilidad.
+
+Los egresos futuros deben tener números globalmente únicos. Los números históricos compartidos se conservan sin cambios, pero impiden reutilizar ese número para un egreso futuro. Los pagos con trazabilidad no admiten edición de identidad, período, importe, fecha efectiva o estado, ni eliminación; una corrección requiere un procedimiento controlado que todavía no está implementado. Los soportes sin información se muestran como tales, sin inventar datos.
+
+Aplicar esta migración únicamente después del piloto histórico, con respaldo actualizado y pruebas del flujo aprobado en un entorno aislado. No reanudar la carga histórica hasta verificar el despliegue y recalcular la conciliación.
+
 ## 📊 FASE 1: PREPARACIÓN (1-2 días antes del lanzamiento)
 
 ### Step 1: Ejecutar migraciones de BD

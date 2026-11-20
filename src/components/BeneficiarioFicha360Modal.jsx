@@ -5,6 +5,7 @@ import { formatDateTime, formatMoney } from '../lib/formatters';
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from '../lib/alerts';
 import BitacoraTimeline from './BitacoraTimeline';
 import DocViewerModal from './DocViewerModal';
+import { SoportesPago } from './TrazabilidadPagos';
 
 const DETAIL_TABS = ['perfil', 'onboarding', 'actualizaciones', 'expediente', 'pagos', 'tickets', 'bitacora'];
 
@@ -40,6 +41,8 @@ export default function BeneficiarioFicha360Modal({ beneficiarioId }) {
   const [beneficiario, setBeneficiario] = useState(null);
   const [updates, setUpdates] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [paymentTrace, setPaymentTrace] = useState([]);
+  const [paymentError, setPaymentError] = useState('');
   const [tickets, setTickets] = useState([]);
   const [bitacoraRows, setBitacoraRows] = useState([]);
   const [expedienteDocs, setExpedienteDocs] = useState([]);
@@ -131,17 +134,26 @@ export default function BeneficiarioFicha360Modal({ beneficiarioId }) {
     if (loadedTabs.pagos) return;
     setTabLoading('pagos', true);
     try {
-      const { data } = await supabase
+      const { data, error: paymentQueryError } = await supabase
         .from('portal_beneficiario_pagos')
         .select('*')
         .eq('beneficiario_id', beneficiarioId)
         .order('created_at', { ascending: false });
 
+      if (paymentQueryError) throw paymentQueryError;
       setPayments(data || []);
+      const { data: trazabilidad, error: traceError } = await supabase.rpc('trazabilidad_beneficiario', {
+        p_beneficiario_id: beneficiarioId,
+      });
+      if (traceError) throw traceError;
+      if (!Array.isArray(trazabilidad)) throw new Error('No se recibió una trazabilidad válida.');
+      setPaymentTrace(trazabilidad);
+      setPaymentError('');
       markTabLoaded('pagos');
     } catch (error) {
       console.error('Error cargando pagos:', error);
-      setPayments([]);
+      setPaymentTrace([]);
+      setPaymentError(error.message || 'No se pudieron consultar los pagos.');
     } finally {
       setTabLoading('pagos', false);
     }
@@ -602,9 +614,10 @@ export default function BeneficiarioFicha360Modal({ beneficiarioId }) {
         {activeTab === 'pagos' && (
           <section className="border border-slate-200 rounded-2xl p-4 space-y-3">
             <h3 className="font-bold text-slate-800">Pagos ({payments.length})</h3>
-            {payments.length === 0 ? (
+            {paymentError && <p role="alert" className="text-sm text-red-700">{paymentError}</p>}
+            {!paymentError && payments.length === 0 ? (
               <p className="text-sm text-slate-500">No hay pagos registrados.</p>
-            ) : (
+            ) : payments.length > 0 && (
               <div className="space-y-2">
                 {payments.map((payment) => (
                   <div key={payment.id} className="border border-slate-100 rounded-lg p-3 bg-slate-50">
@@ -615,6 +628,7 @@ export default function BeneficiarioFicha360Modal({ beneficiarioId }) {
                       </div>
                       <span className="text-xs font-bold text-emerald-700">{formatMoney(payment.monto)}</span>
                     </div>
+                    {!paymentError && <SoportesPago soporte={paymentTrace.find((trace) => trace.pago_id === payment.id)} />}
                   </div>
                 ))}
               </div>

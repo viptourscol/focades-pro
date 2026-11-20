@@ -7,6 +7,7 @@ import ValidacionesDisplay from '../components/ValidacionesDisplay'
 import DashboardPorRol from '../components/DashboardPorRol'
 import CargueOPDesdeRP from '../components/CargueOPDesdeRP'
 import ArchivosAprobadosPagos from '../components/ArchivosAprobadosPagos'
+import { ConsultaTrazabilidadPagos } from '../components/TrazabilidadPagos'
 import { ArrowLeft, FileText, AlertCircle, CalendarDays, ClipboardList, FolderOpen, HelpCircle, Landmark, Users, Wallet } from 'lucide-react'
 
 const ROLES_VALIDOS = [
@@ -225,6 +226,7 @@ const AdminCargueDocumentos = () => {
           <DashboardPorRol userRole={userRole} />
           {convocatoriaId && userRole === 'admin_contabilidad' && <CargueOPDesdeRP key={convocatoriaId} convocatoriaId={convocatoriaId} />}
           {convocatoriaId && userRole === 'admin_pagos' && <ArchivosAprobadosPagos key={convocatoriaId} convocatoriaId={convocatoriaId} />}
+          {['admin_presupuesto', 'admin_contabilidad', 'admin_pagos'].includes(userRole) && <ConsultaTrazabilidadPagos />}
           {!convocatoriaId && ['admin_contabilidad', 'admin_pagos'].includes(userRole) && <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">La bandeja muestra todas las convocatorias. Selecciona una convocatoria en el filtro superior para consultar los RP aprobados y sus archivos de Contabilidad o Pagos.</p>}
           <DocumentosCargueIndex
               key={convocatoriaId || 'todas'}

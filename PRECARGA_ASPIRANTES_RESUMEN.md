@@ -114,6 +114,10 @@ actualización, se registra el RP en la bitácora y se muestra una alerta a
 Educación, Presupuesto, Contabilidad y Pagos; no se bloquea el proceso ni se
 modifican los archivos aprobados. No crear TERCEROS no certifica que exista en
 el sistema externo: Presupuesto debe verificar el tercero y los códigos.
+Si falta esa verificación, el editor de RP permite ir al primer tercero
+pendiente. Después de verificarlo, marca su casilla y guarda los cambios. Al
+confirmar la aprobación se revisa el RP guardado y se explica cualquier
+pendiente en el diálogo antes de solicitar el cambio de estado.
 
 Migración: `supabase/migrations/20261119110000_rp_actualizaciones_semestrales.sql`.
 La regresión `scripts/testing/test-rp-actualizaciones.sql` debe ejecutarse

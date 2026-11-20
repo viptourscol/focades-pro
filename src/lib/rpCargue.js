@@ -165,6 +165,17 @@ export const validacionesDocumentoRP = (filas, etapa = 'completo') => {
   return errores
 }
 
+export const validarAprobacionRPGuardado = (documento) => {
+  if (!Array.isArray(documento?.filas)) throw new Error('No se pudo consultar el RP guardado. Intenta de nuevo.')
+  if (documento.estado !== 'enviado_para_revision') throw new Error('El RP ya no está en revisión. Recarga el documento para consultar su estado.')
+  const [pendiente] = validacionesDocumentoRP(documento.filas)
+  if (!pendiente) return
+
+  const fila = documento.filas[pendiente.fila_numero - 2]
+  const referencia = fila ? ` (${fila.nombre || 'Tercero'} · ${fila.tercero_presupuestal})` : ''
+  throw new Error(`No se puede aprobar el RP${referencia}: ${pendiente.mensaje_error} Vuelve al editor, completa los pendientes y guarda los cambios antes de aprobar.`)
+}
+
 export const vistaPreviaNumeracionRP = (filas, ids, campo, modo, inicio) => {
   if (!['no_rp', 'no_cdp'].includes(campo) || !['comun', 'consecutivo'].includes(modo)) throw new Error('Configuración de numeración inválida.')
   if (typeof inicio !== 'string' || inicio.length > 30 || !FORMATO_NUMERO_RP.test(inicio)) {

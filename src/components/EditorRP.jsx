@@ -245,6 +245,7 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
   const erroresGenerales = validarDatosGeneralesRP(datosGenerales, { requerido: true })
   const etapa = documento.estado === 'borrador' ? 'educacion' : 'completo'
   const pendientes = validacionesDocumentoRP(filas, etapa).length
+  const sinVerificar = presupuesto ? filas.filter((f) => f.tercero_confirmado !== true) : []
   return <section className="min-w-0 space-y-5">
     <header className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-5">
       <div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-emerald-800">Educación / Presupuesto</p><h2 className="mt-1 text-xl font-bold text-slate-900">Registro presupuestal</h2>
@@ -340,7 +341,21 @@ export default function EditorRP({ documentoId, userRole, onCambiosPendientes, o
         <div className="flex gap-2"><button className={boton} disabled={ocupado} onClick={aplicarNumeracion}><Check size={16} />Confirmar aplicación</button><button className={boton} disabled={ocupado} onClick={() => setPrevia(null)}>Cancelar</button></div>
       </div>}
     </fieldset>}
-    <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Filtrar personas del documento</span><input className={control} value={filtro} onChange={(e) => { setFiltro(e.target.value); setPagina(0) }} placeholder="Nombre o identificación" /></label>
+    {sinVerificar.length > 0 && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+      <div>
+        <p className="font-semibold">Verificación externa pendiente: {sinVerificar.length}</p>
+        <p className="mt-1 text-xs leading-5">Verifica el tercero, la entidad, el rubro y la fuente en el sistema externo. Marca la casilla de la persona y guarda los cambios antes de aprobar.</p>
+      </div>
+      <button type="button" className={boton} disabled={ocupado} onClick={() => {
+        const [primero] = sinVerificar
+        setActivo(claveFila(primero))
+        setFiltro(primero.tercero_presupuestal)
+        setPagina(0)
+        setTabla(false)
+        window.document.getElementById('rp-filtro-personas')?.focus()
+      }}>Ir al primer tercero pendiente</button>
+    </div>}
+    <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Filtrar personas del documento</span><input id="rp-filtro-personas" className={control} value={filtro} onChange={(e) => { setFiltro(e.target.value); setPagina(0) }} placeholder="Nombre o identificación" /></label>
     {tabla ? <div className="max-h-[650px] overflow-auto rounded-xl border border-slate-200">
       <table className="w-full whitespace-nowrap text-left text-xs"><thead className="sticky top-0 bg-slate-100"><tr>{CAMPOS_RP.map((c) => <th key={c.name} className="p-3">{c.label}</th>)}</tr></thead><tbody>{mostrar.map((f) => <tr key={claveFila(f)} className="border-t border-slate-100">{CAMPOS_RP.map((c) => <td key={c.name} className="max-w-80 whitespace-normal break-words p-3">{f[c.name] || '—'}</td>)}</tr>)}</tbody></table>
     </div> : <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(230px,1fr)_minmax(0,2fr)]">

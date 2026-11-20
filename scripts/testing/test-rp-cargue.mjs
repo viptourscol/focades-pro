@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import ExcelJS from 'exceljs'
-import { CAMPOS_RP, contratoRP, descripcionAutomaticaRP, fechaFilaDesdeISO, fechaISODesdeFilaRP, formatearNumeroRP, modalidadesRP, nuevaFilaRP, validarDatosGeneralesRP, validarFilaRP, validacionesDocumentoRP, vistaPreviaNumeracionRP, fechaValidaRP, centavosRP } from '../../src/lib/rpCargue.js'
+import { CAMPOS_RP, contratoRP, descripcionAutomaticaRP, fechaFilaDesdeISO, fechaISODesdeFilaRP, formatearNumeroRP, modalidadesRP, nuevaFilaRP, validarAprobacionRPGuardado, validarDatosGeneralesRP, validarFilaRP, validacionesDocumentoRP, vistaPreviaNumeracionRP, fechaValidaRP, centavosRP } from '../../src/lib/rpCargue.js'
 import { crearExcelRP, descargarExcelRP } from '../../src/lib/exportarRP.js'
 import { crearExcelOP, numeroOP } from '../../src/lib/exportarOP.js'
 import { COLUMNAS_CONTABILIZACION, crearExcelContabilizacionObligaciones } from '../../src/lib/exportarContabilizacionObligaciones.js'
@@ -64,6 +64,15 @@ test('RP tiene exactamente las 16 columnas en el orden solicitado', () => {
   assert.deepEqual(CAMPOS_RP.map((c) => c.label), ['No. RP', 'SubConsecutivo', 'Descripción', 'Fecha', 'No. CDP', 'SubConsecutivo CDP',
     'Tercero Presupuestal', 'Origen Legal Apropiación', 'Proyecto', 'Entidad', 'Rubro Presupuestal', 'Fuente de Financiación', 'Valor', 'Liquidación', 'Contrato', 'Firma Mecánica'])
   assert.deepEqual(validarFilaRP(completa()), {})
+})
+
+test('Antes de aprobar RP identifica al tercero sin verificación guardada y permite continuar tras confirmarla', () => {
+  const pendiente = { ...completa(), id: 'fila-2', nombre: 'Segunda persona', tercero_presupuestal: '000123457', tercero_confirmado: false }
+  const rp = { estado: 'enviado_para_revision', filas: [completa(), pendiente] }
+  assert.throws(() => validarAprobacionRPGuardado(rp), /Segunda persona · 000123457.*Presupuesto debe confirmar.*guarda los cambios/)
+  assert.doesNotThrow(() => validarAprobacionRPGuardado({ ...rp, filas: [completa(), { ...pendiente, tercero_confirmado: true }] }))
+  assert.throws(() => validarAprobacionRPGuardado({ ...rp, estado: 'aprobado' }), /ya no está en revisión/)
+  assert.throws(() => validarAprobacionRPGuardado(null), /No se pudo consultar el RP guardado/)
 })
 
 test('Educación confirma importes, no requiere campos pendientes de Presupuesto para enviar', () => {

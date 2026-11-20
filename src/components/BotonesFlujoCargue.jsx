@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { CheckCircle, XCircle, Send, AlertCircle } from 'lucide-react'
+import { validarAprobacionRPGuardado } from '../lib/rpCargue'
 
 const BotonesFlujoCargue = ({ documentoId, estado, tipoDocumento, userRole, onAccionCompletada }) => {
   const [cargando, setCargando] = useState(false)
@@ -52,6 +53,11 @@ const BotonesFlujoCargue = ({ documentoId, estado, tipoDocumento, userRole, onAc
       let endpoint = ''
 
       if (flujoPresupuesto) {
+        if (tipoDocumento === 'rp' && accion === 'aprobar') {
+          const { data: rp, error: falloLectura } = await supabase.rpc('leer_rp_cargue', { p_documento_id: documentoId })
+          if (falloLectura) throw falloLectura
+          validarAprobacionRPGuardado(rp)
+        }
         const acciones = { 'enviar-revision': 'enviar', aprobar: 'aprobar', rechazar: 'rechazar', reabrir: 'reabrir' }
         resultado = await supabase.rpc('transicionar_documento_presupuesto', {
           p_documento_id: documentoId, p_accion: acciones[accion], p_comentario: comentario
@@ -130,8 +136,8 @@ const BotonesFlujoCargue = ({ documentoId, estado, tipoDocumento, userRole, onAc
   return (
     <div className="w-full space-y-4">
       {/* Alertas */}
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
+      {error && !mostrarDialogo && (
+        <div role="alert" className="p-4 bg-red-50 border border-red-200 rounded-lg flex gap-3">
           <AlertCircle size={20} className="text-red-600 flex-shrink-0" />
           <div className="flex-1">
             <p className="text-sm font-medium text-red-800">{error}</p>
@@ -215,6 +221,8 @@ const BotonesFlujoCargue = ({ documentoId, estado, tipoDocumento, userRole, onAc
               </p>
             </div>
 
+            {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+
             {/* Campo de comentario */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -235,7 +243,9 @@ const BotonesFlujoCargue = ({ documentoId, estado, tipoDocumento, userRole, onAc
                 onClick={() => {
                   setMostrarDialogo(null)
                   setComentario('')
+                  setError(null)
                 }}
+                disabled={cargando}
                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium text-sm"
               >
                 Cancelar
